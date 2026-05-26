@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default function SignupPage() {
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
@@ -24,18 +26,8 @@ export default function SignupPage() {
 
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
-        <a href="/" className="flex items-center justify-center gap-3 mb-10">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr 1fr", gap: "2px", width: "28px", height: "34px" }}>
-            <div style={{ background: "#8892A4", borderRadius: "2px" }} />
-            <div style={{ background: "#5B21E8", borderRadius: "2px" }} />
-            <div style={{ background: "#5A6478", borderRadius: "2px" }} />
-            <div style={{ background: "#A0AABC", borderRadius: "2px" }} />
-            <div style={{ background: "#3D4455", borderRadius: "2px" }} />
-            <div style={{ background: "#C0CADC", borderRadius: "2px" }} />
-          </div>
-          <span className="text-xl font-bold tracking-widest" style={{ color: "#F0F0F8" }}>
-            STAFF<span style={{ border: "2px solid #5B21E8", padding: "0 3px", borderRadius: "3px" }}>D</span>
-          </span>
+        <a href="/" className="flex items-center justify-center mb-10">
+          <Image src="/logo-dark.png" alt="STAFFD" width={120} height={54} style={{ objectFit: "contain" }} />
         </a>
 
         {/* Card */}

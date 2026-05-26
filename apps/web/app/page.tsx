@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 export default function Home() {
   return (
     <main
@@ -16,7 +18,7 @@ export default function Home() {
         }}
       />
 
-      {/* Purple glow — large, centered */}
+      {/* Purple glow */}
       <div
         className="fixed pointer-events-none"
         style={{
@@ -32,38 +34,16 @@ export default function Home() {
 
       <div className="relative z-10 flex flex-col items-center text-center max-w-3xl w-full">
 
-        {/* Logo mark — 6-block grid matching brand */}
-        <div className="flex items-center gap-4 mb-12">
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gridTemplateRows: "1fr 1fr 1fr",
-              gap: "3px",
-              width: "44px",
-              height: "52px",
-            }}
-          >
-            <div style={{ background: "#8892A4", borderRadius: "3px" }} />
-            <div style={{ background: "#5B21E8", borderRadius: "3px" }} />
-            <div style={{ background: "#5A6478", borderRadius: "3px" }} />
-            <div style={{ background: "#A0AABC", borderRadius: "3px" }} />
-            <div style={{ background: "#3D4455", borderRadius: "3px" }} />
-            <div style={{ background: "#C0CADC", borderRadius: "3px" }} />
-          </div>
-          <span
-            className="font-bold tracking-widest"
-            style={{ fontSize: "28px", color: "#F0F0F8", letterSpacing: "0.15em" }}
-          >
-            STAFF<span
-              style={{
-                border: "2.5px solid #5B21E8",
-                color: "#F0F0F8",
-                padding: "1px 5px",
-                borderRadius: "4px",
-              }}
-            >D</span>
-          </span>
+        {/* Logo */}
+        <div className="mb-12">
+          <Image
+            src="/logo-dark.png"
+            alt="STAFFD"
+            width={180}
+            height={80}
+            priority
+            style={{ objectFit: "contain" }}
+          />
         </div>
 
         {/* Hero */}
@@ -120,7 +100,7 @@ export default function Home() {
           No credit card required · Cancel anytime · Your data stays yours
         </p>
 
-        {/* Trust badges */}
+        {/* Department row */}
         <div
           className="flex items-center gap-6 mt-16 pt-8"
           style={{ borderTop: "1px solid #1A1A28" }}
