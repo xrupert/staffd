@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  /* STAFFD Brand — LSU Purple */
+  --color-staffd-purple: #5B21E8;
+  --color-staffd-purple-light: #7C4FF0;
+  --color-staffd-purple-dark: #3D0FBF;
+  --color-staffd-purple-glow: rgba(91, 33, 232, 0.25);
+
+  /* Surfaces */
+  --color-surface-base: #0A0A0F;
+  --color-surface-raised: #111118;
+  --color-surface-overlay: #1A1A24;
+  --color-surface-border: #2A2A38;
+
+  /* Text */
+  --color-text-primary: #F0F0F8;
+  --color-text-secondary: #9090A8;
+  --color-text-muted: #5A5A70;
+
+  /* Status */
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #0A0A0F;
+  color: #F0F0F8;
+  font-family: "Geist", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #111118; }
+::-webkit-scrollbar-thumb { background: #2A2A38; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #5B21E8; }
