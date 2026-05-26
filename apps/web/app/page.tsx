@@ -105,7 +105,7 @@ export default function Home() {
             className="btn-primary flex-1 py-4 rounded-xl font-semibold text-white text-center"
             style={{ fontSize: "16px" }}
           >
-            Get STAFFD free
+            Get STAFFD
           </a>
           <a
             href="/auth/login"
