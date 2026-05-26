@@ -25,11 +25,13 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <a href="/" className="flex items-center justify-center gap-3 mb-10">
-          <div className="grid grid-cols-2 gap-0.5 w-7 h-7">
-            <div style={{ background: "#6B7280", borderRadius: "2px" }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gridTemplateRows: "1fr 1fr 1fr", gap: "2px", width: "28px", height: "34px" }}>
+            <div style={{ background: "#8892A4", borderRadius: "2px" }} />
             <div style={{ background: "#5B21E8", borderRadius: "2px" }} />
-            <div style={{ background: "#374151", borderRadius: "2px" }} />
-            <div style={{ background: "#9CA3AF", borderRadius: "2px" }} />
+            <div style={{ background: "#5A6478", borderRadius: "2px" }} />
+            <div style={{ background: "#A0AABC", borderRadius: "2px" }} />
+            <div style={{ background: "#3D4455", borderRadius: "2px" }} />
+            <div style={{ background: "#C0CADC", borderRadius: "2px" }} />
           </div>
           <span className="text-xl font-bold tracking-widest" style={{ color: "#F0F0F8" }}>
             STAFF<span style={{ border: "2px solid #5B21E8", padding: "0 3px", borderRadius: "3px" }}>D</span>
