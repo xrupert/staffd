@@ -207,11 +207,12 @@ ${magicWand ? `What they most want off their plate: ${magicWand}` : ""}
 
 export async function POST(req: Request) {
   try {
-    const { task, department, userId, pbToken } = await req.json() as {
+    const { task, department, userId, pbToken, templateContent } = await req.json() as {
       task: string;
       department: string;
       userId: string;
       pbToken: string;
+      templateContent?: string;
     };
 
     if (!task?.trim()) {
@@ -234,7 +235,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const systemPrompt = buildSystemPrompt(department, vault);
+    let systemPrompt = buildSystemPrompt(department, vault);
+
+    if (templateContent?.trim()) {
+      systemPrompt += `\n\n--- USER TEMPLATE ---\nThe user has provided an existing document template. Use this EXACT structure, layout, and format as your output. Replace placeholder values and example data with the appropriate content for this task. Preserve every section heading, field label, and formatting pattern from the template.\n\n${templateContent.trim()}\n--- END TEMPLATE ---`;
+    }
 
     const stream = await anthropic.messages.stream({
       model: "claude-sonnet-4-6",
