@@ -57,14 +57,16 @@ export default function Home() {
           </span>
           <span
             style={{
-              display: "inline-block",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
               color: "#F0F0F8",
               border: "2px solid rgba(255,255,255,0.6)",
               borderRadius: "4px",
-              padding: "0.04em 0.1em 0",
-              lineHeight: "1",
-              verticalAlign: "baseline",
-              marginLeft: "0.02em",
+              padding: "0 0.1em",
+              height: "0.85em",
+              verticalAlign: "-0.06em",
+              marginLeft: "0.03em",
               fontWeight: "inherit",
             }}
           >
