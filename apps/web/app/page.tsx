@@ -62,12 +62,12 @@ export default function Home() {
           <span
             style={{
               display: "inline-block",
-              background: "#FFFFFF",
-              color: "#09090F",
-              borderRadius: "6px",
-              padding: "0.03em 0.08em",
+              border: "2.5px solid rgba(255,255,255,0.55)",
+              borderRadius: "5px",
+              padding: "0.02em 0.07em",
               lineHeight: "1",
               verticalAlign: "baseline",
+              color: "#7C4FF0",
               fontWeight: "inherit",
               letterSpacing: "inherit",
               marginLeft: "0.01em",
@@ -116,9 +116,6 @@ export default function Home() {
           </a>
         </p>
 
-        <p className="mt-3 text-xs" style={{ color: "#2A2A3A" }}>
-          No credit card required · Cancel anytime · Your data stays yours
-        </p>
 
         {/* Department strip */}
         <div
