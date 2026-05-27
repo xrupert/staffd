@@ -6,11 +6,11 @@ import pb from "../../lib/pb";
 
 const DEPARTMENTS = [
   { name: "Marketing", icon: "📣", tagline: "Content, SEO, ads & social", href: "/dashboard/marketing" },
-  { name: "Sales", icon: "🤝", tagline: "Outreach, follow-ups & CRM", href: null },
-  { name: "Legal", icon: "⚖️", tagline: "Contracts, policies & compliance", href: null },
-  { name: "HR", icon: "👥", tagline: "Hiring, onboarding & culture", href: null },
-  { name: "Finance", icon: "💰", tagline: "Budgets, taxes & reporting", href: null },
-  { name: "Operations", icon: "⚙️", tagline: "Workflows, SOPs & systems", href: null },
+  { name: "Sales", icon: "🤝", tagline: "Outreach, follow-ups & CRM", href: "/dashboard/sales" },
+  { name: "Legal", icon: "⚖️", tagline: "Contracts, policies & compliance", href: "/dashboard/legal" },
+  { name: "HR", icon: "👥", tagline: "Hiring, onboarding & culture", href: "/dashboard/hr" },
+  { name: "Finance", icon: "💰", tagline: "Budgets, invoicing & reporting", href: "/dashboard/finance" },
+  { name: "Operations", icon: "⚙️", tagline: "Workflows, SOPs & systems", href: "/dashboard/operations" },
 ];
 
 export default function DashboardPage() {
