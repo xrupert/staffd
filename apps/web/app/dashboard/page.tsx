@@ -128,6 +128,38 @@ export default function DashboardPage() {
           </span>
         </a>
 
+        {/* CEO CTA */}
+        <a
+          href="/dashboard/ceo"
+          className="flex items-center justify-between rounded-2xl px-6 py-5 mb-8 transition-all group"
+          style={{
+            background: "linear-gradient(135deg, rgba(91,33,232,0.18) 0%, rgba(124,79,240,0.08) 100%)",
+            border: "1px solid rgba(91,33,232,0.4)",
+            textDecoration: "none",
+          }}
+        >
+          <div className="flex items-center gap-4">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+              style={{ background: "rgba(91,33,232,0.25)", border: "1px solid rgba(91,33,232,0.4)" }}
+            >
+              🎯
+            </div>
+            <div>
+              <p className="text-sm font-semibold mb-0.5" style={{ color: "#F0F0F8" }}>The CEO</p>
+              <p className="text-xs" style={{ color: "#7070A0" }}>
+                Cross-department strategic advisor — plans, priorities & key decisions
+              </p>
+            </div>
+          </div>
+          <span
+            className="text-xs font-semibold px-3.5 py-1.5 rounded-full flex-shrink-0 ml-4 transition-all"
+            style={{ background: "rgba(91,33,232,0.2)", color: "#A07BFF", border: "1px solid rgba(91,33,232,0.4)" }}
+          >
+            Ask →
+          </span>
+        </a>
+
         {/* Section label */}
         <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "#5A5A70" }}>
           Departments

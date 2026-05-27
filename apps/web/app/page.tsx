@@ -34,13 +34,13 @@ export default function Home() {
 
       <div className="relative z-10 flex flex-col items-center text-center max-w-3xl w-full">
 
-        {/* Logo */}
+        {/* Logo — larger */}
         <div className="mb-12">
           <Image
             src="/logo-light.png"
             alt="STAFFD"
-            width={180}
-            height={80}
+            width={260}
+            height={116}
             priority
             style={{ objectFit: "contain" }}
           />
@@ -53,8 +53,24 @@ export default function Home() {
         >
           You&apos;re{" "}
           <span style={{ color: "#5B21E8", textShadow: "0 0 40px rgba(91,33,232,0.5)" }}>
-            STAFFD.
+            STAFF
           </span>
+          <span
+            style={{
+              display: "inline-block",
+              color: "#7C4FF0",
+              border: "2px solid rgba(255,255,255,0.5)",
+              borderRadius: "4px",
+              padding: "0.04em 0.1em",
+              lineHeight: "1",
+              verticalAlign: "0.06em",
+              marginLeft: "0.01em",
+              fontWeight: "inherit",
+            }}
+          >
+            D
+          </span>
+          <span style={{ color: "#5B21E8" }}>.</span>
         </h1>
 
         <p
@@ -73,30 +89,32 @@ export default function Home() {
           All working for you — no hiring required.
         </p>
 
-        {/* CTAs */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
-          <a
-            href="/auth/signup"
-            className="btn-primary flex-1 py-4 rounded-xl font-semibold text-white text-center"
-            style={{ fontSize: "16px" }}
-          >
-            Get STAFFD
-          </a>
-          <a
-            href="/auth/login"
-            className="btn-secondary flex-1 py-4 rounded-xl font-semibold text-center"
-            style={{ fontSize: "16px" }}
-          >
-            Sign in
-          </a>
-        </div>
+        {/* Primary CTA only */}
+        <a
+          href="/auth/signup"
+          className="btn-primary px-12 py-4 rounded-xl font-semibold text-white"
+          style={{ fontSize: "16px" }}
+        >
+          Get STAFFD →
+        </a>
 
-        <p className="mt-6 text-sm" style={{ color: "#3A3A50" }}>
+        {/* Demo link */}
+        <p className="mt-5 text-sm" style={{ color: "#3A3A50" }}>
           See it in action first →{" "}
-          <a href="/demo" style={{ color: "#5B21E8" }}>Watch the demo</a>
+          <a href="/demo" style={{ color: "#5B21E8" }}>
+            Watch the demo
+          </a>
         </p>
 
-        {/* Department row */}
+        {/* Sign in — quiet utility link */}
+        <p className="mt-4 text-xs" style={{ color: "#2A2A40" }}>
+          Already have an account?{" "}
+          <a href="/auth/login" style={{ color: "#4A3A80" }}>
+            Sign in
+          </a>
+        </p>
+
+        {/* Department strip */}
         <div
           className="flex flex-wrap items-center justify-center gap-6 mt-16 pt-8"
           style={{ borderTop: "1px solid #1A1A28" }}
