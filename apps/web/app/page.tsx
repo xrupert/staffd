@@ -61,16 +61,20 @@ export default function Home() {
           </span>
           <span
             style={{
-              display: "inline-block",
-              border: "2.5px solid rgba(255,255,255,0.55)",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "2.5px solid #F0F0F8",
               borderRadius: "5px",
-              padding: "0.02em 0.07em",
+              width: "0.72em",
+              height: "0.72em",
               lineHeight: "1",
-              verticalAlign: "baseline",
-              color: "#7C4FF0",
+              verticalAlign: "middle",
+              color: "#F0F0F8",
               fontWeight: "inherit",
-              letterSpacing: "inherit",
-              marginLeft: "0.01em",
+              fontSize: "inherit",
+              marginLeft: "0.04em",
+              marginBottom: "0.08em",
             }}
           >
             D
@@ -95,22 +99,31 @@ export default function Home() {
           All covered — no hiring required.
         </p>
 
-        {/* Single CTA */}
-        <a
-          href="/auth/signup"
-          className="btn-primary px-10 py-4 rounded-xl font-bold text-white"
-          style={{ fontSize: "16px", letterSpacing: "-0.01em" }}
-        >
-          Get STAFFD →
-        </a>
+        {/* CTAs */}
+        <div className="flex flex-col items-center gap-4">
+          <a
+            href="/auth/signup"
+            className="btn-primary px-10 py-4 rounded-xl font-bold text-white"
+            style={{ fontSize: "16px", letterSpacing: "-0.01em" }}
+          >
+            Get STAFFD →
+          </a>
+          <a
+            href="/demo"
+            className="text-sm transition-colors hover:text-white"
+            style={{ color: "#5A5A70" }}
+          >
+            See it in action first →
+          </a>
+        </div>
 
-        {/* Sign in text link */}
-        <p className="mt-5 text-sm" style={{ color: "#3A3A50" }}>
+        {/* Sign in */}
+        <p className="mt-8 text-xs" style={{ color: "#2E2E45" }}>
           Already have an account?{" "}
           <a
             href="/auth/login"
             className="transition-colors hover:text-white"
-            style={{ color: "#6B4FC8" }}
+            style={{ color: "#4A3A80" }}
           >
             Sign in
           </a>
