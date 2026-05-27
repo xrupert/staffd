@@ -163,7 +163,7 @@ export default function VaultPage() {
           <section className="rounded-2xl p-6 mb-4" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
             <h2 className="text-sm font-semibold mb-5" style={{ color: "#F0F0F8" }}>About Your Business</h2>
             <div className="flex flex-col gap-4">
-              <Field label="Business name" placeholder="What do people call your business?" value={field("business_name")} onChange={(v) => set("business_name", v)} />
+              <Field label="Business name" placeholder="e.g., Acme Marketing, Blue Ridge Plumbing" value={field("business_name")} onChange={(v) => set("business_name", v)} />
               <Field label="Industry / What you do" placeholder="e.g., Digital marketing agency, Plumbing contractor, Online boutique" value={field("industry")} onChange={(v) => set("industry", v)} />
               <Field
                 label="Describe your business"
