@@ -1,6 +1,31 @@
+"use client";
+
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import pb from "../../../lib/pb";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await pb.collection("users").authWithPassword(email, password);
+      router.push("/dashboard");
+    } catch {
+      setError("Invalid email or password.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="min-h-screen flex items-center justify-center px-6">
       {/* Grid background */}
@@ -27,7 +52,7 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-md">
         {/* Logo */}
         <a href="/" className="flex items-center justify-center mb-10">
-          <Image src="/logo-dark.png" alt="STAFFD" width={120} height={54} style={{ objectFit: "contain" }} />
+          <Image src="/logo-light.png" alt="STAFFD" width={120} height={54} style={{ objectFit: "contain" }} />
         </a>
 
         {/* Card */}
@@ -42,7 +67,7 @@ export default function LoginPage() {
             Sign in to your STAFFD account.
           </p>
 
-          <form className="flex flex-col gap-4">
+          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium" style={{ color: "#9090A8" }}>
                 Email
@@ -50,6 +75,9 @@ export default function LoginPage() {
               <input
                 type="email"
                 placeholder="you@business.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
                 className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
                 style={{
                   background: "#1A1A24",
@@ -71,6 +99,9 @@ export default function LoginPage() {
               <input
                 type="password"
                 placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
                 className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
                 style={{
                   background: "#1A1A24",
@@ -80,11 +111,17 @@ export default function LoginPage() {
               />
             </div>
 
+            {error && (
+              <p className="text-sm" style={{ color: "#EF4444" }}>{error}</p>
+            )}
+
             <button
               type="submit"
+              disabled={loading}
               className="btn-primary w-full py-3 rounded-lg font-semibold text-white mt-2"
+              style={{ opacity: loading ? 0.7 : 1, cursor: loading ? "wait" : "pointer" }}
             >
-              Sign in
+              {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
 
