@@ -66,35 +66,42 @@ export default function DashboardPage() {
         {/* Department grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {DEPARTMENTS.map((dept) => (
-            <div
-              key={dept.name}
-              className="rounded-2xl p-6 flex flex-col gap-4 cursor-pointer transition-all"
-              style={{
-                background: "#111118",
-                border: "1px solid #2A2A38",
-              }}
-            >
+            dept.href ? (
+              <a
+                key={dept.name}
+                href={dept.href}
+                className="rounded-2xl p-6 flex flex-col gap-4 transition-all"
+                style={{ background: "#111118", border: "1px solid #5B21E8", textDecoration: "none" }}
+              >
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A1A24" }}>
+                  {dept.icon}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm mb-0.5" style={{ color: "#F0F0F8" }}>{dept.name}</p>
+                  <p className="text-xs" style={{ color: "#5A5A70" }}>{dept.tagline}</p>
+                </div>
+                <span className="text-xs font-medium self-start px-2.5 py-1 rounded-full" style={{ background: "rgba(91,33,232,0.15)", color: "#5B21E8", border: "1px solid #5B21E8" }}>
+                  Active
+                </span>
+              </a>
+            ) : (
               <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-                style={{ background: "#1A1A24" }}
+                key={dept.name}
+                className="rounded-2xl p-6 flex flex-col gap-4"
+                style={{ background: "#111118", border: "1px solid #2A2A38" }}
               >
-                {dept.icon}
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ background: "#1A1A24" }}>
+                  {dept.icon}
+                </div>
+                <div>
+                  <p className="font-semibold text-sm mb-0.5" style={{ color: "#F0F0F8" }}>{dept.name}</p>
+                  <p className="text-xs" style={{ color: "#5A5A70" }}>{dept.tagline}</p>
+                </div>
+                <span className="text-xs font-medium self-start px-2.5 py-1 rounded-full" style={{ background: "#1A1A24", color: "#5B21E8", border: "1px solid #2A2A38" }}>
+                  Coming soon
+                </span>
               </div>
-              <div>
-                <p className="font-semibold text-sm mb-0.5" style={{ color: "#F0F0F8" }}>
-                  {dept.name}
-                </p>
-                <p className="text-xs" style={{ color: "#5A5A70" }}>
-                  {dept.tagline}
-                </p>
-              </div>
-              <span
-                className="text-xs font-medium self-start px-2.5 py-1 rounded-full"
-                style={{ background: "#1A1A24", color: "#5B21E8", border: "1px solid #2A2A38" }}
-              >
-                Coming soon
-              </span>
-            </div>
+            )
           ))}
         </div>
       </div>
@@ -103,10 +110,10 @@ export default function DashboardPage() {
 }
 
 const DEPARTMENTS = [
-  { name: "Marketing", icon: "📣", tagline: "Content, SEO, ads & social" },
-  { name: "Sales", icon: "🤝", tagline: "Outreach, follow-ups & CRM" },
-  { name: "Legal", icon: "⚖️", tagline: "Contracts, policies & compliance" },
-  { name: "HR", icon: "👥", tagline: "Hiring, onboarding & culture" },
-  { name: "Finance", icon: "💰", tagline: "Budgets, taxes & reporting" },
-  { name: "Operations", icon: "⚙️", tagline: "Workflows, SOPs & systems" },
+  { name: "Marketing", icon: "📣", tagline: "Content, SEO, ads & social", href: "/dashboard/marketing" },
+  { name: "Sales", icon: "🤝", tagline: "Outreach, follow-ups & CRM", href: null },
+  { name: "Legal", icon: "⚖️", tagline: "Contracts, policies & compliance", href: null },
+  { name: "HR", icon: "👥", tagline: "Hiring, onboarding & culture", href: null },
+  { name: "Finance", icon: "💰", tagline: "Budgets, taxes & reporting", href: null },
+  { name: "Operations", icon: "⚙️", tagline: "Workflows, SOPs & systems", href: null },
 ];
