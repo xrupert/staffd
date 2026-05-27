@@ -188,6 +188,11 @@ function buildSystemPrompt(department: string, vault: Record<string, unknown> | 
   const description = vault.description as string;
   const targetAudience = vault.target_audience as string;
   const website = vault.website as string;
+  const address = vault.address as string;
+  const primaryEmail = vault.primary_email as string;
+  const secondaryEmail = vault.secondary_email as string;
+  const otherEmail = vault.other_email as string;
+  const phone = vault.phone as string;
 
   return `${base}
 
@@ -197,6 +202,11 @@ ${industry ? `Industry / What they do: ${industry}` : ""}
 ${description ? `Business description: ${description}` : ""}
 ${targetAudience ? `Target audience: ${targetAudience}` : ""}
 ${website ? `Website: ${website}` : ""}
+${address ? `Business address: ${address}` : ""}
+${phone ? `Phone: ${phone}` : ""}
+${primaryEmail ? `Primary email: ${primaryEmail}` : ""}
+${secondaryEmail ? `Secondary email: ${secondaryEmail}` : ""}
+${otherEmail ? `Other email: ${otherEmail}` : ""}
 Primary focus: ${focus}
 Current situation: ${situation}
 Competitive advantage: ${superpower}

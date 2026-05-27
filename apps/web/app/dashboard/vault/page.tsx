@@ -42,8 +42,9 @@ interface VaultData {
   website?: string;
   phone?: string;
   primary_email?: string;
-  support_email?: string;
-  sales_email?: string;
+  address?: string;
+  secondary_email?: string;
+  other_email?: string;
   logo?: string;
   focus?: string;
   situation?: string;
@@ -105,8 +106,9 @@ export default function VaultPage() {
       formData.append("website", vault.website ?? "");
       formData.append("phone", vault.phone ?? "");
       formData.append("primary_email", vault.primary_email ?? "");
-      formData.append("support_email", vault.support_email ?? "");
-      formData.append("sales_email", vault.sales_email ?? "");
+      formData.append("address", vault.address ?? "");
+      formData.append("secondary_email", vault.secondary_email ?? "");
+      formData.append("other_email", vault.other_email ?? "");
       if (logoFile) formData.append("logo", logoFile);
 
       let rec: VaultData;
@@ -188,8 +190,9 @@ export default function VaultPage() {
             <div className="flex flex-col gap-5">
               <VaultField label="Phone number" placeholder="+1 (555) 000-0000" value={field("phone")} onChange={(v) => set("phone", v)} type="tel" />
               <VaultField label="Primary email" placeholder="hello@yourbusiness.com" value={field("primary_email")} onChange={(v) => set("primary_email", v)} type="email" />
-              <VaultField label="Support email" placeholder="support@yourbusiness.com" value={field("support_email")} onChange={(v) => set("support_email", v)} type="email" />
-              <VaultField label="Sales email" placeholder="sales@yourbusiness.com" value={field("sales_email")} onChange={(v) => set("sales_email", v)} type="email" />
+              <VaultField label="Business address" placeholder="123 Main St, Suite 100, New York, NY 10001" value={field("address")} onChange={(v) => set("address", v)} multiline />
+              <VaultField label="Secondary email" placeholder="billing@yourbusiness.com" value={field("secondary_email")} onChange={(v) => set("secondary_email", v)} type="email" />
+              <VaultField label="Other email" placeholder="info@yourbusiness.com" value={field("other_email")} onChange={(v) => set("other_email", v)} type="email" />
             </div>
           </div>
 
