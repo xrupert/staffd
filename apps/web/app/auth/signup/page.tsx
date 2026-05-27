@@ -25,7 +25,7 @@ export default function SignupPage() {
         passwordConfirm: password,
       });
       await pb.collection("users").authWithPassword(email, password);
-      router.push("/dashboard");
+      router.push("/onboarding");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setError(msg);
