@@ -102,7 +102,7 @@ export default function MarketingPage() {
           {QUICK_ACTIONS.map((a) => (
             <button
               key={a.label}
-              onClick={() => { setTask(a.prompt); run(a.prompt); }}
+              onClick={() => setTask(a.prompt)}
               disabled={loading}
               className="px-3.5 py-1.5 rounded-full text-xs font-medium transition-all"
               style={{

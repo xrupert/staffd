@@ -63,6 +63,24 @@ export default function DashboardPage() {
           </p>
         </div>
 
+        {/* Vault CTA */}
+        <a
+          href="/dashboard/vault"
+          className="flex items-center justify-between rounded-2xl px-6 py-4 mb-6 transition-all"
+          style={{ background: "#111118", border: "1px solid #2A2A38", textDecoration: "none" }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-xl">🔐</span>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>Your Vault</p>
+              <p className="text-xs" style={{ color: "#5A5A70" }}>Add your business name, description & audience — your AI team reads this before every task</p>
+            </div>
+          </div>
+          <span className="text-xs font-medium px-3 py-1 rounded-full flex-shrink-0 ml-4" style={{ background: "rgba(91,33,232,0.15)", color: "#5B21E8", border: "1px solid #5B21E8" }}>
+            Edit →
+          </span>
+        </a>
+
         {/* Department grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {DEPARTMENTS.map((dept) => (

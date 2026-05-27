@@ -58,9 +58,20 @@ function buildSystemPrompt(department: string, vault: Record<string, unknown> | 
     .join(", ");
   const magicWand = vault.magic_wand as string;
 
+  const businessName = vault.business_name as string;
+  const industry = vault.industry as string;
+  const description = vault.description as string;
+  const targetAudience = vault.target_audience as string;
+  const website = vault.website as string;
+
   return `${base}
 
 --- BUSINESS VAULT ---
+${businessName ? `Business name: ${businessName}` : ""}
+${industry ? `Industry / What they do: ${industry}` : ""}
+${description ? `Business description: ${description}` : ""}
+${targetAudience ? `Target audience: ${targetAudience}` : ""}
+${website ? `Website: ${website}` : ""}
 Primary focus: ${focus}
 Current situation: ${situation}
 Competitive advantage: ${superpower}
