@@ -58,13 +58,13 @@ export default function Home() {
           <span
             style={{
               display: "inline-block",
-              color: "#7C4FF0",
-              border: "2px solid rgba(255,255,255,0.5)",
+              color: "#F0F0F8",
+              border: "2px solid rgba(255,255,255,0.6)",
               borderRadius: "4px",
-              padding: "0.04em 0.1em",
+              padding: "0.04em 0.1em 0",
               lineHeight: "1",
-              verticalAlign: "0.06em",
-              marginLeft: "0.01em",
+              verticalAlign: "baseline",
+              marginLeft: "0.02em",
               fontWeight: "inherit",
             }}
           >
