@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import pb from "../../lib/pb";
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 6;
 
 // Step 1 — Primary focus
 const FOCUS_OPTIONS = [
@@ -64,9 +64,24 @@ function computeRecommended(focus: string, bottlenecks: string[]): string[] {
     .map(([name]) => name);
 }
 
+interface PrefillData {
+  business_name?: string;
+  industry?: string;
+  description?: string;
+  target_audience?: string;
+}
+
 export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+
+  // Step 1 — website auto-fill
+  const [website, setWebsite] = useState("");
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [prefillError, setPrefillError] = useState("");
+  const [prefillData, setPrefillData] = useState<PrefillData | null>(null);
+
+  // Steps 2–6
   const [focus, setFocus] = useState("");
   const [bottlenecks, setBottlenecks] = useState<string[]>([]);
   const [situation, setSituation] = useState("");
@@ -75,6 +90,27 @@ export default function OnboardingPage() {
   const [recommended, setRecommended] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
+  async function fetchFromWebsite() {
+    if (!website.trim()) return;
+    setPrefillLoading(true);
+    setPrefillError("");
+    try {
+      const url = website.trim().startsWith("http") ? website.trim() : `https://${website.trim()}`;
+      const res = await fetch("/api/prefill", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json() as PrefillData & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed to fetch");
+      setPrefillData(data);
+    } catch (err) {
+      setPrefillError(err instanceof Error ? err.message : "Could not pull info. You can fill in manually later.");
+    } finally {
+      setPrefillLoading(false);
+    }
+  }
+
   function toggleBottleneck(id: string) {
     setBottlenecks((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : prev.length < 2 ? [...prev, id] : prev
@@ -82,10 +118,11 @@ export default function OnboardingPage() {
   }
 
   function canAdvance() {
-    if (step === 1) return !!focus;
-    if (step === 2) return bottlenecks.length > 0;
-    if (step === 3) return !!situation;
-    if (step === 4) return !!superpower;
+    if (step === 1) return true; // website step is optional
+    if (step === 2) return !!focus;
+    if (step === 3) return bottlenecks.length > 0;
+    if (step === 4) return !!situation;
+    if (step === 5) return !!superpower;
     return true;
   }
 
@@ -96,6 +133,9 @@ export default function OnboardingPage() {
     try {
       const userId = pb.authStore.record?.id;
       if (userId) {
+        const normalizedUrl = website.trim()
+          ? website.trim().startsWith("http") ? website.trim() : `https://${website.trim()}`
+          : "";
         await pb.collection("businesses").create({
           user: userId,
           focus,
@@ -104,17 +144,22 @@ export default function OnboardingPage() {
           superpower,
           magic_wand: magicWand,
           recommended_departments: rec,
+          website: normalizedUrl,
+          business_name: prefillData?.business_name ?? "",
+          industry: prefillData?.industry ?? "",
+          description: prefillData?.description ?? "",
+          target_audience: prefillData?.target_audience ?? "",
         });
       }
     } catch {
       // non-blocking — proceed regardless
     } finally {
       setSaving(false);
-      setStep(6);
+      setStep(7);
     }
   }
 
-  if (step === 6) {
+  if (step === 7) {
     return <ResultsScreen recommended={recommended} onContinue={() => router.push("/dashboard")} />;
   }
 
@@ -157,6 +202,74 @@ export default function OnboardingPage() {
         <div className="flex-1">
           {step === 1 && (
             <Step
+              title="Let's start with your website"
+              subtitle="Enter your URL and we'll pull your business details automatically. You can edit anything — or skip and fill it in later."
+            >
+              <div className="flex flex-col gap-4">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    value={website}
+                    onChange={(e) => { setWebsite(e.target.value); setPrefillData(null); setPrefillError(""); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" && website.trim()) void fetchFromWebsite(); }}
+                    placeholder="yourbusiness.com"
+                    className="flex-1 px-4 py-3 rounded-xl text-sm outline-none"
+                    style={{ background: "#111118", border: "1px solid #2A2A38", color: "#F0F0F8" }}
+                  />
+                  <button
+                    onClick={() => void fetchFromWebsite()}
+                    disabled={!website.trim() || prefillLoading}
+                    className="btn-primary px-4 py-3 rounded-xl text-sm font-semibold text-white flex-shrink-0"
+                    style={{ opacity: !website.trim() || prefillLoading ? 0.4 : 1, cursor: !website.trim() || prefillLoading ? "not-allowed" : "pointer" }}
+                  >
+                    {prefillLoading ? "Pulling…" : "Pull info →"}
+                  </button>
+                </div>
+
+                {prefillError && (
+                  <div className="px-4 py-3 rounded-xl text-xs" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#EF4444" }}>
+                    {prefillError}
+                  </div>
+                )}
+
+                {prefillData && (
+                  <div className="rounded-2xl p-5 flex flex-col gap-4" style={{ background: "#111118", border: "1px solid rgba(91,33,232,0.35)" }}>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#5B21E8" }}>Pulled from your website — edit anything</p>
+                    <OnboardingField
+                      label="Business name"
+                      value={prefillData.business_name ?? ""}
+                      onChange={(v) => setPrefillData((d) => d ? { ...d, business_name: v } : d)}
+                    />
+                    <OnboardingField
+                      label="Industry / What you do"
+                      value={prefillData.industry ?? ""}
+                      onChange={(v) => setPrefillData((d) => d ? { ...d, industry: v } : d)}
+                    />
+                    <OnboardingField
+                      label="Description"
+                      value={prefillData.description ?? ""}
+                      onChange={(v) => setPrefillData((d) => d ? { ...d, description: v } : d)}
+                      multiline
+                    />
+                    <OnboardingField
+                      label="Target customers"
+                      value={prefillData.target_audience ?? ""}
+                      onChange={(v) => setPrefillData((d) => d ? { ...d, target_audience: v } : d)}
+                    />
+                  </div>
+                )}
+
+                {!prefillData && !prefillLoading && (
+                  <p className="text-xs text-center" style={{ color: "#3A3A50" }}>
+                    No website yet? Hit Continue — you can add business details in the Vault later.
+                  </p>
+                )}
+              </div>
+            </Step>
+          )}
+
+          {step === 2 && (
+            <Step
               title="What is your primary focus right now?"
               subtitle="Choose the outcome you want to achieve first."
             >
@@ -175,7 +288,7 @@ export default function OnboardingPage() {
             </Step>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <Step
               title="Where is your business most starved for time?"
               subtitle="Select up to 2 areas where you need the most help."
@@ -194,7 +307,7 @@ export default function OnboardingPage() {
             </Step>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <Step
               title="What best describes why you need your AI team?"
               subtitle="Choose the one that hits closest."
@@ -214,7 +327,7 @@ export default function OnboardingPage() {
             </Step>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <Step
               title="Why do your best customers choose you?"
               subtitle="This shapes how your AI team communicates and strategizes."
@@ -234,7 +347,7 @@ export default function OnboardingPage() {
             </Step>
           )}
 
-          {step === 5 && (
+          {step === 6 && (
             <Step
               title="If AI could take one task off your plate by tomorrow, what would it be?"
               subtitle="Optional — but the more specific, the better."
@@ -275,11 +388,11 @@ export default function OnboardingPage() {
               className="btn-primary px-6 py-2.5 rounded-xl font-semibold text-white text-sm"
               style={{ opacity: canAdvance() ? 1 : 0.4, cursor: canAdvance() ? "pointer" : "not-allowed" }}
             >
-              Continue →
+              {step === 1 && prefillData ? "Looks right →" : "Continue →"}
             </button>
           ) : (
             <button
-              onClick={handleFinish}
+              onClick={() => void handleFinish()}
               disabled={saving}
               className="btn-primary px-6 py-2.5 rounded-xl font-semibold text-white text-sm"
               style={{ opacity: saving ? 0.7 : 1 }}
@@ -294,6 +407,23 @@ export default function OnboardingPage() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
+
+function OnboardingField({ label, value, onChange, multiline }: {
+  label: string; value: string; onChange: (v: string) => void; multiline?: boolean;
+}) {
+  const s: React.CSSProperties = { background: "#1A1A24", border: "1px solid #2A2A38", color: "#F0F0F8" };
+  const c = "w-full px-4 py-3 rounded-xl text-sm outline-none";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6060A0" }}>{label}</label>
+      {multiline ? (
+        <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} className={`${c} resize-none`} style={{ ...s, lineHeight: "1.6" }} />
+      ) : (
+        <input type="text" value={value} onChange={(e) => onChange(e.target.value)} className={c} style={s} />
+      )}
+    </div>
+  );
+}
 
 function Step({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
