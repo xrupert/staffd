@@ -24,20 +24,14 @@ const BOTTLENECK_OPTIONS = [
   { id: "research", label: "Market Research & Competitor Analysis" },
 ];
 
-// Step 3 — Tools
-const TOOL_OPTIONS = [
-  { id: "hubspot", label: "HubSpot" },
-  { id: "salesforce", label: "Salesforce" },
-  { id: "notion", label: "Notion" },
-  { id: "slack", label: "Slack" },
-  { id: "teams", label: "Teams" },
-  { id: "gmail", label: "Gmail" },
-  { id: "gdrive", label: "Google Drive" },
-  { id: "onedrive", label: "OneDrive" },
-  { id: "shopify", label: "Shopify" },
-  { id: "stripe", label: "Stripe" },
-  { id: "airtable", label: "Airtable" },
-  { id: "spreadsheets", label: "Spreadsheets only" },
+// Step 3 — Situation
+const SITUATION_OPTIONS = [
+  { id: "solo", icon: "🧍", label: "I do everything myself — I'm running out of hours", desc: "You're the whole team. Time is the constraint." },
+  { id: "skills", icon: "👥", label: "I have a small team but we're missing key skills", desc: "The people are there, but the expertise isn't." },
+  { id: "scaling", icon: "📈", label: "We're growing faster than we can hire", desc: "Demand is outpacing your team's capacity." },
+  { id: "cost", icon: "💸", label: "I need expert-level work without the expert-level cost", desc: "Quality matters but the budget has limits." },
+  { id: "chaos", icon: "🔄", label: "Our processes are broken — things keep slipping through the cracks", desc: "The work exists but nothing runs smoothly." },
+  { id: "starting", icon: "🌱", label: "I'm just starting out and need to build everything right", desc: "Blank slate. You want to do it properly from day one." },
 ];
 
 // Step 4 — Superpower
@@ -75,7 +69,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [focus, setFocus] = useState("");
   const [bottlenecks, setBottlenecks] = useState<string[]>([]);
-  const [tools, setTools] = useState<string[]>([]);
+  const [situation, setSituation] = useState("");
   const [superpower, setSuperpower] = useState("");
   const [magicWand, setMagicWand] = useState("");
   const [recommended, setRecommended] = useState<string[]>([]);
@@ -87,16 +81,10 @@ export default function OnboardingPage() {
     );
   }
 
-  function toggleTool(id: string) {
-    setTools((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
-  }
-
   function canAdvance() {
     if (step === 1) return !!focus;
     if (step === 2) return bottlenecks.length > 0;
-    if (step === 3) return tools.length > 0;
+    if (step === 3) return !!situation;
     if (step === 4) return !!superpower;
     return true;
   }
@@ -112,7 +100,7 @@ export default function OnboardingPage() {
           user: userId,
           focus,
           bottlenecks,
-          tools,
+          situation,
           superpower,
           magic_wand: magicWand,
           recommended_departments: rec,
@@ -208,16 +196,18 @@ export default function OnboardingPage() {
 
           {step === 3 && (
             <Step
-              title="Where does your business currently live?"
-              subtitle="Select all the tools your team uses today."
+              title="What best describes why you need your AI team?"
+              subtitle="Choose the one that hits closest."
             >
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {TOOL_OPTIONS.map((opt) => (
-                  <SelectableChip
+              <div className="grid grid-cols-1 gap-3">
+                {SITUATION_OPTIONS.map((opt) => (
+                  <OptionCard
                     key={opt.id}
+                    icon={opt.icon}
                     label={opt.label}
-                    selected={tools.includes(opt.id)}
-                    onClick={() => toggleTool(opt.id)}
+                    desc={opt.desc}
+                    selected={situation === opt.id}
+                    onClick={() => setSituation(opt.id)}
                   />
                 ))}
               </div>
@@ -365,23 +355,6 @@ function SelectableRow({ label, selected, disabled, onClick }: {
   );
 }
 
-function SelectableChip({ label, selected, onClick }: {
-  label: string; selected: boolean; onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className="px-4 py-3 rounded-xl text-sm font-medium transition-all text-center"
-      style={{
-        background: selected ? "rgba(91,33,232,0.12)" : "#111118",
-        border: selected ? "1px solid #5B21E8" : "1px solid #2A2A38",
-        color: selected ? "#F0F0F8" : "#9090A8",
-      }}
-    >
-      {label}
-    </button>
-  );
-}
 
 function ResultsScreen({ recommended, onContinue }: { recommended: string[]; onContinue: () => void }) {
   const DEPT_DESC: Record<string, string> = {
