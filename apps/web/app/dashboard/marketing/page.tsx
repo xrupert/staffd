@@ -7,7 +7,7 @@ import pb from "../../../lib/pb";
 const QUICK_ACTIONS = [
   { label: "Social post", prompt: "Write a social media post I can publish today." },
   { label: "Blog intro", prompt: "Write a compelling blog post introduction for my business." },
-  { label: "Email to my list", prompt: "Draft a short email to send to my customer list." },
+  { label: "Email to list", prompt: "Draft a short email to send to my customer list." },
   { label: "Headline ideas", prompt: "Give me 5 headline ideas for my homepage or next campaign." },
   { label: "Ad copy", prompt: "Write short ad copy (headline + one sentence) I can run as a paid ad." },
   { label: "Bio / About", prompt: "Write a punchy 3-sentence bio or About section for my business." },
@@ -35,12 +35,7 @@ export default function MarketingPage() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          task: finalTask,
-          department: "marketing",
-          userId,
-          pbToken,
-        }),
+        body: JSON.stringify({ task: finalTask, department: "marketing", userId, pbToken }),
       });
 
       if (!res.ok) throw new Error("Agent request failed");
@@ -65,7 +60,8 @@ export default function MarketingPage() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col relative" style={{ background: "#09090F" }}>
+    <main className="min-h-screen flex flex-col" style={{ background: "#09090F" }}>
+      {/* Grid */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -73,24 +69,56 @@ export default function MarketingPage() {
           backgroundSize: "64px 64px",
         }}
       />
+      {/* Glow */}
+      <div
+        className="fixed pointer-events-none"
+        style={{
+          top: "-150px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "700px",
+          height: "500px",
+          borderRadius: "50%",
+          background: "radial-gradient(ellipse, rgba(91,33,232,0.1) 0%, transparent 65%)",
+        }}
+      />
 
       <div className="relative z-10 w-full max-w-3xl mx-auto px-6 py-8 flex flex-col flex-1">
 
         {/* Header */}
-        <header className="flex items-center justify-between mb-10">
+        <header className="flex items-center justify-between mb-12">
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm" style={{ color: "#5A5A70" }}>
+          <a
+            href="/dashboard"
+            className="flex items-center gap-1.5 text-sm transition-colors hover:text-white"
+            style={{ color: "#5A5A70" }}
+          >
             ← Dashboard
           </a>
         </header>
 
         {/* Title */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-2xl">📣</span>
-            <h1 className="text-2xl font-bold" style={{ color: "#F0F0F8" }}>Marketing</h1>
+          <div className="flex items-center gap-3 mb-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
+              style={{ background: "rgba(91,33,232,0.15)", border: "1px solid rgba(91,33,232,0.25)" }}
+            >
+              📣
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-0.5" style={{ color: "#5B21E8" }}>
+                Department
+              </p>
+              <h1
+                className="font-bold"
+                style={{ color: "#F0F0F8", fontSize: "1.5rem", lineHeight: 1.2, letterSpacing: "-0.01em" }}
+              >
+                Marketing
+              </h1>
+            </div>
           </div>
           <p className="text-sm" style={{ color: "#9090A8" }}>
             Your AI marketer knows your business. Tell it what to create.
@@ -98,7 +126,7 @@ export default function MarketingPage() {
         </div>
 
         {/* Quick actions */}
-        <div className="flex flex-wrap gap-2 mb-6">
+        <div className="flex flex-wrap gap-2 mb-5">
           {QUICK_ACTIONS.map((a) => (
             <button
               key={a.label}
@@ -106,9 +134,9 @@ export default function MarketingPage() {
               disabled={loading}
               className="px-3.5 py-1.5 rounded-full text-xs font-medium transition-all"
               style={{
-                background: "#111118",
-                border: "1px solid #2A2A38",
-                color: "#9090A8",
+                background: task === a.prompt ? "rgba(91,33,232,0.2)" : "#111118",
+                border: task === a.prompt ? "1px solid rgba(91,33,232,0.45)" : "1px solid #2A2A38",
+                color: task === a.prompt ? "#A07BFF" : "#9090A8",
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.5 : 1,
               }}
@@ -118,30 +146,30 @@ export default function MarketingPage() {
           ))}
         </div>
 
-        {/* Input */}
+        {/* Input area */}
         <div
-          className="rounded-2xl overflow-hidden mb-4"
+          className="rounded-2xl overflow-hidden mb-5"
           style={{ background: "#111118", border: "1px solid #2A2A38" }}
         >
           <textarea
             value={task}
             onChange={(e) => setTask(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) run(); }}
-            placeholder="Describe what you need — or pick a quick action above…"
-            rows={3}
+            placeholder="What do you need today? Describe it or pick a quick action above…"
+            rows={4}
             className="w-full px-5 py-4 text-sm outline-none resize-none"
-            style={{ background: "transparent", color: "#F0F0F8", lineHeight: "1.6" }}
+            style={{ background: "transparent", color: "#F0F0F8", lineHeight: "1.7", caretColor: "#5B21E8" }}
           />
-          <div className="flex items-center justify-between px-4 pb-3">
-            <span className="text-xs" style={{ color: "#3A3A50" }}>⌘ + Enter to run</span>
+          <div
+            className="flex items-center justify-between px-5 py-3"
+            style={{ borderTop: "1px solid #1E1E2A" }}
+          >
+            <span className="text-xs" style={{ color: "#2E2E45" }}>⌘ Enter to run</span>
             <button
               onClick={() => run()}
               disabled={!task.trim() || loading}
               className="btn-primary px-5 py-2 rounded-xl text-sm font-semibold text-white"
-              style={{
-                opacity: !task.trim() || loading ? 0.4 : 1,
-                cursor: !task.trim() || loading ? "not-allowed" : "pointer",
-              }}
+              style={{ opacity: !task.trim() || loading ? 0.35 : 1, cursor: !task.trim() || loading ? "not-allowed" : "pointer" }}
             >
               {loading ? "Writing…" : "Generate →"}
             </button>
@@ -150,31 +178,86 @@ export default function MarketingPage() {
 
         {/* Error */}
         {error && (
-          <p className="text-sm mb-4" style={{ color: "#EF4444" }}>{error}</p>
+          <div
+            className="px-4 py-3 rounded-xl text-xs mb-4"
+            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#EF4444" }}
+          >
+            {error}
+          </div>
         )}
 
         {/* Output */}
         {(output || loading) && (
           <div
-            className="rounded-2xl p-6 flex-1"
+            className="rounded-2xl overflow-hidden flex-1"
             style={{ background: "#111118", border: "1px solid #2A2A38" }}
           >
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ background: "#1A1A24", color: "#5B21E8" }}>
-                The Marketer
-              </span>
-              {loading && (
-                <span className="text-xs" style={{ color: "#5A5A70" }}>writing…</span>
+            {/* Output header */}
+            <div
+              className="flex items-center justify-between px-5 py-3"
+              style={{ borderBottom: "1px solid #1E1E2A" }}
+            >
+              <div className="flex items-center gap-2.5">
+                <div
+                  className="w-6 h-6 rounded-lg flex items-center justify-center text-sm"
+                  style={{ background: "rgba(91,33,232,0.15)" }}
+                >
+                  📣
+                </div>
+                <span className="text-xs font-semibold" style={{ color: "#9090A8" }}>The Marketer</span>
+                {loading && (
+                  <span className="flex items-center gap-1.5 text-xs" style={{ color: "#5A5A70" }}>
+                    <span
+                      className="inline-block w-1.5 h-1.5 rounded-full animate-pulse"
+                      style={{ background: "#5B21E8" }}
+                    />
+                    writing
+                  </span>
+                )}
+              </div>
+              {output && !loading && (
+                <button
+                  onClick={() => navigator.clipboard.writeText(output)}
+                  className="text-xs transition-colors hover:text-white"
+                  style={{ color: "#5A5A70" }}
+                >
+                  Copy
+                </button>
               )}
             </div>
-            <div
-              ref={outputRef}
-              className="text-sm whitespace-pre-wrap leading-relaxed"
-              style={{ color: "#E0E0F0" }}
-            >
-              {output}
-              {loading && <span className="inline-block w-0.5 h-4 ml-0.5 animate-pulse" style={{ background: "#5B21E8", verticalAlign: "middle" }} />}
+
+            {/* Output body */}
+            <div className="px-5 py-5">
+              <div
+                ref={outputRef}
+                className="text-sm whitespace-pre-wrap leading-relaxed"
+                style={{ color: "#D0D0E8", lineHeight: "1.8" }}
+              >
+                {output}
+                {loading && (
+                  <span
+                    className="inline-block w-0.5 h-4 ml-0.5 animate-pulse"
+                    style={{ background: "#5B21E8", verticalAlign: "middle" }}
+                  />
+                )}
+              </div>
             </div>
+          </div>
+        )}
+
+        {/* Vault reminder if no output yet */}
+        {!output && !loading && (
+          <div className="mt-auto pt-8 pb-4">
+            <a
+              href="/dashboard/vault"
+              className="flex items-center gap-3 text-xs transition-colors group"
+              style={{ color: "#3A3A55", textDecoration: "none" }}
+            >
+              <span>🔐</span>
+              <span className="group-hover:text-purple-400 transition-colors">
+                Add your business details to the Vault and your AI team will use them automatically →
+              </span>
+            </a>
           </div>
         )}
       </div>

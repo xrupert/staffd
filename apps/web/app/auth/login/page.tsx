@@ -27,49 +27,61 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-6">
-      {/* Grid background */}
+    <main
+      className="min-h-screen flex items-center justify-center px-6 py-16"
+      style={{ background: "#09090F" }}
+    >
+      {/* Grid */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
-          backgroundImage: `
-            linear-gradient(rgba(91, 33, 232, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(91, 33, 232, 0.03) 1px, transparent 1px)
-          `,
+          backgroundImage: `linear-gradient(rgba(91,33,232,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(91,33,232,0.03) 1px,transparent 1px)`,
           backgroundSize: "48px 48px",
         }}
       />
+      {/* Glow */}
       <div
-        className="fixed top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+        className="fixed pointer-events-none"
         style={{
-          width: "500px",
+          top: "-100px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "600px",
           height: "500px",
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(91, 33, 232, 0.1) 0%, transparent 70%)",
+          background: "radial-gradient(ellipse, rgba(91,33,232,0.13) 0%, transparent 65%)",
         }}
       />
 
-      <div className="relative z-10 w-full max-w-md">
+      <div className="relative z-10 w-full max-w-sm">
         {/* Logo */}
-        <a href="/" className="flex items-center justify-center mb-10">
-          <Image src="/logo-light.png" alt="STAFFD" width={120} height={54} style={{ objectFit: "contain" }} />
-        </a>
+        <div className="flex justify-center mb-10">
+          <a href="/">
+            <Image src="/logo-light.png" alt="STAFFD" width={110} height={48} style={{ objectFit: "contain" }} />
+          </a>
+        </div>
+
+        {/* Headline */}
+        <div className="text-center mb-8">
+          <h1
+            className="font-bold mb-2"
+            style={{ color: "#F0F0F8", fontSize: "1.875rem", lineHeight: 1.15, letterSpacing: "-0.02em" }}
+          >
+            Welcome back
+          </h1>
+          <p className="text-sm" style={{ color: "#6060A0" }}>
+            Sign in to your STAFFD account
+          </p>
+        </div>
 
         {/* Card */}
         <div
-          className="rounded-2xl p-8"
+          className="rounded-2xl p-7"
           style={{ background: "#111118", border: "1px solid #2A2A38" }}
         >
-          <h1 className="text-2xl font-bold mb-1" style={{ color: "#F0F0F8" }}>
-            Welcome back
-          </h1>
-          <p className="text-sm mb-8" style={{ color: "#9090A8" }}>
-            Sign in to your STAFFD account.
-          </p>
-
-          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium" style={{ color: "#9090A8" }}>
+          <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6060A0" }}>
                 Email
               </label>
               <input
@@ -78,22 +90,18 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
-                style={{
-                  background: "#1A1A24",
-                  border: "1px solid #2A2A38",
-                  color: "#F0F0F8",
-                }}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
+                style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#F0F0F8" }}
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium" style={{ color: "#9090A8" }}>
+                <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6060A0" }}>
                   Password
                 </label>
-                <a href="/auth/forgot" className="text-xs" style={{ color: "#5B21E8" }}>
-                  Forgot password?
+                <a href="/auth/forgot" className="text-xs transition-colors hover:text-white" style={{ color: "#5B21E8" }}>
+                  Forgot?
                 </a>
               </div>
               <input
@@ -102,36 +110,37 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
-                style={{
-                  background: "#1A1A24",
-                  border: "1px solid #2A2A38",
-                  color: "#F0F0F8",
-                }}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all"
+                style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#F0F0F8" }}
               />
             </div>
 
             {error && (
-              <p className="text-sm" style={{ color: "#EF4444" }}>{error}</p>
+              <div
+                className="px-4 py-3 rounded-xl text-xs"
+                style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#EF4444" }}
+              >
+                {error}
+              </div>
             )}
 
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3 rounded-lg font-semibold text-white mt-2"
-              style={{ opacity: loading ? 0.7 : 1, cursor: loading ? "wait" : "pointer" }}
+              className="btn-primary w-full py-3.5 rounded-xl font-semibold text-white text-sm mt-1"
+              style={{ opacity: loading ? 0.7 : 1 }}
             >
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
-
-          <p className="text-center text-sm mt-6" style={{ color: "#5A5A70" }}>
-            Don&apos;t have an account?{" "}
-            <a href="/auth/signup" style={{ color: "#5B21E8" }}>
-              Get STAFFD free
-            </a>
-          </p>
         </div>
+
+        <p className="text-center text-sm mt-6" style={{ color: "#5A5A70" }}>
+          No account?{" "}
+          <a href="/auth/signup" className="font-medium transition-colors hover:text-white" style={{ color: "#7C4FF0" }}>
+            Get STAFFD free →
+          </a>
+        </p>
       </div>
     </main>
   );

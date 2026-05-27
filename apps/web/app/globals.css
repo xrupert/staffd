@@ -3,24 +3,20 @@
 @source "../components/**/*.{ts,tsx}";
 
 @theme {
-  /* STAFFD Brand — LSU Purple */
   --color-staffd-purple: #5B21E8;
   --color-staffd-purple-light: #7C4FF0;
   --color-staffd-purple-dark: #3D0FBF;
   --color-staffd-purple-glow: rgba(91, 33, 232, 0.25);
 
-  /* Surfaces */
   --color-surface-base: #0A0A0F;
   --color-surface-raised: #111118;
   --color-surface-overlay: #1A1A24;
   --color-surface-border: #2A2A38;
 
-  /* Text */
   --color-text-primary: #F0F0F8;
   --color-text-secondary: #9090A8;
   --color-text-muted: #5A5A70;
 
-  /* Status */
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
@@ -29,10 +25,12 @@
   --font-mono: "Geist Mono", monospace;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@layer base {
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
 html {
@@ -52,27 +50,64 @@ a {
   text-decoration: none;
 }
 
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #111118; }
 ::-webkit-scrollbar-thumb { background: #2A2A38; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #5B21E8; }
 
-.btn-primary {
-  background: #5B21E8;
-  box-shadow: 0 0 24px rgba(91, 33, 232, 0.4);
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+/* Input / textarea focus */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: #5B21E8 !important;
+  box-shadow: 0 0 0 3px rgba(91, 33, 232, 0.18) !important;
 }
-.btn-primary:hover {
-  background: #7C4FF0;
-  box-shadow: 0 0 32px rgba(91, 33, 232, 0.6);
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, #6B31F8 0%, #5B21E8 100%);
+  box-shadow: 0 2px 16px rgba(91, 33, 232, 0.4);
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #7C4FF0 0%, #6B31F8 100%);
+  box-shadow: 0 4px 28px rgba(91, 33, 232, 0.6);
+  transform: translateY(-1px);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 12px rgba(91, 33, 232, 0.4);
 }
 
 .btn-secondary {
   border: 1px solid #2A2A38;
   color: #9090A8;
-  transition: border-color 0.15s ease, color 0.15s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
 }
 .btn-secondary:hover {
   border-color: #5B21E8;
   color: #F0F0F8;
+  background: rgba(91, 33, 232, 0.06);
+}
+
+/* Card */
+.card {
+  background: #111118;
+  border: 1px solid #2A2A38;
+  border-radius: 16px;
+}
+.card-active {
+  background: #111118;
+  border: 1px solid #5B21E8;
+  border-radius: 16px;
+}
+
+/* Page grid background */
+.page-grid {
+  background-image:
+    linear-gradient(rgba(91, 33, 232, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(91, 33, 232, 0.03) 1px, transparent 1px);
+  background-size: 64px 64px;
 }

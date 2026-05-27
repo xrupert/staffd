@@ -60,9 +60,7 @@ export default function VaultPage() {
   async function loadVault() {
     try {
       const userId = pb.authStore.record?.id;
-      const res = await pb.collection("businesses").getList(1, 1, {
-        filter: `user = '${userId}'`,
-      });
+      const res = await pb.collection("businesses").getList(1, 1, { filter: `user = '${userId}'` });
       if (res.items[0]) setVault(res.items[0] as unknown as VaultData);
     } catch { /* no record yet */ }
   }
@@ -91,26 +89,23 @@ export default function VaultPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {
-      setError("Failed to save. Try again.");
+      setError("Failed to save. Please try again.");
     } finally {
       setSaving(false);
     }
   }
 
-  function field(key: keyof VaultData) {
-    return (vault[key] as string) ?? "";
-  }
-
-  function set(key: keyof VaultData, value: string) {
-    setVault((v) => ({ ...v, [key]: value }));
-  }
+  function field(key: keyof VaultData) { return (vault[key] as string) ?? ""; }
+  function set(key: keyof VaultData, value: string) { setVault((v) => ({ ...v, [key]: value })); }
 
   const coreFields = ["business_name", "industry", "description", "target_audience"] as const;
   const filledCount = coreFields.filter((k) => !!(vault[k] as string)?.trim()).length;
   const pct = Math.round((filledCount / coreFields.length) * 100);
+  const circumference = 2 * Math.PI * 22;
 
   return (
-    <main className="min-h-screen flex flex-col relative" style={{ background: "#09090F" }}>
+    <main className="min-h-screen flex flex-col" style={{ background: "#09090F" }}>
+      {/* Grid */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -122,35 +117,50 @@ export default function VaultPage() {
       <div className="relative z-10 w-full max-w-2xl mx-auto px-6 py-8">
 
         {/* Header */}
-        <header className="flex items-center justify-between mb-10">
+        <header className="flex items-center justify-between mb-12">
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm" style={{ color: "#5A5A70" }}>← Dashboard</a>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+            ← Dashboard
+          </a>
         </header>
 
-        {/* Title + completion ring */}
-        <div className="flex items-start justify-between mb-8">
+        {/* Title row */}
+        <div className="flex items-start justify-between mb-10">
           <div>
-            <h1 className="text-2xl font-bold mb-1" style={{ color: "#F0F0F8" }}>Your Vault</h1>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#5B21E8" }}>
+              Business Vault
+            </p>
+            <h1
+              className="font-bold mb-2"
+              style={{ color: "#F0F0F8", fontSize: "2rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}
+            >
+              Your Business Profile
+            </h1>
             <p className="text-sm" style={{ color: "#9090A8" }}>
-              Everything your AI team knows about your business. The more you fill in, the better their work.
+              Everything your AI team knows about your business.
             </p>
           </div>
-          <div className="flex flex-col items-center gap-1 ml-6 flex-shrink-0">
+
+          {/* Completion ring */}
+          <div className="flex flex-col items-center gap-1.5 ml-6 flex-shrink-0">
             <div className="relative w-14 h-14">
               <svg className="w-14 h-14 -rotate-90" viewBox="0 0 56 56">
-                <circle cx="28" cy="28" r="22" fill="none" stroke="#1A1A24" strokeWidth="4" />
+                <circle cx="28" cy="28" r="22" fill="none" stroke="#1A1A24" strokeWidth="3.5" />
                 <circle
                   cx="28" cy="28" r="22" fill="none"
-                  stroke="#5B21E8" strokeWidth="4"
-                  strokeDasharray={`${2 * Math.PI * 22}`}
-                  strokeDashoffset={`${2 * Math.PI * 22 * (1 - pct / 100)}`}
+                  stroke="#5B21E8" strokeWidth="3.5"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={circumference * (1 - pct / 100)}
                   strokeLinecap="round"
                   style={{ transition: "stroke-dashoffset 0.5s ease" }}
                 />
               </svg>
-              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: "#F0F0F8" }}>
+              <span
+                className="absolute inset-0 flex items-center justify-center text-xs font-bold"
+                style={{ color: "#F0F0F8" }}
+              >
                 {pct}%
               </span>
             </div>
@@ -160,70 +170,110 @@ export default function VaultPage() {
 
         {/* Business profile form */}
         <form onSubmit={handleSave}>
-          <section className="rounded-2xl p-6 mb-4" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
-            <h2 className="text-sm font-semibold mb-5" style={{ color: "#F0F0F8" }}>About Your Business</h2>
-            <div className="flex flex-col gap-4">
-              <Field label="Business name" placeholder="e.g., Acme Marketing, Blue Ridge Plumbing" value={field("business_name")} onChange={(v) => set("business_name", v)} />
-              <Field label="Industry / What you do" placeholder="e.g., Digital marketing agency, Plumbing contractor, Online boutique" value={field("industry")} onChange={(v) => set("industry", v)} />
-              <Field
-                label="Describe your business"
+          <div
+            className="rounded-2xl p-7 mb-5"
+            style={{ background: "#111118", border: "1px solid #2A2A38" }}
+          >
+            <p className="text-xs font-semibold uppercase tracking-widest mb-6" style={{ color: "#5A5A70" }}>
+              About Your Business
+            </p>
+            <div className="flex flex-col gap-5">
+              <VaultField
+                label="Business name"
+                placeholder="e.g., Acme Marketing, Blue Ridge Plumbing"
+                value={field("business_name")}
+                onChange={(v) => set("business_name", v)}
+              />
+              <VaultField
+                label="Industry / What you do"
+                placeholder="e.g., Digital marketing agency, Plumbing contractor, Online boutique"
+                value={field("industry")}
+                onChange={(v) => set("industry", v)}
+              />
+              <VaultField
+                label="Business description"
                 placeholder="In 1–2 sentences — what you do, who for, and what makes it work"
                 value={field("description")}
                 onChange={(v) => set("description", v)}
                 multiline
               />
-              <Field label="Who are your customers?" placeholder="e.g., Small business owners in the US, homeowners aged 35–55, e-commerce brands under $5M" value={field("target_audience")} onChange={(v) => set("target_audience", v)} />
-              <Field label="Website" placeholder="yourbusiness.com" value={field("website")} onChange={(v) => set("website", v)} type="url" />
+              <VaultField
+                label="Target customers"
+                placeholder="e.g., Small business owners in the US, homeowners aged 35–55"
+                value={field("target_audience")}
+                onChange={(v) => set("target_audience", v)}
+              />
+              <VaultField
+                label="Website"
+                placeholder="yourbusiness.com"
+                value={field("website")}
+                onChange={(v) => set("website", v)}
+                type="url"
+              />
             </div>
-          </section>
+          </div>
 
-          {error && <p className="text-sm mb-4" style={{ color: "#EF4444" }}>{error}</p>}
+          {error && (
+            <div
+              className="px-4 py-3 rounded-xl text-xs mb-4"
+              style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#EF4444" }}
+            >
+              {error}
+            </div>
+          )}
 
           <button
             type="submit"
             disabled={saving}
-            className="btn-primary w-full py-3 rounded-xl font-semibold text-white text-sm mb-8"
+            className="btn-primary w-full py-3.5 rounded-xl font-semibold text-white text-sm mb-8"
             style={{ opacity: saving ? 0.7 : 1 }}
           >
             {saving ? "Saving…" : saved ? "✓ Saved" : "Save Vault"}
           </button>
         </form>
 
-        {/* Strategy snapshot (read-only from onboarding) */}
+        {/* Strategy snapshot */}
         {(vault.focus || vault.situation || vault.superpower) && (
-          <section className="rounded-2xl p-6" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>Strategy Snapshot</h2>
-              <a href="/onboarding" className="text-xs" style={{ color: "#5B21E8" }}>Retake →</a>
+          <div
+            className="rounded-2xl p-7"
+            style={{ background: "#111118", border: "1px solid #2A2A38" }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#5A5A70" }}>
+                Strategy Snapshot
+              </p>
+              <a href="/onboarding" className="text-xs font-medium transition-colors hover:text-white" style={{ color: "#5B21E8" }}>
+                Retake →
+              </a>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-4">
               {vault.focus && (
                 <SnapshotRow label="Primary focus" value={FOCUS_LABELS[vault.focus] ?? vault.focus} />
               )}
               {vault.situation && (
-                <SnapshotRow label="Current situation" value={SITUATION_LABELS[vault.situation] ?? vault.situation} />
+                <SnapshotRow label="Situation" value={SITUATION_LABELS[vault.situation] ?? vault.situation} />
               )}
               {vault.superpower && (
                 <SnapshotRow label="Competitive edge" value={SUPERPOWER_LABELS[vault.superpower] ?? vault.superpower} />
               )}
               {vault.bottlenecks && vault.bottlenecks.length > 0 && (
                 <SnapshotRow
-                  label="Key bottlenecks"
+                  label="Bottlenecks"
                   value={vault.bottlenecks.map((b) => BOTTLENECK_LABELS[b] ?? b).join(", ")}
                 />
               )}
               {vault.magic_wand && (
-                <SnapshotRow label="Top priority task" value={vault.magic_wand} />
+                <SnapshotRow label="Top priority" value={vault.magic_wand} />
               )}
             </div>
-          </section>
+          </div>
         )}
       </div>
     </main>
   );
 }
 
-function Field({ label, placeholder, value, onChange, multiline, type }: {
+function VaultField({ label, placeholder, value, onChange, multiline, type }: {
   label: string;
   placeholder: string;
   value: string;
@@ -231,29 +281,44 @@ function Field({ label, placeholder, value, onChange, multiline, type }: {
   multiline?: boolean;
   type?: string;
 }) {
-  const shared = {
-    value,
-    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange(e.target.value),
-    placeholder,
-    className: "w-full px-4 py-3 rounded-xl text-sm outline-none transition-all",
-    style: { background: "#1A1A24", border: "1px solid #2A2A38", color: "#F0F0F8" } as React.CSSProperties,
+  const inputStyle: React.CSSProperties = {
+    background: "#1A1A24",
+    border: "1px solid #2A2A38",
+    color: "#F0F0F8",
   };
+  const className = "w-full px-4 py-3 rounded-xl text-sm outline-none transition-all";
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium" style={{ color: "#9090A8" }}>{label}</label>
-      {multiline
-        ? <textarea {...shared} rows={3} style={{ ...shared.style, resize: "none", lineHeight: "1.6" }} />
-        : <input {...shared} type={type ?? "text"} />
-      }
+    <div className="flex flex-col gap-2">
+      <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6060A0" }}>{label}</label>
+      {multiline ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          className={className}
+          style={{ ...inputStyle, resize: "none", lineHeight: "1.6" }}
+        />
+      ) : (
+        <input
+          type={type ?? "text"}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={className}
+          style={inputStyle}
+        />
+      )}
     </div>
   );
 }
 
 function SnapshotRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-3 text-sm">
-      <span className="flex-shrink-0 w-32 text-xs pt-0.5" style={{ color: "#5A5A70" }}>{label}</span>
-      <span style={{ color: "#F0F0F8" }}>{value}</span>
+    <div className="flex gap-4 text-sm">
+      <span className="flex-shrink-0 text-xs pt-0.5" style={{ color: "#5A5A70", width: "120px" }}>{label}</span>
+      <span style={{ color: "#C0C0D8" }}>{value}</span>
     </div>
   );
 }
