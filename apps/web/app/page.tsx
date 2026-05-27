@@ -6,7 +6,7 @@ export default function Home() {
       className="min-h-screen flex flex-col items-center justify-center px-6 relative overflow-hidden"
       style={{ background: "#09090F" }}
     >
-      {/* Grid background */}
+      {/* Grid */}
       <div
         className="fixed inset-0 pointer-events-none"
         style={{
@@ -25,88 +25,108 @@ export default function Home() {
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -55%)",
-          width: "800px",
-          height: "800px",
+          width: "900px",
+          height: "900px",
           borderRadius: "50%",
-          background: "radial-gradient(circle, rgba(91, 33, 232, 0.15) 0%, rgba(91, 33, 232, 0.04) 45%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(91,33,232,0.14) 0%, rgba(91,33,232,0.04) 45%, transparent 68%)",
         }}
       />
 
       <div className="relative z-10 flex flex-col items-center text-center max-w-3xl w-full">
 
-        {/* Logo */}
-        <div className="mb-12">
+        {/* Logo — blended, no box */}
+        <div className="mb-14">
           <Image
-            src="/logo-dark.png"
+            src="/logo-light.png"
             alt="STAFFD"
-            width={180}
-            height={80}
+            width={160}
+            height={72}
             priority
-            style={{ objectFit: "contain" }}
+            style={{ objectFit: "contain", mixBlendMode: "screen" }}
           />
         </div>
 
         {/* Hero */}
         <h1
-          className="font-bold leading-tight mb-5"
-          style={{ fontSize: "clamp(42px, 6vw, 72px)", color: "#F0F0F8" }}
+          className="font-bold leading-none mb-6"
+          style={{
+            fontSize: "clamp(48px, 8vw, 80px)",
+            color: "#F0F0F8",
+            letterSpacing: "-0.03em",
+          }}
         >
           You&apos;re{" "}
+          <span style={{ color: "#7C4FF0", textShadow: "0 0 48px rgba(91,33,232,0.55)" }}>
+            STAFF
+          </span>
           <span
             style={{
-              color: "#5B21E8",
-              textShadow: "0 0 40px rgba(91, 33, 232, 0.5)",
+              display: "inline-block",
+              background: "#FFFFFF",
+              color: "#09090F",
+              borderRadius: "6px",
+              padding: "0.03em 0.08em",
+              lineHeight: "1",
+              verticalAlign: "baseline",
+              fontWeight: "inherit",
+              letterSpacing: "inherit",
+              marginLeft: "0.01em",
             }}
           >
-            STAFFD.
+            D
           </span>
+          <span style={{ color: "#7C4FF0" }}>.</span>
         </h1>
 
+        {/* Subhead */}
         <p
-          className="font-medium mb-3"
-          style={{ fontSize: "clamp(18px, 2.5vw, 24px)", color: "#9090A8" }}
+          className="font-semibold mb-4"
+          style={{ fontSize: "clamp(18px, 2.5vw, 22px)", color: "#C0B0E8", letterSpacing: "-0.01em" }}
         >
-          Your AI-powered business team.
+          Your full business team.
         </p>
 
         <p
-          className="mb-12 max-w-xl"
-          style={{ fontSize: "16px", color: "#5A5A70", lineHeight: "1.7" }}
+          className="mb-12 max-w-lg"
+          style={{ fontSize: "16px", color: "#5A5A70", lineHeight: "1.75" }}
         >
           Marketing. Sales. Legal. HR. Finance. Operations.
           <br />
-          All working for you — no hiring required.
+          All covered — no hiring required.
         </p>
 
-        {/* CTAs */}
-        <div className="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
-          <a
-            href="/auth/signup"
-            className="btn-primary flex-1 py-4 rounded-xl font-semibold text-white text-center"
-            style={{ fontSize: "16px" }}
-          >
-            Get STAFFD
-          </a>
+        {/* Single CTA */}
+        <a
+          href="/auth/signup"
+          className="btn-primary px-10 py-4 rounded-xl font-bold text-white"
+          style={{ fontSize: "16px", letterSpacing: "-0.01em" }}
+        >
+          Get STAFFD →
+        </a>
+
+        {/* Sign in text link */}
+        <p className="mt-5 text-sm" style={{ color: "#3A3A50" }}>
+          Already have an account?{" "}
           <a
             href="/auth/login"
-            className="btn-secondary flex-1 py-4 rounded-xl font-semibold text-center"
-            style={{ fontSize: "16px" }}
+            className="transition-colors hover:text-white"
+            style={{ color: "#6B4FC8" }}
           >
             Sign in
           </a>
-        </div>
+        </p>
 
-        <p className="mt-6 text-sm" style={{ color: "#3A3A50" }}>
+        <p className="mt-3 text-xs" style={{ color: "#2A2A3A" }}>
           No credit card required · Cancel anytime · Your data stays yours
         </p>
 
-        {/* Department row */}
+        {/* Department strip */}
         <div
-          className="flex items-center gap-6 mt-16 pt-8"
-          style={{ borderTop: "1px solid #1A1A28" }}
+          className="flex flex-wrap items-center justify-center gap-6 mt-16 pt-8"
+          style={{ borderTop: "1px solid #161622" }}
         >
-          {["Marketing", "Sales", "Legal", "HR", "Finance"].map((dept) => (
-            <span key={dept} className="text-xs font-medium" style={{ color: "#3A3A50" }}>
+          {["Marketing", "Sales", "Legal", "HR", "Finance", "Operations"].map((dept) => (
+            <span key={dept} className="text-xs font-medium" style={{ color: "#2E2E45" }}>
               {dept}
             </span>
           ))}
@@ -114,8 +134,8 @@ export default function Home() {
       </div>
 
       <footer
-        className="fixed bottom-6 text-xs"
-        style={{ color: "#2A2A38" }}
+        className="fixed text-xs"
+        style={{ bottom: "24px", color: "#222230" }}
       >
         © 2026 STAFFD · urstaffd.com
       </footer>
