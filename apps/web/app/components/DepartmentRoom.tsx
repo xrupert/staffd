@@ -214,6 +214,66 @@ export default function DepartmentRoom({
     }
   }
 
+  async function scheduleCall() {
+    if (!output || integrationStatus === "sending") return;
+    const email = prompt("Prospect's email address:");
+    if (!email?.trim()) return;
+    const name = prompt("Prospect's name (optional):") ?? "";
+    setIntegrationStatus("sending");
+    setIntegrationMsg("");
+    try {
+      const res = await fetch("/api/integrations/cal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attendeeEmail: email.trim(), attendeeName: name || undefined, notes: task }),
+      });
+      const data = (await res.json()) as { bookingUrl?: string; message?: string; error?: string };
+      if (res.status === 503) {
+        setIntegrationMsg("Scheduling not configured. Add CAL_API_URL and CAL_API_KEY to your environment.");
+        setIntegrationStatus("error");
+      } else if (!res.ok) {
+        setIntegrationStatus("error");
+        setIntegrationMsg("Failed to schedule call.");
+      } else {
+        setIntegrationStatus("sent");
+        setIntegrationMsg(data.bookingUrl ? `Booking created → ${data.bookingUrl}` : "Call scheduled.");
+      }
+    } catch {
+      setIntegrationStatus("error");
+      setIntegrationMsg("Failed to reach scheduling service.");
+    }
+  }
+
+  async function addToCRM() {
+    if (!output || integrationStatus === "sending") return;
+    const name = prompt("Contact or company name:");
+    if (!name?.trim()) return;
+    const email = prompt("Email (optional):") ?? "";
+    setIntegrationStatus("sending");
+    setIntegrationMsg("");
+    try {
+      const res = await fetch("/api/integrations/twenty", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "contact", name: name.trim(), email: email.trim() || undefined, notes: task }),
+      });
+      const data = (await res.json()) as { crmUrl?: string; message?: string; error?: string };
+      if (res.status === 503) {
+        setIntegrationMsg("CRM not configured. Add TWENTY_API_URL and TWENTY_API_KEY to your environment.");
+        setIntegrationStatus("error");
+      } else if (!res.ok) {
+        setIntegrationStatus("error");
+        setIntegrationMsg("Failed to add to CRM.");
+      } else {
+        setIntegrationStatus("sent");
+        setIntegrationMsg(data.crmUrl ? `Added to CRM → ${data.crmUrl}` : "Added to CRM.");
+      }
+    } catch {
+      setIntegrationStatus("error");
+      setIntegrationMsg("Failed to reach CRM.");
+    }
+  }
+
   async function sendForSignature() {
     if (!output || integrationStatus === "sending") return;
     const email = prompt("Signer's email address:");
@@ -553,6 +613,26 @@ export default function DepartmentRoom({
                       style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
                     >
                       {integrationStatus === "sending" ? "Sending…" : integrationStatus === "sent" ? "Sent ✓" : "Send for Signature"}
+                    </button>
+                  )}
+                  {department === "sales" && (
+                    <button
+                      onClick={() => void scheduleCall()}
+                      disabled={integrationStatus === "sending"}
+                      className="text-xs transition-colors hover:text-white"
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                    >
+                      {integrationStatus === "sending" ? "Sending…" : "Schedule Call"}
+                    </button>
+                  )}
+                  {department === "sales" && (
+                    <button
+                      onClick={() => void addToCRM()}
+                      disabled={integrationStatus === "sending"}
+                      className="text-xs transition-colors hover:text-white"
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                    >
+                      {integrationStatus === "sending" ? "Saving…" : "Add to CRM"}
                     </button>
                   )}
                 </div>

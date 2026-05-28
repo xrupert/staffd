@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "staffd-web",
+      "name": "web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "web", "dev"],
       "port": 3000

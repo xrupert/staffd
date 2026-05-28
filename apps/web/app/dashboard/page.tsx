@@ -83,6 +83,9 @@ export default function DashboardPage() {
             <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} />
           </a>
           <div className="flex items-center gap-4">
+            <a href="/dashboard/calendar" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
+              Calendar
+            </a>
             <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
               Library
             </a>

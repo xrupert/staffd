@@ -60,8 +60,14 @@ export async function POST(req: Request) {
 
     const stream = await anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 512,
-      system: SYSTEM_PROMPT + vaultContext,
+      max_tokens: 1024,
+      system: [
+        {
+          type: "text",
+          text: SYSTEM_PROMPT + vaultContext,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
       messages,
     });
 

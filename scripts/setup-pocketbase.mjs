@@ -21,7 +21,8 @@ if (!PB_URL || !PB_EMAIL || !PB_PASSWORD) {
 const base = PB_URL.replace(/\/$/, "");
 
 async function adminToken() {
-  const res = await fetch(`${base}/api/admins/auth-with-password`, {
+  // PocketBase v0.23+ uses _superusers collection for admin auth
+  const res = await fetch(`${base}/api/collections/_superusers/auth-with-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ identity: PB_EMAIL, password: PB_PASSWORD }),
