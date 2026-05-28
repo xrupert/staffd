@@ -31,6 +31,7 @@ export interface DepartmentRoomConfig {
   eyebrow?: string;
   tagline: string;
   placeholder: string;
+  headerSlot?: React.ReactNode;
 }
 
 export default function DepartmentRoom({
@@ -40,6 +41,7 @@ export default function DepartmentRoom({
   eyebrow = "Department",
   tagline,
   placeholder,
+  headerSlot,
 }: DepartmentRoomConfig) {
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [activeAgent, setActiveAgent] = useState<AgentMeta | null>(null);
@@ -50,6 +52,8 @@ export default function DepartmentRoom({
   const [activeChip, setActiveChip] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
+  const [integrationStatus, setIntegrationStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [integrationMsg, setIntegrationMsg] = useState("");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -115,6 +119,8 @@ export default function DepartmentRoom({
     setOutput("");
     setError("");
     setLoading(true);
+    setIntegrationStatus("idle");
+    setIntegrationMsg("");
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -179,6 +185,62 @@ export default function DepartmentRoom({
     setOutput("");
     setError("");
     setSelectedTemplate(null);
+  }
+
+  async function sendCampaign() {
+    if (!output || integrationStatus === "sending") return;
+    setIntegrationStatus("sending");
+    setIntegrationMsg("");
+    try {
+      const res = await fetch("/api/integrations/listmonk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: task.slice(0, 80) || "Campaign", body: output }),
+      });
+      const data = (await res.json()) as { campaignUrl?: string; message?: string; error?: string };
+      if (res.status === 503) {
+        setIntegrationMsg("Email sending not configured. Add LISTMONK_URL to your environment to enable this.");
+        setIntegrationStatus("error");
+      } else if (!res.ok) {
+        setIntegrationStatus("error");
+        setIntegrationMsg("Failed to create campaign.");
+      } else {
+        setIntegrationStatus("sent");
+        setIntegrationMsg(data.campaignUrl ? `Draft saved → ${data.campaignUrl}` : "Campaign draft created.");
+      }
+    } catch {
+      setIntegrationStatus("error");
+      setIntegrationMsg("Failed to reach email service.");
+    }
+  }
+
+  async function sendForSignature() {
+    if (!output || integrationStatus === "sending") return;
+    const email = prompt("Signer's email address:");
+    if (!email?.trim()) return;
+    setIntegrationStatus("sending");
+    setIntegrationMsg("");
+    try {
+      const res = await fetch("/api/integrations/docuseal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: task.slice(0, 80) || "Document", documentContent: output, signerEmail: email.trim() }),
+      });
+      const data = (await res.json()) as { signingUrl?: string; message?: string; error?: string };
+      if (res.status === 503) {
+        setIntegrationMsg("E-signatures not configured. Add DOCUSEAL_URL to your environment to enable this.");
+        setIntegrationStatus("error");
+      } else if (!res.ok) {
+        setIntegrationStatus("error");
+        setIntegrationMsg("Failed to send for signature.");
+      } else {
+        setIntegrationStatus("sent");
+        setIntegrationMsg(data.signingUrl ? `Sent → ${data.signingUrl}` : "Sent for signature.");
+      }
+    } catch {
+      setIntegrationStatus("error");
+      setIntegrationMsg("Failed to reach signature service.");
+    }
   }
 
   function handleQuickAction(prompt: string, label: string) {
@@ -252,6 +314,9 @@ export default function DepartmentRoom({
           </div>
           <p className="text-sm" style={{ color: "#6060A0" }}>{tagline}</p>
         </div>
+
+        {/* Optional header slot — used by CEO for briefings, etc. */}
+        {headerSlot}
 
         {/* Agent roster */}
         <div className="mb-7 no-print">
@@ -470,9 +535,41 @@ export default function DepartmentRoom({
                   >
                     Download .docx
                   </button>
+                  {department === "marketing" && (
+                    <button
+                      onClick={() => void sendCampaign()}
+                      disabled={integrationStatus === "sending"}
+                      className="text-xs transition-colors hover:text-white"
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                    >
+                      {integrationStatus === "sending" ? "Sending…" : integrationStatus === "sent" ? "Campaign saved ✓" : "Send as Campaign"}
+                    </button>
+                  )}
+                  {(department === "legal" || department === "sales") && (
+                    <button
+                      onClick={() => void sendForSignature()}
+                      disabled={integrationStatus === "sending"}
+                      className="text-xs transition-colors hover:text-white"
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                    >
+                      {integrationStatus === "sending" ? "Sending…" : integrationStatus === "sent" ? "Sent ✓" : "Send for Signature"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>
+            {integrationMsg && (
+              <div
+                className="px-5 py-2.5 text-xs"
+                style={{
+                  borderBottom: "1px solid #1E1E2A",
+                  color: integrationStatus === "sent" ? "#22C55E" : "#F59E0B",
+                  background: integrationStatus === "sent" ? "rgba(34,197,94,0.05)" : "rgba(245,158,11,0.05)",
+                }}
+              >
+                {integrationMsg}
+              </div>
+            )}
             <div className="px-6 py-5">
               {loading ? (
                 <div className="text-sm whitespace-pre-wrap" style={{ color: "#D0D0E8", lineHeight: "1.8" }}>

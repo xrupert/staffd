@@ -19,6 +19,7 @@ const DEPARTMENTS = [
 export default function DashboardPage() {
   const [userName, setUserName] = useState("");
   const [initials, setInitials] = useState("");
+  const [vaultPct, setVaultPct] = useState<number | null>(null);
 
   useEffect(() => {
     if (!pb.authStore.isValid) {
@@ -34,7 +35,23 @@ export default function DashboardPage() {
         ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
         : name.slice(0, 2).toUpperCase()
     );
+    void loadVaultHealth();
   }, []);
+
+  async function loadVaultHealth() {
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      const res = await pb.collection("businesses").getList(1, 1, { filter: `user = '${userId}'` });
+      const rec = res.items[0];
+      if (rec) {
+        const coreFields = ["business_name", "industry", "description", "target_audience"] as const;
+        const filled = coreFields.filter((k) => !!(rec[k] as string)?.trim()).length;
+        setVaultPct(Math.round((filled / coreFields.length) * 100));
+      } else {
+        setVaultPct(0);
+      }
+    } catch { /* proceed */ }
+  }
 
   return (
     <main className="min-h-screen flex flex-col" style={{ background: "#09090F" }}>
@@ -101,6 +118,55 @@ export default function DashboardPage() {
             Your AI team is ready.
           </p>
         </div>
+
+        {/* Vault health nudge — only shown when vault is incomplete */}
+        {vaultPct !== null && vaultPct < 75 && (
+          <a
+            href="/dashboard/vault"
+            style={{ textDecoration: "none", display: "block", marginBottom: "20px" }}
+          >
+            <div
+              className="flex items-center gap-4 rounded-2xl px-5 py-4 transition-all"
+              style={{
+                background: "rgba(245,158,11,0.05)",
+                border: "1px solid rgba(245,158,11,0.2)",
+              }}
+            >
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-sm flex-shrink-0"
+                style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}
+              >
+                ⚡
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: "#F0F0E8" }}>
+                  Your AI team is working with {vaultPct}% of the context they need
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: "#7A6A40" }}>
+                  Fill in your Business Vault — the more they know, the better the output →
+                </p>
+              </div>
+              <div
+                className="flex-shrink-0"
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "50%",
+                  background: "rgba(245,158,11,0.1)",
+                  border: "1px solid rgba(245,158,11,0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: "#F59E0B",
+                }}
+              >
+                {vaultPct}%
+              </div>
+            </div>
+          </a>
+        )}
 
         {/* Command Center chat */}
         <CommandCenter />
