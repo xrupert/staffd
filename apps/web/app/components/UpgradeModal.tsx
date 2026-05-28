@@ -1,10 +1,15 @@
 "use client";
 
+import { useState } from "react";
+import pb from "../../lib/pb";
+
 interface Plan {
   id: string;
   name: string;
-  price: string;
-  period: string;
+  monthlyPrice: string;
+  annualPrice: string;
+  annualMonthly: string;
+  annualSavings: string;
   tagline: string;
   features: string[];
   cta: string;
@@ -15,8 +20,10 @@ const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    price: "$39",
-    period: "/mo",
+    monthlyPrice: "$39",
+    annualPrice: "$390",
+    annualMonthly: "$32.50",
+    annualSavings: "$78",
     tagline: "6 curated AI specialists, ready to work.",
     features: [
       "6 hand-picked AI agents",
@@ -26,14 +33,16 @@ const PLANS: Plan[] = [
       "Business Vault",
       "3 trial runs per locked department",
     ],
-    cta: "Current plan",
+    cta: "Get Starter",
     highlight: false,
   },
   {
     id: "growth",
     name: "Growth",
-    price: "$79",
-    period: "/mo",
+    monthlyPrice: "$79",
+    annualPrice: "$790",
+    annualMonthly: "$65.83",
+    annualSavings: "$158",
     tagline: "Your starter team plus one full department.",
     features: [
       "Everything in Starter",
@@ -49,13 +58,15 @@ const PLANS: Plan[] = [
   {
     id: "pro",
     name: "Pro",
-    price: "$149",
-    period: "/mo",
+    monthlyPrice: "$149",
+    annualPrice: "$1,490",
+    annualMonthly: "$124.17",
+    annualSavings: "$298",
     tagline: "Three departments and a strategic advisor.",
     features: [
       "Everything in Growth",
       "3 full departments (your choice)",
-      "CEO — strategic advisor included",
+      "Strategic advisor included",
       "E-signature sending",
       "CRM integration",
       "Weekly business briefings",
@@ -66,12 +77,14 @@ const PLANS: Plan[] = [
   {
     id: "agency",
     name: "Agency",
-    price: "$450",
-    period: "/mo",
+    monthlyPrice: "$450",
+    annualPrice: "$4,500",
+    annualMonthly: "$375",
+    annualSavings: "$900",
     tagline: "The full team. All 8 departments.",
     features: [
       "All 8 departments",
-      "CEO included",
+      "Strategic advisor included",
       "Multi-client dashboard",
       "White-label ready",
       "Priority support",
@@ -82,40 +95,77 @@ const PLANS: Plan[] = [
   },
 ];
 
-interface UpgradeModalProps {
-  department: string;
-  currentPlan?: string;
-  onClose: () => void;
-}
-
 const DEPT_LABELS: Record<string, string> = {
   marketing: "Marketing", sales: "Sales", legal: "Legal", hr: "HR",
   finance: "Finance", operations: "Operations", ceo: "Strategy",
   "paid-media": "Paid Media", design: "Design",
 };
 
+interface UpgradeModalProps {
+  department: string;
+  currentPlan?: string;
+  onClose: () => void;
+}
+
 export default function UpgradeModal({ department, currentPlan = "starter", onClose }: UpgradeModalProps) {
+  const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
+  const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
   const deptLabel = DEPT_LABELS[department] ?? department;
 
-  // Stripe checkout URLs — replace with real links when Stripe is wired up
-  const checkoutUrl = "#upgrade"; // TODO: replace with Stripe checkout links per plan
+  async function handleCheckout(planId: string) {
+    if (checkingOut) return;
+    setCheckingOut(planId);
+    try {
+      const userId    = pb.authStore.record?.id ?? "";
+      const userEmail = (pb.authStore.record?.email as string) ?? "";
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId, interval, userId, userEmail }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error("Checkout error:", data.error);
+        setCheckingOut(null);
+      }
+    } catch {
+      setCheckingOut(null);
+    }
+  }
+
+  async function handleManageSubscription() {
+    setPortalLoading(true);
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = (await res.json()) as { url?: string };
+      if (data.url) window.location.href = data.url;
+    } catch { /* ignore */ } finally {
+      setPortalLoading(false);
+    }
+  }
 
   return (
     <div
       className="fixed inset-0 flex items-center justify-center z-50 px-4"
-      style={{ background: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }}
+      style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)" }}
       onClick={onClose}
     >
       <div
         className="w-full max-w-4xl rounded-2xl overflow-hidden"
-        style={{ background: "#0D0D14", border: "1px solid #2A2A38", maxHeight: "90vh", overflowY: "auto" }}
+        style={{ background: "#0D0D14", border: "1px solid #2A2A38", maxHeight: "92vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
+
         {/* Header */}
-        <div
-          className="px-8 py-6 flex items-start justify-between"
-          style={{ borderBottom: "1px solid #1E1E2A" }}
-        >
+        <div className="px-8 py-6 flex items-start justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>
               Upgrade Required
@@ -135,19 +185,56 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
           </button>
         </div>
 
+        {/* Billing interval toggle */}
+        <div className="flex justify-center pt-6 pb-2">
+          <div
+            className="flex items-center gap-1 p-1 rounded-xl"
+            style={{ background: "#111118", border: "1px solid #2A2A38" }}
+          >
+            <button
+              onClick={() => setInterval("monthly")}
+              className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={{
+                background: interval === "monthly" ? "#1E1E2E" : "transparent",
+                color: interval === "monthly" ? "#F0F0F8" : "#5A5A70",
+                border: interval === "monthly" ? "1px solid #2A2A38" : "1px solid transparent",
+              }}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setInterval("annual")}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={{
+                background: interval === "annual" ? "#1E1E2E" : "transparent",
+                color: interval === "annual" ? "#F0F0F8" : "#5A5A70",
+                border: interval === "annual" ? "1px solid #2A2A38" : "1px solid transparent",
+              }}
+            >
+              Annual
+              <span
+                className="px-1.5 py-0.5 rounded-full text-xs font-bold"
+                style={{ background: "rgba(91,33,232,0.25)", color: "#A07BFF", fontSize: "9px" }}
+              >
+                2 months free
+              </span>
+            </button>
+          </div>
+        </div>
+
         {/* Plans grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px p-6 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-6">
           {PLANS.map(plan => {
             const isCurrent = plan.id === currentPlan;
+            const isLoading = checkingOut === plan.id;
+
             return (
               <div
                 key={plan.id}
                 className="rounded-xl p-5 flex flex-col"
                 style={{
                   background: plan.highlight ? "rgba(91,33,232,0.1)" : "#111118",
-                  border: plan.highlight
-                    ? "1px solid rgba(91,33,232,0.5)"
-                    : "1px solid #2A2A38",
+                  border: plan.highlight ? "1px solid rgba(91,33,232,0.5)" : "1px solid #2A2A38",
                   boxShadow: plan.highlight ? "0 0 30px rgba(91,33,232,0.12)" : "none",
                   position: "relative",
                 }}
@@ -171,10 +258,30 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
 
                 <div className="mb-4">
                   <p className="text-sm font-bold mb-1" style={{ color: "#F0F0F8" }}>{plan.name}</p>
-                  <div className="flex items-baseline gap-0.5 mb-2">
-                    <span className="text-2xl font-bold" style={{ color: "#F0F0F8" }}>{plan.price}</span>
-                    <span className="text-xs" style={{ color: "#5A5A70" }}>{plan.period}</span>
-                  </div>
+
+                  {interval === "monthly" ? (
+                    <div className="flex items-baseline gap-0.5 mb-1">
+                      <span className="text-2xl font-bold" style={{ color: "#F0F0F8" }}>{plan.monthlyPrice}</span>
+                      <span className="text-xs" style={{ color: "#5A5A70" }}>/mo</span>
+                    </div>
+                  ) : (
+                    <div className="mb-1">
+                      <div className="flex items-baseline gap-0.5">
+                        <span className="text-2xl font-bold" style={{ color: "#F0F0F8" }}>{plan.annualPrice}</span>
+                        <span className="text-xs" style={{ color: "#5A5A70" }}>/yr</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs" style={{ color: "#6060A0" }}>{plan.annualMonthly}/mo</span>
+                        <span
+                          className="text-xs px-1.5 py-0.5 rounded-full font-semibold"
+                          style={{ background: "rgba(34,197,94,0.1)", color: "#22C55E", fontSize: "9px" }}
+                        >
+                          save {plan.annualSavings}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-xs leading-snug" style={{ color: "#6060A0" }}>{plan.tagline}</p>
                 </div>
 
@@ -195,28 +302,43 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
                     Current plan
                   </div>
                 ) : (
-                  <a
-                    href={checkoutUrl}
-                    className="text-center py-2.5 rounded-xl text-xs font-semibold transition-all block"
+                  <button
+                    onClick={() => void handleCheckout(plan.id)}
+                    disabled={!!checkingOut}
+                    className="text-center py-2.5 rounded-xl text-xs font-semibold transition-all w-full"
                     style={{
-                      background: plan.highlight ? "#5B21E8" : "rgba(91,33,232,0.15)",
+                      background: isLoading
+                        ? "rgba(91,33,232,0.08)"
+                        : plan.highlight ? "#5B21E8" : "rgba(91,33,232,0.15)",
                       color: plan.highlight ? "#fff" : "#A07BFF",
                       border: plan.highlight ? "none" : "1px solid rgba(91,33,232,0.3)",
-                      textDecoration: "none",
+                      cursor: checkingOut ? "not-allowed" : "pointer",
+                      opacity: checkingOut && !isLoading ? 0.5 : 1,
                     }}
                   >
-                    {plan.cta} →
-                  </a>
+                    {isLoading ? "Opening checkout…" : `${plan.cta} →`}
+                  </button>
                 )}
               </div>
             );
           })}
         </div>
 
-        <div className="px-8 pb-6 text-center">
+        {/* Footer */}
+        <div className="px-8 pb-6 flex flex-col items-center gap-3">
           <p className="text-xs" style={{ color: "#3A3A50" }}>
             All plans include a 7-day money-back guarantee. No contracts, cancel anytime.
           </p>
+          {currentPlan !== "starter" && (
+            <button
+              onClick={() => void handleManageSubscription()}
+              disabled={portalLoading}
+              className="text-xs transition-colors hover:text-white"
+              style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+            >
+              {portalLoading ? "Loading…" : "Manage existing subscription →"}
+            </button>
+          )}
         </div>
       </div>
     </div>

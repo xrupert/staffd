@@ -16,10 +16,19 @@ const DEPARTMENTS = [
   { name: "Design", icon: "🎨", tagline: "Brand, visuals & UI direction", href: "/dashboard/design" },
 ];
 
+const PLAN_LABELS: Record<string, string> = {
+  starter: "Starter",
+  growth: "Growth",
+  pro: "Pro",
+  agency: "Agency",
+};
+
 export default function DashboardPage() {
   const [userName, setUserName] = useState("");
   const [initials, setInitials] = useState("");
   const [vaultPct, setVaultPct] = useState<number | null>(null);
+  const [currentPlan, setCurrentPlan] = useState<string | null>(null);
+  const [checkoutBanner, setCheckoutBanner] = useState<"success" | "cancelled" | null>(null);
 
   useEffect(() => {
     if (!pb.authStore.isValid) {
@@ -36,9 +45,32 @@ export default function DashboardPage() {
         : name.slice(0, 2).toUpperCase()
     );
     void loadVaultHealth();
-    // Ensure subscriptions collection exists (no-op if already created)
+    void loadPlan();
+    // Handle Stripe redirect params
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get("checkout");
+    if (checkout === "success" || checkout === "cancelled") {
+      setCheckoutBanner(checkout as "success" | "cancelled");
+      // Clean URL without reload
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+      setTimeout(() => setCheckoutBanner(null), 6000);
+    }
+    // Ensure collections exist (no-op if already created)
     void fetch("/api/setup/subscriptions", { method: "POST" }).catch(() => null);
   }, []);
+
+  async function loadPlan() {
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      if (!userId) return;
+      const res = await fetch(`/api/trial?userId=${userId}`);
+      if (res.ok) {
+        const data = (await res.json()) as { plan: string };
+        setCurrentPlan(data.plan ?? "starter");
+      }
+    } catch { /* proceed */ }
+  }
 
   async function loadVaultHealth() {
     try {
@@ -79,12 +111,57 @@ export default function DashboardPage() {
 
       <div className="relative z-10 w-full max-w-5xl mx-auto px-6 py-8">
 
+        {/* Post-checkout banner */}
+        {checkoutBanner === "success" && (
+          <div
+            className="flex items-center gap-3 rounded-2xl px-5 py-3.5 mb-6"
+            style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
+          >
+            <span className="text-base">🎉</span>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#22C55E" }}>
+                Welcome to {currentPlan ? PLAN_LABELS[currentPlan] : "your new plan"}
+              </p>
+              <p className="text-xs" style={{ color: "#4A7A4A" }}>
+                Your departments are unlocked. Your AI team is ready.
+              </p>
+            </div>
+          </div>
+        )}
+        {checkoutBanner === "cancelled" && (
+          <div
+            className="flex items-center gap-3 rounded-2xl px-5 py-3.5 mb-6"
+            style={{ background: "rgba(91,33,232,0.06)", border: "1px solid rgba(91,33,232,0.2)" }}
+          >
+            <span className="text-base">👋</span>
+            <p className="text-sm" style={{ color: "#7060A0" }}>
+              No worries — your trial runs are still available whenever you&apos;re ready.
+            </p>
+          </div>
+        )}
+
         {/* Header */}
         <header className="flex items-center justify-between mb-12">
           <a href="/">
             <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} />
           </a>
           <div className="flex items-center gap-4">
+            {/* Plan badge */}
+            {currentPlan && currentPlan !== "starter" && (
+              <button
+                onClick={async () => {
+                  const userId = pb.authStore.record?.id ?? "";
+                  const res = await fetch("/api/stripe/portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) });
+                  const data = await res.json() as { url?: string };
+                  if (data.url) window.location.href = data.url;
+                }}
+                className="text-xs font-semibold px-2.5 py-1 rounded-full transition-all"
+                style={{ background: "rgba(91,33,232,0.15)", color: "#A07BFF", border: "1px solid rgba(91,33,232,0.3)" }}
+                title="Manage subscription"
+              >
+                {PLAN_LABELS[currentPlan] ?? currentPlan}
+              </button>
+            )}
             <a href="/dashboard/calendar" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
               Calendar
             </a>
