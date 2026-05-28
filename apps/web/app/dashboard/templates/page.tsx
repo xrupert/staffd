@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../../lib/pb";
-import { STARTER_TEMPLATES } from "../../lib/starterTemplates";
+import { STARTER_TEMPLATES, fillVaultData, type VaultSnapshot } from "../../lib/starterTemplates";
 
 const DEPT_OPTIONS = [
   { value: "", label: "Any department" },
@@ -31,6 +31,7 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -45,6 +46,23 @@ export default function TemplatesPage() {
     void load();
   }, []);
 
+  async function loadVaultSnapshot(userId: string): Promise<VaultSnapshot> {
+    try {
+      const res = await pb.collection("businesses").getList(1, 1, { filter: `user = '${userId}'` });
+      const rec = res.items[0];
+      if (!rec) return {};
+      return {
+        business_name: rec.business_name as string,
+        address:       rec.address as string,
+        phone:         rec.phone as string,
+        primary_email: rec.primary_email as string,
+        website:       rec.website as string,
+      };
+    } catch {
+      return {};
+    }
+  }
+
   async function load() {
     setLoading(true);
     try {
@@ -56,6 +74,7 @@ export default function TemplatesPage() {
 
       // Seed starter templates on first use (user has no templates yet)
       if (res.items.length === 0) {
+        const vault = await loadVaultSnapshot(userId);
         const created: Template[] = [];
         for (const t of STARTER_TEMPLATES) {
           try {
@@ -63,10 +82,10 @@ export default function TemplatesPage() {
               user: userId,
               name: t.name,
               department: t.department,
-              content: t.content,
+              content: fillVaultData(t.content, vault),
             });
             created.push(rec as unknown as Template);
-          } catch { /* skip if template already exists or collection not ready */ }
+          } catch { /* skip if template collection not ready */ }
         }
         setTemplates(created);
       } else {
@@ -76,6 +95,40 @@ export default function TemplatesPage() {
       setTemplates([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  /** Fills vault data into any template still containing generic placeholders */
+  async function refreshWithVaultData() {
+    setRefreshing(true);
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      const vault = await loadVaultSnapshot(userId);
+      if (!vault.business_name && !vault.address && !vault.phone) {
+        setError("Fill in your Business Vault first, then refresh your templates.");
+        setRefreshing(false);
+        return;
+      }
+      const PLACEHOLDER = "[YOUR BUSINESS NAME]";
+      const toUpdate = templates.filter(t => t.content.includes(PLACEHOLDER));
+      const updated: Template[] = [];
+      for (const t of toUpdate) {
+        try {
+          const newContent = fillVaultData(t.content, vault);
+          const rec = await pb.collection("templates").update(t.id, { content: newContent });
+          updated.push(rec as unknown as Template);
+        } catch { /* skip */ }
+      }
+      if (updated.length > 0) {
+        setTemplates(prev =>
+          prev.map(t => {
+            const u = updated.find(u => u.id === t.id);
+            return u ?? t;
+          })
+        );
+      }
+    } catch { /* ignore */ } finally {
+      setRefreshing(false);
     }
   }
 
@@ -138,12 +191,25 @@ export default function TemplatesPage() {
             </p>
           </div>
           {!creating && (
-            <button
-              onClick={() => setCreating(true)}
-              className="btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold text-white flex-shrink-0 ml-4"
-            >
-              + New
-            </button>
+            <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+              {templates.some(t => t.content.includes("[YOUR BUSINESS NAME]")) && (
+                <button
+                  onClick={() => void refreshWithVaultData()}
+                  disabled={refreshing}
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold transition-all"
+                  style={{ background: "#1A1A24", border: "1px solid rgba(91,33,232,0.3)", color: refreshing ? "#3A3A55" : "#A07BFF" }}
+                  title="Fill your business name, address, and contact info into templates that still have generic placeholders"
+                >
+                  {refreshing ? "Refreshing…" : "Fill with vault data"}
+                </button>
+              )}
+              <button
+                onClick={() => setCreating(true)}
+                className="btn-primary px-5 py-2.5 rounded-xl text-sm font-semibold text-white"
+              >
+                + New
+              </button>
+            </div>
           )}
         </div>
 

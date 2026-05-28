@@ -8,6 +8,7 @@ import pb from "../../lib/pb";
 import { exportToDocx } from "./DocExport";
 import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
+import { DEPARTMENT_CATEGORIES, type DeptCategory } from "../lib/departmentCategories";
 
 // Departments that are always unlocked (starter pack)
 const ALWAYS_UNLOCKED = new Set(["marketing", "sales", "legal"]);
@@ -72,6 +73,7 @@ export default function DepartmentRoom({
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [currentPlan, setCurrentPlan] = useState("starter");
   const [trialRemaining, setTrialRemaining] = useState<number | null>(null);
+  const [activeCategory, setActiveCategory] = useState("");
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -88,8 +90,28 @@ export default function DepartmentRoom({
       if (!res.ok) return;
       const data = (await res.json()) as AgentMeta[];
       setAgents(data);
-      if (data.length > 0) setActiveAgent(data[0] ?? null);
+
+      const cats = DEPARTMENT_CATEGORIES[department] ?? [];
+      if (cats.length > 0) {
+        const firstCat = cats[0]!;
+        setActiveCategory(firstCat.id);
+        const firstAgent = data.find(a => firstCat.agentIds.includes(a.id)) ?? data[0] ?? null;
+        setActiveAgent(firstAgent);
+      } else {
+        if (data.length > 0) setActiveAgent(data[0] ?? null);
+      }
     } catch { /* proceed */ }
+  }
+
+  function selectCategory(cat: DeptCategory) {
+    setActiveCategory(cat.id);
+    setActiveChip("");
+    setTask("");
+    setOutput("");
+    setError("");
+    setSelectedTemplate(null);
+    const firstAgent = agents.find(a => cat.agentIds.includes(a.id)) ?? null;
+    if (firstAgent) setActiveAgent(firstAgent);
   }
 
   async function loadContext() {
@@ -356,6 +378,13 @@ export default function DepartmentRoom({
 
   const quickActions = activeAgent ? getQuickActions(activeAgent.id) : [];
 
+  // Category tab derived values
+  const categories = DEPARTMENT_CATEGORIES[department] ?? [];
+  const activeCategoryDef = categories.find(c => c.id === activeCategory) ?? categories[0] ?? null;
+  const activeCategoryAgents = activeCategoryDef
+    ? agents.filter(a => activeCategoryDef.agentIds.includes(a.id))
+    : [];
+
   return (
     <main className="min-h-screen flex flex-col no-print-chrome" style={{ background: "#09090F" }}>
       {/* Grid bg */}
@@ -423,64 +452,128 @@ export default function DepartmentRoom({
         {/* Optional header slot — used by CEO for briefings, etc. */}
         {headerSlot}
 
-        {/* Agent roster */}
-        <div className="mb-7 no-print">
-          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#3A3A50" }}>
-            Specialists
-          </p>
-          <div
-            ref={rosterRef}
-            className="flex gap-3 overflow-x-auto pb-1"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            {agents.length === 0
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex-shrink-0 rounded-xl animate-pulse"
+        {/* ── Option B: Category tabs + capability panel ── */}
+        {categories.length > 0 ? (
+          <div className="mb-5 no-print">
+            {/* Tab row */}
+            <div
+              className="flex gap-2 overflow-x-auto pb-1 mb-4"
+              style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            >
+              {categories.map((cat) => {
+                const isActive = (activeCategoryDef?.id ?? "") === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => selectCategory(cat)}
+                    className="flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold transition-all"
                     style={{
-                      width: "160px", height: "92px",
-                      background: "#111118", border: "1px solid #1E1E2A",
+                      background: isActive ? "rgba(91,33,232,0.15)" : "#111118",
+                      border: isActive ? "1px solid rgba(91,33,232,0.5)" : "1px solid #2A2A38",
+                      color: isActive ? "#A07BFF" : "#6060A0",
+                      cursor: "pointer",
                     }}
-                  />
-                ))
-              : agents.map((agent) => {
-                  const isActive = activeAgent?.id === agent.id;
-                  return (
-                    <button
-                      key={agent.id}
-                      onClick={() => selectAgent(agent)}
-                      className="flex-shrink-0 rounded-xl p-3.5 text-left transition-all"
-                      style={{
-                        width: "168px",
-                        background: isActive ? "rgba(91,33,232,0.12)" : "#111118",
-                        border: isActive ? "1px solid rgba(91,33,232,0.5)" : "1px solid #2A2A38",
-                        boxShadow: isActive ? "0 0 18px rgba(91,33,232,0.15)" : "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-lg">{agent.emoji}</span>
-                        {isActive && (
-                          <span
-                            className="text-xs font-semibold px-1.5 py-0.5 rounded-full"
-                            style={{ background: "rgba(91,33,232,0.25)", color: "#A07BFF", fontSize: "9px" }}
+                  >
+                    {cat.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Capability panel */}
+            {activeCategoryDef && (
+              <div className="rounded-2xl p-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
+                <p className="text-sm font-medium mb-3" style={{ color: "#D0D0E8", lineHeight: 1.45 }}>
+                  {activeCategoryDef.tagline}
+                </p>
+
+                <ul className="flex flex-col gap-1.5 mb-4">
+                  {activeCategoryDef.capabilities.map((c) => (
+                    <li key={c} className="flex items-start gap-2 text-xs" style={{ color: "#6060A0" }}>
+                      <span style={{ color: "#5B21E8", flexShrink: 0, marginTop: "2px" }}>·</span>
+                      {c}
+                    </li>
+                  ))}
+                  {activeCategoryDef.integrationFeatures?.map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-xs font-medium" style={{ color: "#7B5CE8" }}>
+                      <span style={{ flexShrink: 0, marginTop: "2px" }}>→</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                {/* Specialist chips */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs flex-shrink-0" style={{ color: "#3A3A50" }}>Specialists</span>
+                  {activeCategoryAgents.length === 0
+                    ? Array.from({ length: 2 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="rounded-full animate-pulse"
+                          style={{ width: "90px", height: "26px", background: "#1A1A24", border: "1px solid #2A2A38" }}
+                        />
+                      ))
+                    : activeCategoryAgents.map((agent) => {
+                        const isActive = activeAgent?.id === agent.id;
+                        return (
+                          <button
+                            key={agent.id}
+                            onClick={() => selectAgent(agent)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs transition-all"
+                            style={{
+                              background: isActive ? "rgba(91,33,232,0.2)" : "rgba(255,255,255,0.03)",
+                              border: isActive ? "1px solid rgba(91,33,232,0.4)" : "1px solid #2A2A38",
+                              color: isActive ? "#A07BFF" : "#5A5A70",
+                              cursor: "pointer",
+                            }}
                           >
-                            ACTIVE
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs font-semibold mb-1" style={{ color: isActive ? "#E0D0FF" : "#D0D0E8" }}>
-                        {agent.name}
-                      </p>
-                      <p className="text-xs leading-snug" style={{ color: isActive ? "#7060A0" : "#404058", fontSize: "10px" }}>
-                        {agent.description.length > 68 ? agent.description.slice(0, 65) + "…" : agent.description}
-                      </p>
-                    </button>
-                  );
-                })}
+                            <span>{agent.emoji}</span>
+                            <span>{agent.name}</span>
+                          </button>
+                        );
+                      })}
+                </div>
+              </div>
+            )}
           </div>
-        </div>
+        ) : (
+          /* Fallback: classic agent roster for any dept without categories */
+          <div className="mb-7 no-print" ref={rosterRef}>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#3A3A50" }}>
+              Specialists
+            </p>
+            <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+              {agents.length === 0
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex-shrink-0 rounded-xl animate-pulse"
+                      style={{ width: "160px", height: "92px", background: "#111118", border: "1px solid #1E1E2A" }} />
+                  ))
+                : agents.map((agent) => {
+                    const isActive = activeAgent?.id === agent.id;
+                    return (
+                      <button key={agent.id} onClick={() => selectAgent(agent)}
+                        className="flex-shrink-0 rounded-xl p-3.5 text-left transition-all"
+                        style={{ width: "168px", background: isActive ? "rgba(91,33,232,0.12)" : "#111118",
+                          border: isActive ? "1px solid rgba(91,33,232,0.5)" : "1px solid #2A2A38",
+                          boxShadow: isActive ? "0 0 18px rgba(91,33,232,0.15)" : "none", cursor: "pointer" }}
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-lg">{agent.emoji}</span>
+                          {isActive && (
+                            <span className="text-xs font-semibold px-1.5 py-0.5 rounded-full"
+                              style={{ background: "rgba(91,33,232,0.25)", color: "#A07BFF", fontSize: "9px" }}>ACTIVE</span>
+                          )}
+                        </div>
+                        <p className="text-xs font-semibold mb-1" style={{ color: isActive ? "#E0D0FF" : "#D0D0E8" }}>{agent.name}</p>
+                        <p className="text-xs leading-snug" style={{ color: isActive ? "#7060A0" : "#404058", fontSize: "10px" }}>
+                          {agent.description.length > 68 ? agent.description.slice(0, 65) + "…" : agent.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+            </div>
+          </div>
+        )}
 
         {/* Active agent quick actions */}
         {activeAgent && (
