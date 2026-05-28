@@ -66,14 +66,22 @@ export default function DashboardPage() {
             <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} />
           </a>
           <div className="flex items-center gap-4">
-            {initials && (
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                style={{ background: "rgba(91,33,232,0.2)", color: "#7C4FF0", border: "1px solid rgba(91,33,232,0.3)" }}
-              >
-                {initials}
-              </div>
-            )}
+            <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
+              Library
+            </a>
+            <a href="/dashboard/settings" style={{ textDecoration: "none" }}>
+              {initials ? (
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all hover:border-purple-500"
+                  style={{ background: "rgba(91,33,232,0.2)", color: "#7C4FF0", border: "1px solid rgba(91,33,232,0.3)", cursor: "pointer" }}
+                  title="Account settings"
+                >
+                  {initials}
+                </div>
+              ) : (
+                <span className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55" }}>Settings</span>
+              )}
+            </a>
             <button
               onClick={() => { pb.authStore.clear(); window.location.href = "/"; }}
               className="text-sm transition-colors hover:text-white"

@@ -15,9 +15,11 @@ const DEPT_ICONS: Record<string, string> = {
   finance: "💰",
   operations: "⚙️",
   ceo: "🎯",
+  "paid-media": "📈",
+  design: "🎨",
 };
 
-const DEPARTMENTS = ["All", "marketing", "sales", "legal", "hr", "finance", "operations", "ceo"];
+const DEPARTMENTS = ["All", "marketing", "sales", "legal", "hr", "finance", "operations", "ceo", "paid-media", "design"];
 
 interface Doc {
   id: string;
@@ -47,6 +49,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState("");
 
   useEffect(() => {
@@ -206,7 +209,20 @@ export default function LibraryPage() {
                     <div className="flex items-center justify-between px-5 py-2.5" style={{ borderBottom: "1px solid #1E1E2A" }}>
                       <span className="text-xs" style={{ color: "#5A5A70" }}>Output</span>
                       <div className="flex items-center gap-4">
-                        <button onClick={() => navigator.clipboard.writeText(doc.output)} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Copy</button>
+                        <button
+                          onClick={() => {
+                            const url = `${window.location.origin}/doc/${doc.id}`;
+                            void navigator.clipboard.writeText(url).then(() => {
+                              setCopied(doc.id);
+                              setTimeout(() => setCopied(null), 2000);
+                            });
+                          }}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: copied === doc.id ? "#22C55E" : "#5A5A70" }}
+                        >
+                          {copied === doc.id ? "Link copied ✓" : "Share"}
+                        </button>
+                        <button onClick={() => void navigator.clipboard.writeText(doc.output)} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Copy</button>
                         <button onClick={() => window.print()} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Save PDF</button>
                         <button onClick={() => void exportToDocx(doc.output, businessName || undefined)} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Download .docx</button>
                         <button

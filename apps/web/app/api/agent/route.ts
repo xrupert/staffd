@@ -344,6 +344,32 @@ export async function POST(req: Request) {
       systemPrompt = buildSystemPrompt(department, vault);
     }
 
+    // Inject prior work as memory context (last 2 docs for same user+department)
+    if (userId && pbToken) {
+      try {
+        const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
+        const memRes = await fetch(
+          `${pbUrl}/api/collections/documents/records?filter=(user='${userId}'%26%26department='${department}')&sort=-created&perPage=2&fields=prompt,output,created`,
+          { headers: { Authorization: pbToken } }
+        );
+        if (memRes.ok) {
+          const memData = (await memRes.json()) as { items?: Array<{ prompt: string; output: string; created: string }> };
+          const prior = memData.items ?? [];
+          if (prior.length > 0) {
+            const memoryBlock = prior
+              .map((d, i) => {
+                const summary = d.output.length > 500 ? d.output.slice(0, 500) + "…" : d.output;
+                return `[Prior task ${i + 1}]\nTask: ${d.prompt}\nOutput: ${summary}`;
+              })
+              .join("\n\n");
+            systemPrompt += `\n\n--- PRIOR WORK (context only — do not repeat) ---\n${memoryBlock}\n--- END PRIOR WORK ---`;
+          }
+        }
+      } catch {
+        // proceed without memory
+      }
+    }
+
     if (templateContent?.trim()) {
       systemPrompt += `\n\n--- USER TEMPLATE ---\nThe user has provided an existing document template. Use this EXACT structure, layout, and format as your output. Replace placeholder values and example data with the appropriate content for this task. Preserve every section heading, field label, and formatting pattern from the template.\n\n${templateContent.trim()}\n--- END TEMPLATE ---`;
     }
