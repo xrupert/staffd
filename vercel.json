@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm --filter web build",
+  "buildCommand": "pnpm --filter @staffd/agents build && pnpm --filter web build",
   "outputDirectory": ".next"
 }
