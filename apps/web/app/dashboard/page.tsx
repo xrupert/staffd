@@ -6,12 +6,14 @@ import pb from "../../lib/pb";
 import CommandCenter from "../components/CommandCenter";
 
 const DEPARTMENTS = [
-  { name: "Marketing", icon: "📣", tagline: "Content, ads & social", href: "/dashboard/marketing" },
-  { name: "Sales", icon: "🤝", tagline: "Outreach, proposals & follow-ups", href: "/dashboard/sales" },
+  { name: "Marketing", icon: "📣", tagline: "Content, campaigns & social", href: "/dashboard/marketing" },
+  { name: "Sales", icon: "🤝", tagline: "Outreach, proposals & closing", href: "/dashboard/sales" },
   { name: "Legal", icon: "⚖️", tagline: "Contracts, policies & compliance", href: "/dashboard/legal" },
-  { name: "HR", icon: "👥", tagline: "Hiring, onboarding & culture", href: "/dashboard/hr" },
-  { name: "Finance", icon: "💰", tagline: "Invoicing, budgets & reporting", href: "/dashboard/finance" },
+  { name: "HR", icon: "👥", tagline: "Hiring, onboarding & performance", href: "/dashboard/hr" },
+  { name: "Finance", icon: "💰", tagline: "Invoices, budgets & projections", href: "/dashboard/finance" },
   { name: "Operations", icon: "⚙️", tagline: "SOPs, workflows & systems", href: "/dashboard/operations" },
+  { name: "Paid Media", icon: "📈", tagline: "Google, Meta & ad strategy", href: "/dashboard/paid-media" },
+  { name: "Design", icon: "🎨", tagline: "Brand, visuals & UI direction", href: "/dashboard/design" },
 ];
 
 export default function DashboardPage() {
@@ -143,7 +145,7 @@ export default function DashboardPage() {
           Go directly to a department
         </p>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
           {DEPARTMENTS.map((dept) => (
             <a
               key={dept.name}

@@ -239,4 +239,31 @@ select:focus {
   .agent-output th { background: #f0f0f0 !important; color: #000 !important; border: 1pt solid #aaa !important; padding: 4pt 7pt; }
   .agent-output td { border: 1pt solid #ccc !important; padding: 4pt 7pt; color: #111 !important; }
   .agent-output tr:nth-child(even) td { background: #fafafa !important; }
+
+  /* ── Page-break rules — prevent content splitting mid-block ── */
+  .agent-output h1,
+  .agent-output h2,
+  .agent-output h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .agent-output p,
+  .agent-output li,
+  .agent-output blockquote {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    orphans: 3;
+    widows: 3;
+  }
+  .agent-output table,
+  .agent-output pre {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  /* Keep heading with the content that follows it */
+  .agent-output h2 + *,
+  .agent-output h3 + * {
+    break-before: avoid;
+    page-break-before: avoid;
+  }
 }

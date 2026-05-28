@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../../lib/pb";
+import { STARTER_TEMPLATES } from "../../lib/starterTemplates";
 
 const DEPT_OPTIONS = [
   { value: "", label: "Any department" },
@@ -12,7 +13,9 @@ const DEPT_OPTIONS = [
   { value: "hr", label: "👥 HR" },
   { value: "finance", label: "💰 Finance" },
   { value: "operations", label: "⚙️ Operations" },
-  { value: "ceo", label: "🎯 CEO / Strategy" },
+  { value: "paid-media", label: "📈 Paid Media" },
+  { value: "design", label: "🎨 Design" },
+  { value: "ceo", label: "🧭 CEO / Strategy" },
 ];
 
 interface Template {
@@ -50,7 +53,25 @@ export default function TemplatesPage() {
         filter: `user = '${userId}'`,
         sort: "name",
       });
-      setTemplates(res.items as unknown as Template[]);
+
+      // Seed starter templates on first use (user has no templates yet)
+      if (res.items.length === 0) {
+        const created: Template[] = [];
+        for (const t of STARTER_TEMPLATES) {
+          try {
+            const rec = await pb.collection("templates").create({
+              user: userId,
+              name: t.name,
+              department: t.department,
+              content: t.content,
+            });
+            created.push(rec as unknown as Template);
+          } catch { /* skip if template already exists or collection not ready */ }
+        }
+        setTemplates(created);
+      } else {
+        setTemplates(res.items as unknown as Template[]);
+      }
     } catch {
       setTemplates([]);
     } finally {

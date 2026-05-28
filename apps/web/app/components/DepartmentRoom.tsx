@@ -1,0 +1,522 @@
+"use client";
+
+import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import pb from "../../lib/pb";
+import { exportToDocx } from "./DocExport";
+import { getQuickActions } from "./agentQuickActions";
+
+interface AgentMeta {
+  id: string;
+  name: string;
+  department: string;
+  description: string;
+  emoji: string;
+  color: string;
+  tags: string[];
+}
+
+interface Template {
+  id: string;
+  name: string;
+  content: string;
+}
+
+export interface DepartmentRoomConfig {
+  department: string;
+  icon: string;
+  title: string;
+  eyebrow?: string;
+  tagline: string;
+  placeholder: string;
+}
+
+export default function DepartmentRoom({
+  department,
+  icon,
+  title,
+  eyebrow = "Department",
+  tagline,
+  placeholder,
+}: DepartmentRoomConfig) {
+  const [agents, setAgents] = useState<AgentMeta[]>([]);
+  const [activeAgent, setActiveAgent] = useState<AgentMeta | null>(null);
+  const [task, setTask] = useState("");
+  const [output, setOutput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [activeChip, setActiveChip] = useState("");
+  const [businessName, setBusinessName] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const outputRef = useRef<HTMLDivElement>(null);
+  const rosterRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    void loadAgents();
+    void loadContext();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [department]);
+
+  async function loadAgents() {
+    try {
+      const res = await fetch(`/api/agents/${department}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as AgentMeta[];
+      setAgents(data);
+      if (data.length > 0) setActiveAgent(data[0] ?? null);
+    } catch { /* proceed */ }
+  }
+
+  async function loadContext() {
+    if (!pb.authStore.isValid) return;
+    const userId = pb.authStore.record?.id ?? "";
+    const pbToken = pb.authStore.token;
+
+    try {
+      const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL ?? "";
+      const res = await fetch(
+        `${pbUrl}/api/collections/businesses/records?filter=(user='${userId}')&perPage=1`,
+        { headers: { Authorization: pbToken } }
+      );
+      const data = (await res.json()) as { items?: Array<Record<string, unknown>> };
+      const rec = data.items?.[0];
+      if (rec) {
+        setBusinessName((rec.business_name as string) ?? "");
+        if (rec.logo && rec.id && rec.collectionId) {
+          setLogoUrl(`${pbUrl}/api/files/${rec.collectionId as string}/${rec.id as string}/${rec.logo as string}`);
+        }
+      }
+    } catch { /* proceed */ }
+
+    try {
+      const res = await pb.collection("templates").getList(1, 50, {
+        filter: `user = '${userId}'`,
+        sort: "name",
+      });
+      setTemplates(
+        res.items.map((t) => ({
+          id: t.id,
+          name: t.name as string,
+          content: t.content as string,
+        }))
+      );
+    } catch { /* proceed */ }
+  }
+
+  async function run(customTask?: string) {
+    const finalTask = (customTask ?? task).trim();
+    if (!finalTask || loading) return;
+
+    setOutput("");
+    setError("");
+    setLoading(true);
+
+    const userId = pb.authStore.record?.id ?? "";
+    const pbToken = pb.authStore.token;
+
+    try {
+      const res = await fetch("/api/agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          task: finalTask,
+          department,
+          agentId: activeAgent?.id,
+          userId,
+          pbToken,
+          templateContent: selectedTemplate?.content ?? undefined,
+        }),
+      });
+
+      if (res.status === 429) {
+        setError("Daily generation limit reached. Limit resets in 24 hours.");
+        return;
+      }
+      if (!res.ok) throw new Error("Agent request failed");
+
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      if (!reader) throw new Error("No response stream");
+
+      let result = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        result += decoder.decode(value, { stream: true });
+        setOutput(result);
+        outputRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+      }
+
+      void saveDocument(finalTask, result, userId);
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveDocument(prompt: string, content: string, userId: string) {
+    try {
+      await pb.collection("documents").create({
+        user: userId,
+        department,
+        agent_name: activeAgent?.name ?? department,
+        prompt,
+        output: content,
+      });
+    } catch { /* proceed */ }
+  }
+
+  function selectAgent(agent: AgentMeta) {
+    setActiveAgent(agent);
+    setActiveChip("");
+    setTask("");
+    setOutput("");
+    setError("");
+    setSelectedTemplate(null);
+  }
+
+  function handleQuickAction(prompt: string, label: string) {
+    setActiveChip(label);
+    setTask(prompt);
+    void run(prompt);
+  }
+
+  const quickActions = activeAgent ? getQuickActions(activeAgent.id) : [];
+
+  return (
+    <main className="min-h-screen flex flex-col no-print-chrome" style={{ background: "#09090F" }}>
+      {/* Grid bg */}
+      <div
+        className="fixed inset-0 pointer-events-none no-print"
+        style={{
+          backgroundImage: `linear-gradient(rgba(91,33,232,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(91,33,232,0.03) 1px,transparent 1px)`,
+          backgroundSize: "64px 64px",
+        }}
+      />
+      <div
+        className="fixed pointer-events-none no-print"
+        style={{
+          top: "-150px", left: "50%", transform: "translateX(-50%)",
+          width: "700px", height: "500px", borderRadius: "50%",
+          background: "radial-gradient(ellipse, rgba(91,33,232,0.1) 0%, transparent 65%)",
+        }}
+      />
+
+      {/* Print header */}
+      <div className="print-only print-header">
+        {logoUrl && <img src={logoUrl} alt={businessName} className="print-logo" />}
+        {businessName && !logoUrl && <span className="print-biz-name">{businessName}</span>}
+        <div className="print-divider" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-4xl mx-auto px-6 py-8 flex flex-col flex-1">
+
+        {/* Nav */}
+        <header className="flex items-center justify-between mb-10 no-print">
+          <a href="/dashboard">
+            <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
+          </a>
+          <div className="flex items-center gap-5">
+            <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55" }}>
+              Library
+            </a>
+            <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+              ← Dashboard
+            </a>
+          </div>
+        </header>
+
+        {/* Dept header */}
+        <div className="mb-7 no-print">
+          <div className="flex items-center gap-3 mb-2">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+              style={{ background: "rgba(91,33,232,0.15)", border: "1px solid rgba(91,33,232,0.25)" }}
+            >
+              {icon}
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-0.5" style={{ color: "#5B21E8" }}>
+                {eyebrow}
+              </p>
+              <h1 className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.4rem", lineHeight: 1.2, letterSpacing: "-0.01em" }}>
+                {title}
+              </h1>
+            </div>
+          </div>
+          <p className="text-sm" style={{ color: "#6060A0" }}>{tagline}</p>
+        </div>
+
+        {/* Agent roster */}
+        <div className="mb-7 no-print">
+          <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#3A3A50" }}>
+            Specialists
+          </p>
+          <div
+            ref={rosterRef}
+            className="flex gap-3 overflow-x-auto pb-1"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+          >
+            {agents.length === 0
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex-shrink-0 rounded-xl animate-pulse"
+                    style={{
+                      width: "160px", height: "92px",
+                      background: "#111118", border: "1px solid #1E1E2A",
+                    }}
+                  />
+                ))
+              : agents.map((agent) => {
+                  const isActive = activeAgent?.id === agent.id;
+                  return (
+                    <button
+                      key={agent.id}
+                      onClick={() => selectAgent(agent)}
+                      className="flex-shrink-0 rounded-xl p-3.5 text-left transition-all"
+                      style={{
+                        width: "168px",
+                        background: isActive ? "rgba(91,33,232,0.12)" : "#111118",
+                        border: isActive ? "1px solid rgba(91,33,232,0.5)" : "1px solid #2A2A38",
+                        boxShadow: isActive ? "0 0 18px rgba(91,33,232,0.15)" : "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">{agent.emoji}</span>
+                        {isActive && (
+                          <span
+                            className="text-xs font-semibold px-1.5 py-0.5 rounded-full"
+                            style={{ background: "rgba(91,33,232,0.25)", color: "#A07BFF", fontSize: "9px" }}
+                          >
+                            ACTIVE
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs font-semibold mb-1" style={{ color: isActive ? "#E0D0FF" : "#D0D0E8" }}>
+                        {agent.name}
+                      </p>
+                      <p className="text-xs leading-snug" style={{ color: isActive ? "#7060A0" : "#404058", fontSize: "10px" }}>
+                        {agent.description.length > 68 ? agent.description.slice(0, 65) + "…" : agent.description}
+                      </p>
+                    </button>
+                  );
+                })}
+          </div>
+        </div>
+
+        {/* Active agent quick actions */}
+        {activeAgent && (
+          <div className="flex flex-wrap gap-2 mb-3 no-print">
+            {quickActions.map((a) => (
+              <button
+                key={a.label}
+                onClick={() => handleQuickAction(a.prompt, a.label)}
+                disabled={loading}
+                className="px-3.5 py-1.5 rounded-full text-xs font-medium transition-all"
+                style={{
+                  background: activeChip === a.label ? "rgba(91,33,232,0.2)" : "#111118",
+                  border: activeChip === a.label ? "1px solid rgba(91,33,232,0.45)" : "1px solid #2A2A38",
+                  color: activeChip === a.label ? "#A07BFF" : "#9090A8",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.5 : 1,
+                }}
+              >
+                {a.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Template picker */}
+        {templates.length > 0 && (
+          <div className="relative flex items-center gap-2 mb-4 no-print">
+            <button
+              onClick={() => setShowTemplates(!showTemplates)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all"
+              style={{
+                background: selectedTemplate ? "rgba(91,33,232,0.2)" : "#111118",
+                border: selectedTemplate ? "1px solid rgba(91,33,232,0.45)" : "1px solid #2A2A38",
+                color: selectedTemplate ? "#A07BFF" : "#6060A0",
+              }}
+            >
+              📄 {selectedTemplate ? selectedTemplate.name : "Use a template"}
+              <span style={{ opacity: 0.6 }}>{showTemplates ? "▲" : "▼"}</span>
+            </button>
+            {selectedTemplate && (
+              <button
+                onClick={() => { setSelectedTemplate(null); setShowTemplates(false); }}
+                className="text-xs transition-colors hover:text-white"
+                style={{ color: "#3A3A55" }}
+              >
+                ✕ remove
+              </button>
+            )}
+            {showTemplates && (
+              <div
+                className="absolute top-8 left-0 z-20 rounded-xl overflow-hidden shadow-xl"
+                style={{ background: "#1A1A24", border: "1px solid #2A2A38", minWidth: "220px" }}
+              >
+                {templates.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setSelectedTemplate(t); setShowTemplates(false); }}
+                    className="w-full text-left px-4 py-2.5 text-xs transition-colors hover:bg-purple-900/20"
+                    style={{ color: "#D0D0E8", borderBottom: "1px solid #2A2A38" }}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+                <a
+                  href="/dashboard/templates"
+                  className="block w-full text-left px-4 py-2.5 text-xs transition-colors hover:bg-purple-900/20"
+                  style={{ color: "#5B21E8" }}
+                >
+                  + Manage templates →
+                </a>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Input */}
+        <div className="rounded-2xl overflow-hidden mb-5 no-print" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
+          <textarea
+            value={task}
+            onChange={(e) => { setTask(e.target.value); setActiveChip(""); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void run(); }}
+            placeholder={activeAgent ? `Ask ${activeAgent.name} — ${placeholder}` : placeholder}
+            rows={4}
+            className="w-full px-5 py-4 text-sm outline-none resize-none"
+            style={{ background: "transparent", color: "#F0F0F8", lineHeight: "1.7", caretColor: "#5B21E8" }}
+          />
+          <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: "1px solid #1E1E2A" }}>
+            <div className="flex items-center gap-3">
+              <span className="text-xs" style={{ color: "#2E2E45" }}>⌘ Enter to run</span>
+              {activeAgent && (
+                <span className="text-xs" style={{ color: "#3A3A55" }}>
+                  {activeAgent.emoji} {activeAgent.name}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => void run()}
+              disabled={!task.trim() || loading}
+              className="btn-primary px-5 py-2 rounded-xl text-sm font-semibold text-white"
+              style={{
+                opacity: !task.trim() || loading ? 0.35 : 1,
+                cursor: !task.trim() || loading ? "not-allowed" : "pointer",
+              }}
+            >
+              {loading ? "Working…" : "Generate →"}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div
+            className="px-4 py-3 rounded-xl text-xs mb-4 no-print"
+            style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#EF4444" }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Output */}
+        {(output || loading) && (
+          <div ref={outputRef} className="rounded-2xl overflow-hidden flex-1" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
+            <div className="flex items-center justify-between px-5 py-3 no-print" style={{ borderBottom: "1px solid #1E1E2A" }}>
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-lg flex items-center justify-center text-sm" style={{ background: "rgba(91,33,232,0.15)" }}>
+                  {activeAgent?.emoji ?? icon}
+                </div>
+                <span className="text-xs font-semibold" style={{ color: "#9090A8" }}>
+                  {activeAgent?.name ?? title}
+                </span>
+                {loading && (
+                  <span className="flex items-center gap-1.5 text-xs" style={{ color: "#5A5A70" }}>
+                    <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
+                    writing
+                  </span>
+                )}
+              </div>
+              {output && !loading && (
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => void navigator.clipboard.writeText(output)}
+                    className="text-xs transition-colors hover:text-white"
+                    style={{ color: "#5A5A70" }}
+                  >
+                    Copy
+                  </button>
+                  <button
+                    onClick={() => window.print()}
+                    className="text-xs transition-colors hover:text-white"
+                    style={{ color: "#5A5A70" }}
+                  >
+                    Save PDF
+                  </button>
+                  <button
+                    onClick={() => void exportToDocx(output, businessName || undefined)}
+                    className="text-xs transition-colors hover:text-white"
+                    style={{ color: "#5A5A70" }}
+                  >
+                    Download .docx
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-5">
+              {loading ? (
+                <div className="text-sm whitespace-pre-wrap" style={{ color: "#D0D0E8", lineHeight: "1.8" }}>
+                  {output}
+                  <span
+                    className="inline-block w-0.5 h-4 ml-0.5 animate-pulse"
+                    style={{ background: "#5B21E8", verticalAlign: "middle" }}
+                  />
+                </div>
+              ) : (
+                <div className="agent-output">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {!output && !loading && (
+          <div className="mt-auto pt-8 pb-4 no-print">
+            <div className="flex items-center justify-between">
+              <a
+                href="/dashboard/vault"
+                className="flex items-center gap-3 text-xs group"
+                style={{ color: "#3A3A55", textDecoration: "none" }}
+              >
+                <span>🔐</span>
+                <span className="group-hover:text-purple-400 transition-colors">
+                  Add your business details to the Vault and your AI team will use them automatically →
+                </span>
+              </a>
+              {templates.length === 0 && (
+                <a
+                  href="/dashboard/templates"
+                  className="text-xs ml-4 flex-shrink-0 transition-colors hover:text-purple-400"
+                  style={{ color: "#3A3A55" }}
+                >
+                  + Templates
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

@@ -1,6 +1,26 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { getAgent } from "@staffd/agents";
 
 const anthropic = new Anthropic();
+
+// Rate limiting — per user, per day
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_MAX = 50; // 50 generations per user per day
+const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 hours in ms
+
+function checkRateLimit(userId: string): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW });
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1 };
+  }
+  if (entry.count >= RATE_LIMIT_MAX) {
+    return { allowed: false, remaining: 0 };
+  }
+  entry.count++;
+  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count };
+}
 
 const FOCUS_LABELS: Record<string, string> = {
   growth: "Top-line growth — finding leads, closing deals, driving revenue",
@@ -217,9 +237,10 @@ ${magicWand ? `What they most want off their plate: ${magicWand}` : ""}
 
 export async function POST(req: Request) {
   try {
-    const { task, department, userId, pbToken, templateContent } = await req.json() as {
+    const { task, department, agentId, userId, pbToken, templateContent } = await req.json() as {
       task: string;
       department: string;
+      agentId?: string;
       userId: string;
       pbToken: string;
       templateContent?: string;
@@ -227,6 +248,16 @@ export async function POST(req: Request) {
 
     if (!task?.trim()) {
       return new Response("Task is required", { status: 400 });
+    }
+
+    // Rate limiting
+    const rateLimitKey = userId || req.headers.get("x-forwarded-for") || "anonymous";
+    const { allowed, remaining } = checkRateLimit(rateLimitKey);
+    if (!allowed) {
+      return new Response("Daily generation limit reached. Limit resets in 24 hours.", {
+        status: 429,
+        headers: { "X-RateLimit-Remaining": "0" },
+      });
     }
 
     // Fetch user's vault from PocketBase using their auth token
@@ -245,7 +276,73 @@ export async function POST(req: Request) {
       }
     }
 
-    let systemPrompt = buildSystemPrompt(department, vault);
+    // If a specific agentId is provided, use that agent's system prompt from packages/agents.
+    // Otherwise fall back to the department-level prompt (legacy / backward compat).
+    let systemPrompt: string;
+    if (agentId) {
+      const agentDef = getAgent(agentId);
+      if (agentDef) {
+        // Build prompt with vault context using the agent's own system prompt
+        const vaultLines: string[] = [];
+        if (vault) {
+          const v = vault as Record<string, unknown>;
+          if (v.business_name) vaultLines.push(`Business name: ${v.business_name as string}`);
+          if (v.industry) vaultLines.push(`Industry / What they do: ${v.industry as string}`);
+          if (v.description) vaultLines.push(`Business description: ${v.description as string}`);
+          if (v.target_audience) vaultLines.push(`Target audience: ${v.target_audience as string}`);
+          if (v.website) vaultLines.push(`Website: ${v.website as string}`);
+          if (v.address) vaultLines.push(`Business address: ${v.address as string}`);
+          if (v.phone) vaultLines.push(`Phone: ${v.phone as string}`);
+          if (v.primary_email) vaultLines.push(`Primary email: ${v.primary_email as string}`);
+          if (v.secondary_email) vaultLines.push(`Secondary email: ${v.secondary_email as string}`);
+          if (v.other_email) vaultLines.push(`Other email: ${v.other_email as string}`);
+
+          const focusMap: Record<string, string> = {
+            growth: "Top-line growth — finding leads, closing deals, driving revenue",
+            time: "Time recovery — automating repetitive tasks and fixing broken workflows",
+            cx: "Customer experience — retention, faster support, client satisfaction",
+            intelligence: "Intelligence & scaling — data analysis, market research, strategic planning",
+          };
+          const situationMap: Record<string, string> = {
+            solo: "Solo operator — doing everything themselves, out of hours",
+            skills: "Small team missing key skills",
+            scaling: "Growing faster than they can hire",
+            cost: "Needs expert-level work without expert-level cost",
+            chaos: "Broken processes — things keep slipping through the cracks",
+            starting: "Just starting out — building everything from scratch",
+          };
+          const superpowerMap: Record<string, string> = {
+            speed: "Speed & efficiency — fastest in their space",
+            quality: "Premium quality / expertise — high-end, bespoke solutions",
+            value: "Cost-effectiveness — best value for the budget",
+            relationships: "Deep relationships — unmatched customer service and personal touch",
+          };
+          const bottleneckMap: Record<string, string> = {
+            content: "Content creation & marketing",
+            leads: "Lead generation & outbound sales",
+            support: "Customer support & account management",
+            ops: "Data entry, invoicing & ops admin",
+            research: "Market research & competitor analysis",
+          };
+
+          if (v.focus) vaultLines.push(`Primary focus: ${focusMap[v.focus as string] ?? v.focus as string}`);
+          if (v.situation) vaultLines.push(`Current situation: ${situationMap[v.situation as string] ?? v.situation as string}`);
+          if (v.superpower) vaultLines.push(`Competitive advantage: ${superpowerMap[v.superpower as string] ?? v.superpower as string}`);
+          if (v.bottlenecks && Array.isArray(v.bottlenecks) && v.bottlenecks.length > 0) {
+            vaultLines.push(`Key bottlenecks: ${(v.bottlenecks as string[]).map((b) => bottleneckMap[b] ?? b).join(", ")}`);
+          }
+          if (v.magic_wand) vaultLines.push(`What they most want off their plate: ${v.magic_wand as string}`);
+        }
+
+        systemPrompt = vault && vaultLines.length > 0
+          ? `${agentDef.systemPrompt}\n\n--- BUSINESS VAULT ---\n${vaultLines.join("\n")}\n--- END VAULT ---`
+          : agentDef.systemPrompt;
+      } else {
+        systemPrompt = buildSystemPrompt(department, vault);
+      }
+    } else {
+      systemPrompt = buildSystemPrompt(department, vault);
+    }
 
     if (templateContent?.trim()) {
       systemPrompt += `\n\n--- USER TEMPLATE ---\nThe user has provided an existing document template. Use this EXACT structure, layout, and format as your output. Replace placeholder values and example data with the appropriate content for this task. Preserve every section heading, field label, and formatting pattern from the template.\n\n${templateContent.trim()}\n--- END TEMPLATE ---`;
@@ -253,8 +350,14 @@ export async function POST(req: Request) {
 
     const stream = await anthropic.messages.stream({
       model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: systemPrompt,
+      max_tokens: 8192,
+      system: [
+        {
+          type: "text",
+          text: systemPrompt,
+          cache_control: { type: "ephemeral" }, // cache system prompt — vault context is expensive to reprocess
+        },
+      ],
       messages: [{ role: "user", content: task }],
     });
 

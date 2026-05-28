@@ -136,7 +136,8 @@ export default function OnboardingPage() {
         const normalizedUrl = website.trim()
           ? website.trim().startsWith("http") ? website.trim() : `https://${website.trim()}`
           : "";
-        await pb.collection("businesses").create({
+
+        const payload = {
           user: userId,
           focus,
           bottlenecks,
@@ -149,7 +150,18 @@ export default function OnboardingPage() {
           industry: prefillData?.industry ?? "",
           description: prefillData?.description ?? "",
           target_audience: prefillData?.target_audience ?? "",
+        };
+
+        // Guard: check for existing record and update instead of creating a duplicate
+        const existing = await pb.collection("businesses").getList(1, 1, {
+          filter: `user = '${userId}'`,
         });
+
+        if (existing.items.length > 0 && existing.items[0]) {
+          await pb.collection("businesses").update(existing.items[0].id, payload);
+        } else {
+          await pb.collection("businesses").create(payload);
+        }
       }
     } catch {
       // non-blocking — proceed regardless
