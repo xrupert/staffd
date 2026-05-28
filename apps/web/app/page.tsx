@@ -63,11 +63,12 @@ export default function Home() {
               color: "#F0F0F8",
               border: "2px solid rgba(255,255,255,0.6)",
               borderRadius: "4px",
-              padding: "0 0.1em",
-              height: "0.85em",
-              verticalAlign: "-0.06em",
+              padding: "0.08em 0.12em",
+              lineHeight: 1,
+              verticalAlign: "baseline",
               marginLeft: "0.03em",
               fontWeight: "inherit",
+              fontSize: "inherit",
             }}
           >
             D
