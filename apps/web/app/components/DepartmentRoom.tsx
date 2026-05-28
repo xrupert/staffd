@@ -157,12 +157,17 @@ export default function DepartmentRoom({
     try {
       const res = await fetch(`/api/trial?userId=${userId}`);
       if (!res.ok) return;
-      const data = (await res.json()) as { plan: string; trial_runs: Record<string, number> };
+      const data = (await res.json()) as {
+        plan: string;
+        trial_runs: Record<string, number>;
+        resolved_departments: string[];
+      };
       const plan = data.plan ?? "starter";
       setCurrentPlan(plan);
-      const planDepts = PLAN_DEPARTMENTS[plan] ?? PLAN_DEPARTMENTS.starter;
-      if (planDepts?.has(department)) {
-        setTrialRemaining(null); // fully unlocked on this plan
+      // Use server-resolved department list (respects user's chosen departments)
+      const resolved = new Set(data.resolved_departments ?? []);
+      if (resolved.has(department)) {
+        setTrialRemaining(null); // fully unlocked
       } else {
         const used = data.trial_runs?.[department] ?? 0;
         setTrialRemaining(Math.max(0, 3 - used));

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
 import CommandCenter from "../components/CommandCenter";
+import DepartmentPicker from "../components/DepartmentPicker";
 
 const DEPARTMENTS = [
   { name: "Marketing", icon: "📣", tagline: "Content, campaigns & social", href: "/dashboard/marketing" },
@@ -29,6 +30,7 @@ export default function DashboardPage() {
   const [vaultPct, setVaultPct] = useState<number | null>(null);
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [checkoutBanner, setCheckoutBanner] = useState<"success" | "cancelled" | null>(null);
+  const [showDeptPicker, setShowDeptPicker] = useState(false);
 
   useEffect(() => {
     if (!pb.authStore.isValid) {
@@ -45,29 +47,37 @@ export default function DashboardPage() {
         : name.slice(0, 2).toUpperCase()
     );
     void loadVaultHealth();
-    void loadPlan();
     // Handle Stripe redirect params
     const params = new URLSearchParams(window.location.search);
     const checkout = params.get("checkout");
-    if (checkout === "success" || checkout === "cancelled") {
+    const isSuccess = checkout === "success";
+    if (isSuccess || checkout === "cancelled") {
       setCheckoutBanner(checkout as "success" | "cancelled");
       // Clean URL without reload
       const clean = window.location.pathname;
       window.history.replaceState({}, "", clean);
-      setTimeout(() => setCheckoutBanner(null), 6000);
+      if (!isSuccess) setTimeout(() => setCheckoutBanner(null), 6000);
     }
+    // After checkout success, check if department selection is needed
+    void loadPlan(isSuccess);
     // Ensure collections exist (no-op if already created)
     void fetch("/api/setup/subscriptions", { method: "POST" }).catch(() => null);
   }, []);
 
-  async function loadPlan() {
+  async function loadPlan(showPickerIfNeeded = false) {
     try {
       const userId = pb.authStore.record?.id ?? "";
       if (!userId) return;
       const res = await fetch(`/api/trial?userId=${userId}`);
       if (res.ok) {
-        const data = (await res.json()) as { plan: string };
+        const data = (await res.json()) as {
+          plan: string;
+          needs_department_selection?: boolean;
+        };
         setCurrentPlan(data.plan ?? "starter");
+        if (showPickerIfNeeded && data.needs_department_selection) {
+          setShowDeptPicker(true);
+        }
       }
     } catch { /* proceed */ }
   }
@@ -88,6 +98,18 @@ export default function DashboardPage() {
   }
 
   return (
+    <>
+    {showDeptPicker && currentPlan && (
+      <DepartmentPicker
+        plan={currentPlan}
+        onComplete={() => {
+          setShowDeptPicker(false);
+          setCheckoutBanner(null);
+          setTimeout(() => setCheckoutBanner("success"), 50);
+          setTimeout(() => setCheckoutBanner(null), 6000);
+        }}
+      />
+    )}
     <main className="min-h-screen flex flex-col" style={{ background: "#09090F" }}>
       <div
         className="fixed inset-0 pointer-events-none"
@@ -331,5 +353,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </main>
+    </>
   );
 }

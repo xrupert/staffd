@@ -16,13 +16,48 @@ const TRIAL_LIMIT = 3;
 // Departments unlocked on every plan (the 6 starter-pack agents live here)
 const STARTER_DEPARTMENTS = new Set(["marketing", "sales", "legal"]);
 
-// Plan → which full departments are unlocked
-const PLAN_DEPARTMENTS: Record<string, Set<string>> = {
-  starter: STARTER_DEPARTMENTS,
-  growth: new Set([...STARTER_DEPARTMENTS, "hr"]),                          // +1 dept
-  pro: new Set([...STARTER_DEPARTMENTS, "hr", "finance", "operations", "ceo"]), // +3 depts + CEO
-  agency: new Set(["marketing", "sales", "legal", "hr", "finance", "operations", "ceo", "paid-media", "design"]), // all
+// Departments auto-included on specific plans (not user-chosen)
+const PLAN_AUTO: Record<string, string[]> = {
+  starter: [],
+  growth:  [],
+  pro:     ["ceo"], // CEO included in Pro automatically
+  agency:  ["hr", "finance", "operations", "ceo", "paid-media", "design"], // all
 };
+
+/**
+ * Returns the full set of unlocked departments for a user.
+ * Priority: starter pack + plan auto-includes + user's chosen departments.
+ * Falls back to legacy hardcoded plan map if unlocked_departments is null
+ * (existing subscriptions created before the department-choice feature).
+ */
+function resolveUnlocked(
+  plan: string,
+  unlockedDepts: string[] | null
+): Set<string> {
+  const base = new Set(STARTER_DEPARTMENTS);
+
+  // Auto-includes for this plan
+  for (const d of (PLAN_AUTO[plan] ?? [])) base.add(d);
+
+  if (plan === "agency") {
+    // Agency gets everything — no need for unlocked_departments
+    return base;
+  }
+
+  if (unlockedDepts && unlockedDepts.length > 0) {
+    // New-style: use user's explicit choices
+    for (const d of unlockedDepts) base.add(d);
+  } else {
+    // Legacy fallback for existing subscriptions
+    const legacy: Record<string, string[]> = {
+      growth: ["hr"],
+      pro:    ["hr", "finance", "operations"],
+    };
+    for (const d of (legacy[plan] ?? [])) base.add(d);
+  }
+
+  return base;
+}
 
 async function getAdminToken(pbUrl: string): Promise<string> {
   const adminEmail = process.env.PB_ADMIN_EMAIL ?? "";
@@ -56,12 +91,20 @@ export async function GET(req: Request) {
       id: string;
       plan: string;
       trial_runs: Record<string, number> | null;
+      unlocked_departments: string[] | null;
     } | null;
 
+    const plan = sub?.plan ?? "starter";
+    const unlockedDepts = sub?.unlocked_departments ?? null;
+    const resolved = resolveUnlocked(plan, unlockedDepts);
+
     return Response.json({
-      plan: sub?.plan ?? "starter",
+      plan,
       trial_runs: sub?.trial_runs ?? {},
       sub_id: sub?.id ?? null,
+      unlocked_departments: unlockedDepts ?? [],
+      needs_department_selection: (plan === "growth" || plan === "pro") && (!unlockedDepts || unlockedDepts.length === 0),
+      resolved_departments: [...resolved],
     });
   } catch (err) {
     console.error("Trial GET error:", err);
@@ -96,10 +139,11 @@ export async function POST(req: Request) {
       id: string;
       plan: string;
       trial_runs: Record<string, number> | null;
+      unlocked_departments: string[] | null;
     } | null;
 
     const plan = sub?.plan ?? "starter";
-    const planDepts = PLAN_DEPARTMENTS[plan] ?? STARTER_DEPARTMENTS;
+    const planDepts = resolveUnlocked(plan, sub?.unlocked_departments ?? null);
 
     // If department is already fully unlocked on their plan, no trial tracking needed
     if (planDepts.has(department)) {

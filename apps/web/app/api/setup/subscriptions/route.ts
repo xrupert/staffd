@@ -27,7 +27,23 @@ export async function POST() {
 
     // Check if already exists
     const checkRes = await fetch(`${pbUrl}/api/collections/subscriptions`, { headers: { Authorization: token } });
-    if (checkRes.ok) return Response.json({ ok: true, created: false });
+    if (checkRes.ok) {
+      // Collection exists — patch schema to add unlocked_departments if missing
+      const colData = (await checkRes.json()) as { fields?: Array<{ name: string }> };
+      const hasUnlocked = colData.fields?.some((f) => f.name === "unlocked_departments");
+      if (!hasUnlocked) {
+        const existing = colData as Record<string, unknown>;
+        const fields = (existing.fields as unknown[]) ?? [];
+        await fetch(`${pbUrl}/api/collections/subscriptions`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({
+            fields: [...fields, { name: "unlocked_departments", type: "json", required: false }],
+          }),
+        });
+      }
+      return Response.json({ ok: true, created: false });
+    }
 
     // Create collection
     const createRes = await fetch(`${pbUrl}/api/collections`, {
@@ -42,7 +58,8 @@ export async function POST() {
           { name: "trial_runs",      type: "json", required: false }, // { dept: count }
           { name: "stripe_customer", type: "text", required: false },
           { name: "stripe_sub_id",   type: "text", required: false },
-          { name: "active_until",    type: "text", required: false }, // ISO date
+          { name: "active_until",         type: "text", required: false }, // ISO date
+          { name: "unlocked_departments", type: "json", required: false }, // string[]
         ],
       }),
     });
