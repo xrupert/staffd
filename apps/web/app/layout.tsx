@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import Script from "next/script";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -26,8 +27,21 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const plausibleUrl = process.env.NEXT_PUBLIC_PLAUSIBLE_URL;
+  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN ?? "urstaffd.com";
+
   return (
     <html lang="en" className="dark">
+      <head>
+        {plausibleUrl && (
+          <Script
+            defer
+            data-domain={plausibleDomain}
+            src={`${plausibleUrl}/js/script.js`}
+            strategy="afterInteractive"
+          />
+        )}
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {children}
       </body>

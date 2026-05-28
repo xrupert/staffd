@@ -1,5 +1,11 @@
 {
   "framework": "nextjs",
   "buildCommand": "pnpm --filter @staffd/agents build && pnpm --filter web build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/worker/scheduled",
+      "schedule": "0 8 * * *"
+    }
+  ]
 }

@@ -74,6 +74,8 @@ export default function DepartmentRoom({
   const [currentPlan, setCurrentPlan] = useState("starter");
   const [trialRemaining, setTrialRemaining] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState("");
+  const [savedDocId, setSavedDocId] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -184,6 +186,8 @@ export default function DepartmentRoom({
     setLoading(true);
     setIntegrationStatus("idle");
     setIntegrationMsg("");
+    setSavedDocId(null);
+    setLinkCopied(false);
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -240,14 +244,23 @@ export default function DepartmentRoom({
 
   async function saveDocument(prompt: string, content: string, userId: string) {
     try {
-      await pb.collection("documents").create({
+      const rec = await pb.collection("documents").create({
         user: userId,
         department,
         agent_name: activeAgent?.name ?? department,
         prompt,
         output: content,
       });
+      setSavedDocId(rec.id);
     } catch { /* proceed */ }
+  }
+
+  async function copyShareLink() {
+    if (!savedDocId) return;
+    const url = `${window.location.origin}/doc/${savedDocId}`;
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2500);
   }
 
   function selectAgent(agent: AgentMeta) {
@@ -767,6 +780,15 @@ export default function DepartmentRoom({
                   >
                     Download .docx
                   </button>
+                  {savedDocId && (
+                    <button
+                      onClick={() => void copyShareLink()}
+                      className="text-xs transition-colors"
+                      style={{ color: linkCopied ? "#22C55E" : "#5B21E8" }}
+                    >
+                      {linkCopied ? "Link copied ✓" : "Share →"}
+                    </button>
+                  )}
                   {department === "marketing" && (
                     <button
                       onClick={() => void sendCampaign()}
