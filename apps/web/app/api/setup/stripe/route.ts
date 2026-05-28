@@ -21,6 +21,9 @@ const PLANS = [
   { id: "agency",  name: "Agency",  monthly: 45000, annual: 450000 },
 ];
 
+// Allow GET so you can trigger this by navigating to the URL in a browser
+export async function GET() { return POST(); }
+
 export async function POST() {
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
