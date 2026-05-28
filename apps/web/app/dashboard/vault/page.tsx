@@ -64,7 +64,8 @@ export default function VaultPage() {
 
   useEffect(() => {
     if (!pb.authStore.isValid) { window.location.href = "/auth/login"; return; }
-    void loadVault();
+    // Ensure businesses collection has all contact fields (idempotent migration)
+    void fetch("/api/setup/businesses", { method: "POST" }).then(() => loadVault());
   }, []);
 
   async function loadVault() {
