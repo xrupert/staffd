@@ -36,6 +36,8 @@ export default function DashboardPage() {
         : name.slice(0, 2).toUpperCase()
     );
     void loadVaultHealth();
+    // Ensure subscriptions collection exists (no-op if already created)
+    void fetch("/api/setup/subscriptions", { method: "POST" }).catch(() => null);
   }, []);
 
   async function loadVaultHealth() {

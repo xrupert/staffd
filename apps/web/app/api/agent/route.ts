@@ -252,12 +252,33 @@ export async function POST(req: Request) {
 
     // Rate limiting
     const rateLimitKey = userId || req.headers.get("x-forwarded-for") || "anonymous";
-    const { allowed, remaining } = checkRateLimit(rateLimitKey);
-    if (!allowed) {
+    const { allowed: rateLimitAllowed } = checkRateLimit(rateLimitKey);
+    if (!rateLimitAllowed) {
       return new Response("Daily generation limit reached. Limit resets in 24 hours.", {
         status: 429,
         headers: { "X-RateLimit-Remaining": "0" },
       });
+    }
+
+    // Trial gate — record usage and check if limit reached for this department
+    if (userId) {
+      try {
+        const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+        const trialRes = await fetch(`${origin}/api/trial`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId, department }),
+        });
+        if (trialRes.status === 402) {
+          const data = (await trialRes.json()) as { plan: string };
+          return new Response(
+            JSON.stringify({ error: "trial_exhausted", plan: data.plan }),
+            { status: 402, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      } catch {
+        // Fail open — don't block users if trial check fails
+      }
     }
 
     // Fetch user's vault from PocketBase using their auth token

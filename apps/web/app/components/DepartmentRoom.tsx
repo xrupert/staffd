@@ -7,6 +7,18 @@ import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
 import { exportToDocx } from "./DocExport";
 import { getQuickActions } from "./agentQuickActions";
+import UpgradeModal from "./UpgradeModal";
+
+// Departments that are always unlocked (starter pack)
+const ALWAYS_UNLOCKED = new Set(["marketing", "sales", "legal"]);
+
+// Plan → departments unlocked (mirrors server-side PLAN_DEPARTMENTS)
+const PLAN_DEPARTMENTS: Record<string, Set<string>> = {
+  starter: new Set(["marketing", "sales", "legal"]),
+  growth:  new Set(["marketing", "sales", "legal", "hr"]),
+  pro:     new Set(["marketing", "sales", "legal", "hr", "finance", "operations", "ceo"]),
+  agency:  new Set(["marketing", "sales", "legal", "hr", "finance", "operations", "ceo", "paid-media", "design"]),
+};
 
 interface AgentMeta {
   id: string;
@@ -57,12 +69,16 @@ export default function DepartmentRoom({
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState("starter");
+  const [trialRemaining, setTrialRemaining] = useState<number | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void loadAgents();
     void loadContext();
+    void loadTrialStatus();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
 
@@ -112,6 +128,26 @@ export default function DepartmentRoom({
     } catch { /* proceed */ }
   }
 
+  async function loadTrialStatus() {
+    if (!pb.authStore.isValid) return;
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId || ALWAYS_UNLOCKED.has(department)) return;
+    try {
+      const res = await fetch(`/api/trial?userId=${userId}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { plan: string; trial_runs: Record<string, number> };
+      const plan = data.plan ?? "starter";
+      setCurrentPlan(plan);
+      const planDepts = PLAN_DEPARTMENTS[plan] ?? PLAN_DEPARTMENTS.starter;
+      if (planDepts?.has(department)) {
+        setTrialRemaining(null); // fully unlocked on this plan
+      } else {
+        const used = data.trial_runs?.[department] ?? 0;
+        setTrialRemaining(Math.max(0, 3 - used));
+      }
+    } catch { /* proceed */ }
+  }
+
   async function run(customTask?: string) {
     const finalTask = (customTask ?? task).trim();
     if (!finalTask || loading) return;
@@ -143,6 +179,13 @@ export default function DepartmentRoom({
         setError("Daily generation limit reached. Limit resets in 24 hours.");
         return;
       }
+      if (res.status === 402) {
+        const data = (await res.json()) as { error: string; plan: string };
+        setCurrentPlan(data.plan ?? "starter");
+        setTrialRemaining(0);
+        setShowUpgrade(true);
+        return;
+      }
       if (!res.ok) throw new Error("Agent request failed");
 
       const reader = res.body?.getReader();
@@ -159,6 +202,8 @@ export default function DepartmentRoom({
       }
 
       void saveDocument(finalTask, result, userId);
+      // Decrement local trial counter (server already recorded the run)
+      setTrialRemaining(prev => prev !== null ? Math.max(0, prev - 1) : null);
     } catch {
       setError("Something went wrong. Try again.");
     } finally {
@@ -460,6 +505,35 @@ export default function DepartmentRoom({
           </div>
         )}
 
+        {/* Trial usage indicator — shown for locked departments */}
+        {trialRemaining !== null && (
+          <div className="flex items-center gap-2 mb-3 no-print">
+            {trialRemaining > 0 ? (
+              <p className="text-xs" style={{ color: "#5A5A70" }}>
+                <span style={{ color: "#A07BFF" }}>{trialRemaining}</span> trial {trialRemaining === 1 ? "run" : "runs"} remaining in this department —{" "}
+                <button
+                  onClick={() => setShowUpgrade(true)}
+                  className="transition-colors hover:text-white"
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#5B21E8", fontSize: "inherit" }}
+                >
+                  upgrade to unlock →
+                </button>
+              </p>
+            ) : (
+              <p className="text-xs" style={{ color: "#5A5A70" }}>
+                Trial runs used —{" "}
+                <button
+                  onClick={() => setShowUpgrade(true)}
+                  className="transition-colors hover:text-white"
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "#5B21E8", fontSize: "inherit" }}
+                >
+                  upgrade to keep going →
+                </button>
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Template picker */}
         {templates.length > 0 && (
           <div className="relative flex items-center gap-2 mb-4 no-print">
@@ -694,6 +768,15 @@ export default function DepartmentRoom({
           </div>
         )}
       </div>
+
+      {/* Upgrade modal — triggered on trial exhaustion or manual upgrade click */}
+      {showUpgrade && (
+        <UpgradeModal
+          department={department}
+          currentPlan={currentPlan}
+          onClose={() => setShowUpgrade(false)}
+        />
+      )}
     </main>
   );
 }
