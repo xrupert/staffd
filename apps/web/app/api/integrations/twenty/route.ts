@@ -64,7 +64,8 @@ export async function POST(req: Request) {
         ? { name, stage: stage ?? "NEW", notes: notes ?? "" }
         : { name, email: email ?? "", notes: notes ?? "" };
 
-    const res = await fetch(`${TWENTY_URL}/api`, {
+    // Twenty exposes GraphQL at /graphql (not /api)
+    const res = await fetch(`${TWENTY_URL.replace(/\/$/, "")}/graphql`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
