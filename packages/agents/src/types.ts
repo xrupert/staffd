@@ -7,6 +7,7 @@ export type Department =
   | "operations"
   | "design"
   | "paid-media"
+  | "reputation"
   | "ceo";
 
 export interface AgentDef {

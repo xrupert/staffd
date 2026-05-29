@@ -9,16 +9,13 @@ const CHOOSABLE_DEPARTMENTS = [
   { id: "operations", icon: "⚙️", label: "Operations", tagline: "SOPs, workflows & systems" },
   { id: "paid-media", icon: "📈", label: "Paid Media", tagline: "Google, Meta & ad strategy" },
   { id: "design",     icon: "🎨", label: "Design",     tagline: "Brand, visuals & UI direction" },
-  { id: "ceo",        icon: "🎯", label: "The CEO",    tagline: "Strategic advisor & business planning" },
+  { id: "reputation", icon: "🛡️", label: "Reputation", tagline: "Support, reviews & community" },
 ];
 
 const PLAN_LIMITS: Record<string, number> = {
   growth: 1,
   pro:    3,
 };
-
-// CEO is auto-included in Pro — don't show it as a choice
-const PRO_AUTO_INCLUDED = new Set(["ceo"]);
 
 interface DepartmentPickerProps {
   plan: string;
@@ -29,10 +26,8 @@ export default function DepartmentPicker({ plan, onComplete }: DepartmentPickerP
   const limit = PLAN_LIMITS[plan] ?? 1;
   const isPro = plan === "pro";
 
-  // For Pro, CEO is auto-included so filter it out of choices
-  const available = isPro
-    ? CHOOSABLE_DEPARTMENTS.filter((d) => !PRO_AUTO_INCLUDED.has(d.id))
-    : CHOOSABLE_DEPARTMENTS;
+  // CEO is never user-choosable: Pro/Agency get it included, Starter/Growth don't get it
+  const available = CHOOSABLE_DEPARTMENTS;
 
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);

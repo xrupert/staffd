@@ -41,6 +41,8 @@ function resolveUnlocked(
 
   if (plan === "agency") {
     // Agency gets everything — no need for unlocked_departments
+    base.add("hr"); base.add("finance"); base.add("operations");
+    base.add("paid-media"); base.add("design"); base.add("reputation");
     return base;
   }
 

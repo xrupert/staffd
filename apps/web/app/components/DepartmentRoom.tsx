@@ -13,12 +13,13 @@ import { DEPARTMENT_CATEGORIES, type DeptCategory } from "../lib/departmentCateg
 // Departments that are always unlocked (starter pack)
 const ALWAYS_UNLOCKED = new Set(["marketing", "sales", "legal"]);
 
-// Plan → departments unlocked (mirrors server-side PLAN_DEPARTMENTS)
+// Plan → departments unlocked (mirrors server-side resolveUnlocked).
+// Note: client-side fallback only — server's resolved_departments is the source of truth.
 const PLAN_DEPARTMENTS: Record<string, Set<string>> = {
   starter: new Set(["marketing", "sales", "legal"]),
   growth:  new Set(["marketing", "sales", "legal", "hr"]),
   pro:     new Set(["marketing", "sales", "legal", "hr", "finance", "operations", "ceo"]),
-  agency:  new Set(["marketing", "sales", "legal", "hr", "finance", "operations", "ceo", "paid-media", "design"]),
+  agency:  new Set(["marketing", "sales", "legal", "hr", "finance", "operations", "ceo", "paid-media", "design", "reputation"]),
 };
 
 interface AgentMeta {

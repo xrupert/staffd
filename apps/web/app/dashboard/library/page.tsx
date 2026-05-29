@@ -17,9 +17,10 @@ const DEPT_ICONS: Record<string, string> = {
   ceo: "🎯",
   "paid-media": "📈",
   design: "🎨",
+  reputation: "🛡️",
 };
 
-const DEPARTMENTS = ["All", "marketing", "sales", "legal", "hr", "finance", "operations", "ceo", "paid-media", "design"];
+const DEPARTMENTS = ["All", "marketing", "sales", "legal", "hr", "finance", "operations", "ceo", "paid-media", "design", "reputation"];
 
 interface Doc {
   id: string;

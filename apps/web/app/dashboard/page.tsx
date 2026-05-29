@@ -15,6 +15,7 @@ const DEPARTMENTS = [
   { name: "Operations", icon: "⚙️", tagline: "SOPs, workflows & systems", href: "/dashboard/operations" },
   { name: "Paid Media", icon: "📈", tagline: "Google, Meta & ad strategy", href: "/dashboard/paid-media" },
   { name: "Design", icon: "🎨", tagline: "Brand, visuals & UI direction", href: "/dashboard/design" },
+  { name: "Reputation", icon: "🛡️", tagline: "Support, reviews & community", href: "/dashboard/reputation" },
 ];
 
 const PLAN_LABELS: Record<string, string> = {

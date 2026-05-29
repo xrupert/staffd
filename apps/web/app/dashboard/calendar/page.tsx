@@ -6,7 +6,7 @@ import pb from "../../../lib/pb";
 
 const DEPT_ICONS: Record<string, string> = {
   marketing: "📣", sales: "🤝", legal: "⚖️", hr: "👥",
-  finance: "💰", operations: "⚙️", ceo: "🎯", "paid-media": "📈", design: "🎨",
+  finance: "💰", operations: "⚙️", ceo: "🎯", "paid-media": "📈", design: "🎨", reputation: "🛡️",
 };
 
 const DEPT_OPTIONS = [
@@ -19,6 +19,7 @@ const DEPT_OPTIONS = [
   { value: "ceo", label: "Strategy" },
   { value: "paid-media", label: "Paid Media" },
   { value: "design", label: "Design" },
+  { value: "reputation", label: "Reputation" },
 ];
 
 interface CalDoc {

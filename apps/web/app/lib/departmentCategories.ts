@@ -318,6 +318,44 @@ export const DEPARTMENT_CATEGORIES: Record<string, DeptCategory[]> = {
     },
   ],
 
+  // ─── Reputation ──────────────────────────────────────────────────────────────
+  reputation: [
+    {
+      id: "support",
+      label: "Customer Support",
+      tagline: "Resolve issues fast and protect every customer relationship.",
+      capabilities: [
+        "Email & chat replies for complaints, refunds and billing",
+        "Tone-matched de-escalation for tense conversations",
+        "Escalation flags and internal notes for your team",
+      ],
+      integrationFeatures: ["Reply directly from your shared inbox without leaving the platform"],
+      agentIds: ["reputation-customer-service-responder"],
+    },
+    {
+      id: "reviews",
+      label: "Reviews & Listings",
+      tagline: "Turn every review — good or bad — into a marketing asset.",
+      capabilities: [
+        "On-brand responses to Google, Yelp & Trustpilot reviews",
+        "Review acquisition campaigns and post-purchase sequences",
+        "Reputation audits and 30-day improvement plans",
+      ],
+      agentIds: ["reputation-review-responder", "reputation-reputation-manager"],
+    },
+    {
+      id: "community",
+      label: "Community & Insights",
+      tagline: "Engage your community and turn feedback into decisions.",
+      capabilities: [
+        "Comment & DM responses across all social platforms",
+        "Community playbooks for positive, negative and sensitive moments",
+        "Feedback synthesis into themes, root causes and prioritized fixes",
+      ],
+      agentIds: ["reputation-community-manager", "reputation-feedback-analyst"],
+    },
+  ],
+
   // ─── CEO / Strategy ──────────────────────────────────────────────────────────
   ceo: [
     {

@@ -19,8 +19,9 @@ const PLAN_CHOICE_LIMIT: Record<string, number> = {
   agency: 999, // all
 };
 
-// Departments available to choose (not auto-included on any plan)
-const CHOOSABLE = new Set(["hr", "finance", "operations", "paid-media", "design", "ceo"]);
+// Departments available to choose (not auto-included on any plan).
+// CEO is intentionally excluded — Pro/Agency get it auto-included, others can't pick it.
+const CHOOSABLE = new Set(["hr", "finance", "operations", "paid-media", "design", "reputation"]);
 
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {

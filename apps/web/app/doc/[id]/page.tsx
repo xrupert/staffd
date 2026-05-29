@@ -27,6 +27,7 @@ const DEPT_LABELS: Record<string, string> = {
   ceo: "Strategy",
   "paid-media": "Paid Media",
   design: "Design",
+  reputation: "Reputation",
 };
 
 function formatDate(iso: string) {

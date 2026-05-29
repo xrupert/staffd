@@ -9,6 +9,7 @@ export { financeAgents } from "./departments/finance";
 export { operationsAgents } from "./departments/operations";
 export { designAgents } from "./departments/design";
 export { paidMediaAgents } from "./departments/paid-media";
+export { reputationAgents } from "./departments/reputation";
 export { ceoAgents } from "./departments/ceo";
 
 import { marketingAgents } from "./departments/marketing";
@@ -19,6 +20,7 @@ import { financeAgents } from "./departments/finance";
 import { operationsAgents } from "./departments/operations";
 import { designAgents } from "./departments/design";
 import { paidMediaAgents } from "./departments/paid-media";
+import { reputationAgents } from "./departments/reputation";
 import { ceoAgents } from "./departments/ceo";
 import type { AgentDef, Department } from "./types";
 
@@ -32,6 +34,7 @@ export const allAgents: AgentDef[] = [
   ...operationsAgents,
   ...designAgents,
   ...paidMediaAgents,
+  ...reputationAgents,
   ...ceoAgents,
 ];
 
@@ -68,14 +71,14 @@ export function routeTask(task: string, department?: Department): AgentDef | und
   return bestMatch;
 }
 
-/** Starter pack: 6 curated agents for the Starter plan */
+/** Starter pack: 6 curated agents for the Starter plan (per locked plan v1.0) */
 export const STARTER_PACK_IDS = [
   "marketing-content-creator",
   "marketing-seo-specialist",
   "marketing-social-media-strategist",
   "sales-outreach",
+  "reputation-customer-service-responder",
   "operations-document-generator",
-  "legal-document-drafter",
 ] as const;
 
 export const starterPackAgents: AgentDef[] = STARTER_PACK_IDS.map(
