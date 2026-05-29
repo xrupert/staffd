@@ -36,6 +36,9 @@ export default function DashboardPage() {
   const [showAddDept, setShowAddDept] = useState(false);
   const [unlockedDepts, setUnlockedDepts] = useState<string[]>([]);
   const [addonBanner, setAddonBanner] = useState<{ type: "success" | "cancelled"; dept?: string } | null>(null);
+  const [bookingSlug, setBookingSlug] = useState<string | null>(null);
+  const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
+  const [upcomingBookings, setUpcomingBookings] = useState<Array<{ id: string; attendee_name: string; start_time: string; duration: number }>>([]);
 
   useEffect(() => {
     if (!pb.authStore.isValid) {
@@ -72,6 +75,8 @@ export default function DashboardPage() {
     }
     // After plan checkout success, check if department selection is needed
     void loadPlan(isSuccess);
+    void loadBookingSlug();
+    void loadUpcomingBookings();
     // Ensure collections exist (no-op if already created)
     void fetch("/api/setup/subscriptions", { method: "POST" }).catch(() => null);
   }, []);
@@ -94,6 +99,41 @@ export default function DashboardPage() {
         }
       }
     } catch { /* proceed */ }
+  }
+
+  async function loadBookingSlug() {
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      if (!userId) return;
+      const res = await pb.collection("businesses").getList(1, 1, { filter: `user = '${userId}'` });
+      const rec = res.items[0];
+      if (rec && rec.booking_enabled && (rec.booking_slug as string)?.trim()) {
+        setBookingSlug(rec.booking_slug as string);
+      } else {
+        setBookingSlug(null);
+      }
+    } catch { /* proceed */ }
+  }
+
+  async function loadUpcomingBookings() {
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      if (!userId) return;
+      const nowIso = new Date().toISOString();
+      const res = await pb.collection("bookings").getList(1, 5, {
+        filter: `user = '${userId}' && status != 'cancelled' && start_time >= '${nowIso}'`,
+        sort: "start_time",
+      });
+      setUpcomingBookings(res.items as unknown as typeof upcomingBookings);
+    } catch { setUpcomingBookings([]); }
+  }
+
+  async function copyBookingLink() {
+    if (!bookingSlug) return;
+    const url = `${window.location.origin}/book/${bookingSlug}`;
+    await navigator.clipboard.writeText(url);
+    setBookingLinkCopied(true);
+    setTimeout(() => setBookingLinkCopied(false), 2000);
   }
 
   async function loadVaultHealth() {
@@ -224,6 +264,22 @@ export default function DashboardPage() {
             <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} />
           </a>
           <div className="flex items-center gap-4">
+            {/* Booking link pill */}
+            {bookingSlug && (
+              <button
+                onClick={() => void copyBookingLink()}
+                className="text-xs font-semibold px-2.5 py-1 rounded-full transition-all flex items-center gap-1.5"
+                style={{
+                  background: bookingLinkCopied ? "rgba(34,197,94,0.15)" : "rgba(91,33,232,0.12)",
+                  color: bookingLinkCopied ? "#22C55E" : "#A07BFF",
+                  border: bookingLinkCopied ? "1px solid rgba(34,197,94,0.3)" : "1px solid rgba(91,33,232,0.25)",
+                }}
+                title="Copy your public booking link"
+              >
+                <span>📞</span>
+                {bookingLinkCopied ? "Link copied ✓" : "Booking link"}
+              </button>
+            )}
             {/* Plan badge */}
             {currentPlan && currentPlan !== "starter" && (
               <button
@@ -373,6 +429,40 @@ export default function DashboardPage() {
             <span className="text-xs font-semibold" style={{ color: "#5B21E8" }}>Ask →</span>
           </a>
         </div>
+
+        {/* Upcoming calls */}
+        {upcomingBookings.length > 0 && (
+          <div className="mb-6 rounded-2xl overflow-hidden" style={{ background: "#111118", border: "1px solid rgba(34,197,94,0.2)" }}>
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid #1E1E2A" }}>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#22C55E" }}>
+                Upcoming calls
+              </p>
+              <a href="/dashboard/calendar" className="text-xs" style={{ color: "#5A5A70", textDecoration: "none" }}>
+                See all →
+              </a>
+            </div>
+            <div className="px-5 py-2">
+              {upcomingBookings.map((b) => {
+                const start = new Date(b.start_time);
+                const dateStr = start.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+                const timeStr = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                return (
+                  <div key={b.id} className="flex items-center gap-3 py-2.5 border-b last:border-0" style={{ borderColor: "#1E1E2A" }}>
+                    <span className="text-base flex-shrink-0">📞</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium" style={{ color: "#F0F0F8" }}>
+                        {b.attendee_name}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>
+                        {dateStr} · {timeStr} · {b.duration}m
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Department grid */}
         <div className="flex items-center justify-between mb-4">

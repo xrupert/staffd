@@ -162,35 +162,77 @@ export async function POST(
 
     const booking = (await createRes.json()) as { id: string };
 
-    // Optional: fire a confirmation email via Listmonk if configured (best effort)
+    // Look up host user email (for notification to the host)
+    let hostEmail = host.primary_email ?? "";
+    if (!hostEmail) {
+      try {
+        const userRes = await fetch(
+          `${pbUrl}/api/collections/users/records/${host.user}`,
+          { headers: { Authorization: token } }
+        );
+        if (userRes.ok) {
+          const userRec = (await userRes.json()) as { email?: string };
+          hostEmail = userRec.email ?? "";
+        }
+      } catch { /* proceed without host notification */ }
+    }
+
+    // Optional: fire confirmation emails via Listmonk (best effort).
+    // Sends to BOTH the attendee and the host so neither has to chase information.
     const listmonkUrl = process.env.LISTMONK_URL;
     const listmonkUser = process.env.LISTMONK_USERNAME ?? "listmonk";
     const listmonkPass = process.env.LISTMONK_PASSWORD;
     if (listmonkUrl && listmonkPass) {
       try {
         const auth = Buffer.from(`${listmonkUser}:${listmonkPass}`).toString("base64");
-        const startDisplay = new Date(body.start_time).toLocaleString("en-US", {
+        const attendeeTz = body.timezone ?? host.booking_timezone ?? "UTC";
+        const startDisplayAttendee = new Date(body.start_time).toLocaleString("en-US", {
           weekday: "long", month: "long", day: "numeric",
           hour: "numeric", minute: "2-digit",
-          timeZone: body.timezone ?? host.booking_timezone ?? "UTC",
+          timeZone: attendeeTz,
+        });
+        const startDisplayHost = new Date(body.start_time).toLocaleString("en-US", {
+          weekday: "long", month: "long", day: "numeric",
+          hour: "numeric", minute: "2-digit",
+          timeZone: host.booking_timezone ?? "UTC",
         });
         const businessName = host.business_name?.trim() || "STAFFD";
-        await fetch(`${listmonkUrl}/api/tx`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
-          body: JSON.stringify({
-            subscriber_email: body.attendee_email.trim(),
-            template_id: 0, // 0 = inline-only; will use content_type fallback
-            from_email: host.primary_email ?? "noreply@urstaffd.com",
-            data: {
-              business_name: businessName,
-              start_display: startDisplay,
-              duration,
-              notes: body.notes ?? "",
-            },
-            content_type: "html",
-          }),
+
+        const sendTx = async (to: string, payload: Record<string, unknown>) => {
+          return fetch(`${listmonkUrl}/api/tx`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` },
+            body: JSON.stringify({
+              subscriber_email: to,
+              template_id: 0,
+              from_email: "noreply@urstaffd.com",
+              data: payload,
+              content_type: "html",
+            }),
+          });
+        };
+
+        // Attendee confirmation
+        await sendTx(body.attendee_email.trim(), {
+          recipient: "attendee",
+          business_name: businessName,
+          start_display: startDisplayAttendee,
+          duration,
+          notes: body.notes ?? "",
         });
+
+        // Host notification
+        if (hostEmail) {
+          await sendTx(hostEmail, {
+            recipient: "host",
+            attendee_name: body.attendee_name.trim(),
+            attendee_email: body.attendee_email.trim(),
+            attendee_phone: body.attendee_phone?.trim() ?? "",
+            start_display: startDisplayHost,
+            duration,
+            notes: body.notes ?? "",
+          });
+        }
       } catch {
         // best effort — do not fail the booking if email fails
       }

@@ -39,9 +39,21 @@ interface ScheduledItem {
   status: string;
 }
 
+interface Booking {
+  id: string;
+  attendee_name: string;
+  attendee_email: string;
+  start_time: string;   // ISO UTC
+  duration: number;     // minutes
+  notes: string;
+  status: string;
+  timezone?: string;
+}
+
 type DayData = {
   docs: CalDoc[];
   planned: ScheduledItem[];
+  bookings: Booking[];
 };
 
 function toDateKey(iso: string) {
@@ -65,6 +77,7 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(today.getMonth());
   const [docs, setDocs]   = useState<CalDoc[]>([]);
   const [planned, setPlanned] = useState<ScheduledItem[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [modalDate, setModalDate] = useState("");
@@ -87,8 +100,19 @@ export default function CalendarPage() {
     try {
       await fetch("/api/setup/calendar", { method: "POST" });
     } catch { /* proceed */ }
-    await Promise.all([loadDocs(), loadPlanned()]);
+    await Promise.all([loadDocs(), loadPlanned(), loadBookings()]);
     setLoading(false);
+  }
+
+  async function loadBookings() {
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      const res = await pb.collection("bookings").getList(1, 200, {
+        filter: `user = '${userId}' && status != 'cancelled'`,
+        sort: "-start_time",
+      });
+      setBookings(res.items as unknown as Booking[]);
+    } catch { setBookings([]); }
   }
 
   async function loadDocs() {
@@ -153,14 +177,25 @@ export default function CalendarPage() {
   const dayMap = new Map<string, DayData>();
   for (const doc of docs) {
     const key = toDateKey(doc.created);
-    const entry = dayMap.get(key) ?? { docs: [], planned: [] };
+    const entry = dayMap.get(key) ?? { docs: [], planned: [], bookings: [] };
     entry.docs.push(doc);
     dayMap.set(key, entry);
   }
   for (const item of planned) {
     const key = toDateKey(item.scheduled_date);
-    const entry = dayMap.get(key) ?? { docs: [], planned: [] };
+    const entry = dayMap.get(key) ?? { docs: [], planned: [], bookings: [] };
     entry.planned.push(item);
+    dayMap.set(key, entry);
+  }
+  for (const booking of bookings) {
+    // Bucket by the date of the booking in the host's local time
+    const local = new Date(booking.start_time);
+    const yyyy = local.getFullYear();
+    const mm = String(local.getMonth() + 1).padStart(2, "0");
+    const dd = String(local.getDate()).padStart(2, "0");
+    const key = `${yyyy}-${mm}-${dd}`;
+    const entry = dayMap.get(key) ?? { docs: [], planned: [], bookings: [] };
+    entry.bookings.push(booking);
     dayMap.set(key, entry);
   }
 
@@ -336,9 +371,30 @@ export default function CalendarPage() {
                             {DEPT_ICONS[item.department] ?? "📄"} {item.task.slice(0, 22)}
                           </div>
                         ))}
-                        {((data?.docs.length ?? 0) + (data?.planned.length ?? 0)) > 4 && (
+                        {(data?.bookings ?? []).slice(0, 2).map(b => {
+                          const t = new Date(b.start_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                          return (
+                            <div
+                              key={b.id}
+                              style={{
+                                fontSize: "9px",
+                                color: "#22C55E",
+                                background: "rgba(34,197,94,0.08)",
+                                border: "1px solid rgba(34,197,94,0.25)",
+                                borderRadius: "4px",
+                                padding: "2px 5px",
+                                overflow: "hidden",
+                                whiteSpace: "nowrap",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              📞 {t} · {b.attendee_name.slice(0, 14)}
+                            </div>
+                          );
+                        })}
+                        {((data?.docs.length ?? 0) + (data?.planned.length ?? 0) + (data?.bookings.length ?? 0)) > 6 && (
                           <div style={{ fontSize: "9px", color: "#3A3A50" }}>
-                            +{(data!.docs.length + data!.planned.length) - 4} more
+                            +{(data!.docs.length + data!.planned.length + data!.bookings.length) - 6} more
                           </div>
                         )}
                       </div>
@@ -409,6 +465,25 @@ export default function CalendarPage() {
                         </div>
                       </div>
                     ))}
+                    {selectedData?.bookings.map(b => {
+                      const t = new Date(b.start_time).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                      return (
+                        <div key={b.id} className="flex items-start gap-3 py-3 border-b last:border-0" style={{ borderColor: "#1E1E2A" }}>
+                          <span className="text-base flex-shrink-0">📞</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium" style={{ color: "#22C55E" }}>
+                              {t} · {b.attendee_name} ({b.duration} min)
+                            </p>
+                            <p className="text-xs mt-0.5" style={{ color: "#4A4A65" }}>{b.attendee_email}</p>
+                            {b.notes && (
+                              <p className="text-xs mt-1 italic" style={{ color: "#6060A0" }}>
+                                &ldquo;{b.notes.length > 80 ? b.notes.slice(0, 80) + "…" : b.notes}&rdquo;
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
@@ -448,6 +523,40 @@ export default function CalendarPage() {
                           </button>
                         </div>
                       ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Upcoming bookings */}
+              {bookings.filter(b => new Date(b.start_time) >= new Date()).length > 0 && (
+                <div className="rounded-2xl overflow-hidden" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
+                  <div className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#22C55E" }}>Booked Calls</p>
+                  </div>
+                  <div className="px-5 py-2">
+                    {bookings
+                      .filter(b => new Date(b.start_time) >= new Date())
+                      .slice()
+                      .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+                      .slice(0, 8)
+                      .map(b => {
+                        const start = new Date(b.start_time);
+                        const dateStr = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                        const timeStr = start.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+                        return (
+                          <div key={b.id} className="flex items-start gap-3 py-3 border-b last:border-0" style={{ borderColor: "#1E1E2A" }}>
+                            <span className="text-sm flex-shrink-0">📞</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium truncate" style={{ color: "#D0D0E8" }}>
+                                {b.attendee_name}
+                              </p>
+                              <p className="text-xs mt-0.5" style={{ color: "#4A4A65" }}>
+                                {dateStr} · {timeStr} · {b.duration}m
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               )}

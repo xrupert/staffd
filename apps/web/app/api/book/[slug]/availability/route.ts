@@ -36,16 +36,39 @@ async function getAdminToken(pbUrl: string): Promise<string> {
   return token;
 }
 
-/** Convert "HH:MM" in a specific timezone to a UTC Date for a given calendar date. */
-function localTimeToUtc(dateStr: string, timeStr: string, _tz: string): Date {
-  // Note: full IANA timezone handling without a library is fragile. For MVP we
-  // treat the host's timezone as the source of truth for availability windows
-  // and assume the host's server runs in UTC (Vercel default). The browser-side
-  // booking UI displays slots in the attendee's local timezone.
+/**
+ * Convert a "HH:MM" wall-clock time on a given calendar date in a specific IANA
+ * timezone to the equivalent UTC Date. Handles DST correctly using Intl APIs.
+ */
+function localTimeToUtc(dateStr: string, timeStr: string, tz: string): Date {
   const [h, m] = timeStr.split(":").map((s) => parseInt(s, 10));
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  d.setUTCHours(h ?? 0, m ?? 0, 0, 0);
-  return d;
+  const hh = String(h ?? 0).padStart(2, "0");
+  const mm = String(m ?? 0).padStart(2, "0");
+
+  // Treat the wall-clock as if it were UTC for a first guess
+  const naiveUtcMs = Date.parse(`${dateStr}T${hh}:${mm}:00Z`);
+  if (Number.isNaN(naiveUtcMs)) return new Date(NaN);
+
+  // Find what wall-clock that naive instant produces in the host's timezone
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(new Date(naiveUtcMs));
+  const get = (t: string) => parseInt(parts.find((p) => p.type === t)?.value ?? "0", 10);
+
+  // What that wall-clock would be as UTC
+  const tzWallAsUtcMs = Date.UTC(
+    get("year"), get("month") - 1, get("day"),
+    get("hour") === 24 ? 0 : get("hour"), get("minute"), get("second")
+  );
+
+  // The offset between (host wall-clock interpreted as UTC) and (actual UTC of that instant)
+  const offsetMs = tzWallAsUtcMs - naiveUtcMs;
+
+  // Correct UTC time for the requested host-local wall-clock
+  return new Date(naiveUtcMs - offsetMs);
 }
 
 export async function GET(
