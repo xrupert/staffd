@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../../lib/pb";
+import SchedulingSettings from "../../components/SchedulingSettings";
 
 export default function SettingsPage() {
   const [name, setName] = useState("");
@@ -177,6 +178,9 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        {/* Scheduling section */}
+        <SchedulingSettings />
 
         {/* Password section */}
         <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>

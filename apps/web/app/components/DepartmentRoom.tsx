@@ -303,31 +303,30 @@ export default function DepartmentRoom({
 
   async function scheduleCall() {
     if (!output || integrationStatus === "sending") return;
-    const email = prompt("Prospect's email address:");
-    if (!email?.trim()) return;
-    const name = prompt("Prospect's name (optional):") ?? "";
-    setIntegrationStatus("sending");
-    setIntegrationMsg("");
+
+    // Copies the user's STAFFD booking link so they can paste it into the outreach.
+    // Nudges them to enable Scheduling in Settings if no link is configured yet.
     try {
-      const res = await fetch("/api/integrations/cal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ attendeeEmail: email.trim(), attendeeName: name || undefined, notes: task }),
-      });
-      const data = (await res.json()) as { bookingUrl?: string; message?: string; error?: string };
-      if (res.status === 503) {
-        setIntegrationMsg("Scheduling not configured. Add CAL_API_URL and CAL_API_KEY to your environment.");
-        setIntegrationStatus("error");
-      } else if (!res.ok) {
-        setIntegrationStatus("error");
-        setIntegrationMsg("Failed to schedule call.");
-      } else {
+      const userId = pb.authStore.record?.id ?? "";
+      const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL ?? "";
+      const res = await fetch(
+        `${pbUrl}/api/collections/businesses/records?filter=(user='${userId}')&perPage=1`,
+        { headers: { Authorization: pb.authStore.token } }
+      );
+      const data = (await res.json()) as { items?: Array<{ booking_slug?: string; booking_enabled?: boolean }> };
+      const biz = data.items?.[0];
+      if (biz?.booking_enabled && biz.booking_slug) {
+        const url = `${window.location.origin}/book/${biz.booking_slug}`;
+        await navigator.clipboard.writeText(url);
         setIntegrationStatus("sent");
-        setIntegrationMsg(data.bookingUrl ? `Booking created → ${data.bookingUrl}` : "Call scheduled.");
+        setIntegrationMsg(`Booking link copied — paste into the outreach: ${url}`);
+      } else {
+        setIntegrationStatus("error");
+        setIntegrationMsg("Turn on Scheduling in Settings first to get your public booking link.");
       }
     } catch {
       setIntegrationStatus("error");
-      setIntegrationMsg("Failed to reach scheduling service.");
+      setIntegrationMsg("Couldn't load your booking settings. Try again.");
     }
   }
 
