@@ -50,6 +50,7 @@ RULES:
 10. NEVER route to a locked department. Always route to the best UNLOCKED fit, and use lockedAlternative for the soft nudge.
 
 TONE: Direct, confident, like a chief of staff. No corporate fluff.`;
+}
 
 export async function POST(req: Request) {
   try {
