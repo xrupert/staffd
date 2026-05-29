@@ -194,6 +194,11 @@ export default function DepartmentRoom({
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
 
+    // Agency mode — include the active client so the staff produces work for them
+    const activeClientId = typeof window !== "undefined"
+      ? localStorage.getItem("staffd_active_client")
+      : null;
+
     try {
       const res = await fetch("/api/agent", {
         method: "POST",
@@ -205,6 +210,7 @@ export default function DepartmentRoom({
           userId,
           pbToken,
           templateContent: selectedTemplate?.content ?? undefined,
+          clientId: activeClientId ?? undefined,
         }),
       });
 
@@ -246,12 +252,16 @@ export default function DepartmentRoom({
 
   async function saveDocument(prompt: string, content: string, userId: string) {
     try {
+      const activeClientId = typeof window !== "undefined"
+        ? localStorage.getItem("staffd_active_client")
+        : null;
       const rec = await pb.collection("documents").create({
         user: userId,
         department,
         agent_name: activeAgent?.name ?? department,
         prompt,
         output: content,
+        client: activeClientId ?? "",
       });
       setSavedDocId(rec.id);
     } catch { /* proceed */ }

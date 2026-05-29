@@ -142,10 +142,13 @@ export default function CommandCenter() {
     setMessages((prev) => [...prev, { role: "assistant", content: "", isOutput: true }]);
 
     try {
+      const activeClientId = typeof window !== "undefined"
+        ? localStorage.getItem("staffd_active_client")
+        : null;
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, department, userId, pbToken }),
+        body: JSON.stringify({ task, department, userId, pbToken, clientId: activeClientId ?? undefined }),
       });
       if (!res.ok) throw new Error("Agent failed");
 

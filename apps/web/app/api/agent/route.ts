@@ -260,13 +260,14 @@ ${magicWand ? `What they most want off their plate: ${magicWand}` : ""}
 
 export async function POST(req: Request) {
   try {
-    const { task, department, agentId, userId, pbToken, templateContent } = await req.json() as {
+    const { task, department, agentId, userId, pbToken, templateContent, clientId } = await req.json() as {
       task: string;
       department: string;
       agentId?: string;
       userId: string;
       pbToken: string;
       templateContent?: string;
+      clientId?: string;  // Agency feature: scope vault context to a client's profile
     };
 
     if (!task?.trim()) {
@@ -304,17 +305,53 @@ export async function POST(req: Request) {
       }
     }
 
-    // Fetch user's vault from PocketBase using their auth token
+    // Fetch the relevant vault.
+    // - Agency mode: if clientId is set AND the client belongs to this user,
+    //   load the client's vault so staff produce work tailored to that client.
+    // - Otherwise: load the user's own business vault.
     let vault: Record<string, unknown> | null = null;
     if (pbToken && userId) {
       try {
         const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
-        const res = await fetch(
-          `${pbUrl}/api/collections/businesses/records?filter=(user='${userId}')&perPage=1`,
-          { headers: { Authorization: pbToken } }
-        );
-        const data = await res.json() as { items?: Record<string, unknown>[] };
-        vault = data.items?.[0] ?? null;
+
+        if (clientId) {
+          // Acting on behalf of a client — pull client vault
+          const cRes = await fetch(
+            `${pbUrl}/api/collections/clients/records/${clientId}`,
+            { headers: { Authorization: pbToken } }
+          );
+          if (cRes.ok) {
+            const clientVault = (await cRes.json()) as Record<string, unknown>;
+            // Verify ownership before trusting the client vault
+            if (clientVault.agency_user === userId) {
+              // Map the client field names to vault field names the prompt builder expects
+              vault = {
+                business_name:   clientVault.name,
+                industry:        clientVault.industry,
+                description:     clientVault.description,
+                target_audience: clientVault.target_audience,
+                website:         clientVault.website,
+                phone:           clientVault.phone,
+                primary_email:   clientVault.primary_email,
+                address:         clientVault.address,
+                focus:           clientVault.focus,
+                situation:       clientVault.situation,
+                superpower:      clientVault.superpower,
+                magic_wand:      clientVault.magic_wand,
+              };
+            }
+          }
+        }
+
+        // Fall back to user's own business vault if no client vault loaded
+        if (!vault) {
+          const res = await fetch(
+            `${pbUrl}/api/collections/businesses/records?filter=(user='${userId}')&perPage=1`,
+            { headers: { Authorization: pbToken } }
+          );
+          const data = await res.json() as { items?: Record<string, unknown>[] };
+          vault = data.items?.[0] ?? null;
+        }
       } catch {
         // proceed without vault
       }

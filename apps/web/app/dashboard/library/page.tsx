@@ -71,8 +71,16 @@ export default function LibraryPage() {
     setLoading(true);
     try {
       const userId = pb.authStore.record?.id ?? "";
+      const activeClientId = typeof window !== "undefined"
+        ? localStorage.getItem("staffd_active_client")
+        : null;
+      // When an Agency user is acting on behalf of a client, scope the library
+      // to that client's work. Otherwise show everything the user has produced.
+      const filter = activeClientId
+        ? `user = '${userId}' && client = '${activeClientId}'`
+        : `user = '${userId}'`;
       const res = await pb.collection("documents").getList(1, 200, {
-        filter: `user = '${userId}'`,
+        filter,
         sort: "-created",
       });
       setDocs(res.items as unknown as Doc[]);

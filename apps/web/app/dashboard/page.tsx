@@ -6,6 +6,7 @@ import pb from "../../lib/pb";
 import CommandCenter from "../components/CommandCenter";
 import DepartmentPicker from "../components/DepartmentPicker";
 import AddDeptModal from "../components/AddDeptModal";
+import ClientSwitcher from "../components/ClientSwitcher";
 
 const DEPARTMENTS = [
   { name: "Marketing", icon: "📣", tagline: "Content, campaigns & social", href: "/dashboard/marketing" },
@@ -323,6 +324,14 @@ export default function DashboardPage() {
             <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
               Library
             </a>
+            {currentPlan === "agency" && (
+              <a href="/dashboard/clients" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
+                Clients
+              </a>
+            )}
+            {currentPlan === "agency" && (
+              <ClientSwitcher />
+            )}
             <a href="/dashboard/settings" style={{ textDecoration: "none" }}>
               {initials ? (
                 <div
