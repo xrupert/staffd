@@ -77,6 +77,7 @@ export default function DepartmentRoom({
   const [activeCategory, setActiveCategory] = useState("");
   const [savedDocId, setSavedDocId] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [showTeamDrawer, setShowTeamDrawer] = useState(false);
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -405,6 +406,59 @@ export default function DepartmentRoom({
     : [];
 
   return (
+    <>
+    {/* Meet the team drawer */}
+    {showTeamDrawer && (
+      <div
+        className="fixed inset-0 z-50 flex justify-end"
+        style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(6px)" }}
+        onClick={() => setShowTeamDrawer(false)}
+      >
+        <div
+          className="w-full max-w-md h-full overflow-y-auto"
+          style={{ background: "#0D0D14", borderLeft: "1px solid #2A2A38" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="sticky top-0 px-6 py-5 flex items-center justify-between" style={{ background: "#0D0D14", borderBottom: "1px solid #1E1E2A", zIndex: 10 }}>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>
+                The {title} Team
+              </p>
+              <p className="text-sm" style={{ color: "#9090A8" }}>
+                {agents.length} specialist{agents.length === 1 ? "" : "s"} on call — Command Center routes the right one automatically.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowTeamDrawer(false)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px", padding: "0 0 0 12px" }}
+            >
+              ×
+            </button>
+          </div>
+          <div className="p-5 flex flex-col gap-3">
+            {agents.map((a) => (
+              <div
+                key={a.id}
+                className="rounded-xl p-4 flex gap-3 items-start"
+                style={{ background: "#111118", border: "1px solid #2A2A38" }}
+              >
+                <div
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                  style={{ background: `${a.color}15`, border: `1px solid ${a.color}35` }}
+                >
+                  {a.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold mb-0.5" style={{ color: "#F0F0F8" }}>{a.name}</p>
+                  <p className="text-xs leading-snug" style={{ color: "#6060A0" }}>{a.description}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )}
+
     <main className="min-h-screen flex flex-col no-print-chrome" style={{ background: "#09090F" }}>
       {/* Grid bg */}
       <div
@@ -449,21 +503,32 @@ export default function DepartmentRoom({
 
         {/* Dept header */}
         <div className="mb-7 no-print">
-          <div className="flex items-center gap-3 mb-2">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
-              style={{ background: "rgba(91,33,232,0.15)", border: "1px solid rgba(91,33,232,0.25)" }}
-            >
-              {icon}
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div className="flex items-center gap-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                style={{ background: "rgba(91,33,232,0.15)", border: "1px solid rgba(91,33,232,0.25)" }}
+              >
+                {icon}
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-0.5" style={{ color: "#5B21E8" }}>
+                  {eyebrow}
+                </p>
+                <h1 className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.4rem", lineHeight: 1.2, letterSpacing: "-0.01em" }}>
+                  {title}
+                </h1>
+              </div>
             </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest mb-0.5" style={{ color: "#5B21E8" }}>
-                {eyebrow}
-              </p>
-              <h1 className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.4rem", lineHeight: 1.2, letterSpacing: "-0.01em" }}>
-                {title}
-              </h1>
-            </div>
+            {agents.length > 0 && (
+              <button
+                onClick={() => setShowTeamDrawer(true)}
+                className="text-xs transition-colors hover:text-white flex-shrink-0 mt-1.5"
+                style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer" }}
+              >
+                Meet the team ({agents.length}) →
+              </button>
+            )}
           </div>
           <p className="text-sm" style={{ color: "#6060A0" }}>{tagline}</p>
         </div>
@@ -899,5 +964,6 @@ export default function DepartmentRoom({
         />
       )}
     </main>
+    </>
   );
 }

@@ -2,28 +2,52 @@ import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic();
 
-const SYSTEM_PROMPT = `You are the STAFFD Command Center coordinator. Your job is to understand exactly what the user needs, ask one clarifying question if truly necessary, propose a clear task, and wait for confirmation before executing.
+const DEPT_CAPABILITIES: Record<string, string> = {
+  marketing:   "Content (blog, email, newsletters), Social Media (Instagram, TikTok, LinkedIn, X, Reels, carousels), Growth & SEO, AI Search Optimization, Podcast Strategy, App Store Optimization, Book Authoring",
+  sales:       "Cold outreach, Follow-ups, Proposals, Objection handling, Pipeline analysis, Account strategy, Sales coaching, Technical demos, Prospect research",
+  legal:       "Contracts (services, NDAs, retainers), Policies (Terms, Privacy, refund), Compliance reviews, Document review for risks, Client intake, Legal billing setup",
+  hr:          "Job postings, Interview questions, Onboarding plans, 30-60-90 day plans, Performance reviews, PIPs, Hiring scorecards",
+  finance:     "Invoices, Late payment notices, Budgets, P&L templates, Cash flow, Tax strategy, Financial forecasting, Variance analysis, Industry benchmarking",
+  operations:  "SOPs, Workflows, Meeting agendas, Project briefs, Project shepherding, Supply chain & procurement, Automation, Data consolidation, Executive summaries",
+  "paid-media": "Google Ads (search), Meta/TikTok/Instagram Ads (social), Ad creative & copy, Campaign audits, Programmatic & CTV, Search query analysis, Tracking & attribution setup",
+  design:      "Brand identity, Brand guidelines, AI image generation prompts, UI design, UX architecture & flows, UX research, Accessibility reviews, Microcopy & delight",
+  reputation:  "Customer service email replies, Public review responses (Google/Yelp), Community management (comments/DMs), Feedback synthesis, Reputation strategy",
+  ceo:         "90-day plans, Priority audits, Growth strategy, Business decisions, Trend analysis, Sprint prioritization, Feedback synthesis, Market expansion, Weekly briefs",
+};
 
-DEPARTMENTS AND THEIR CAPABILITIES:
-- Marketing: social media posts, blog content, email campaigns, ad copy, headlines, bios, brand copy
-- Sales: cold outreach, follow-up emails, proposals, objection handling, LinkedIn messages, closing emails
-- Legal: service agreements, NDAs, website terms, privacy policies, contractor contracts, payment clauses
-- HR: job postings, interview questions, offer letters, onboarding checklists, performance reviews, HR policies
-- Finance: invoices, payment terms, late payment notices, budgets, expense policies, financial summaries
-- Operations: SOPs, workflows, meeting agendas, project briefs, process checklists, team updates
-- CEO: 90-day plans, priority audits, growth strategy, business decisions, health checks, weekly briefs
+function buildSystemPrompt(unlockedDepts: string[]): string {
+  const unlocked = unlockedDepts.length ? unlockedDepts : ["marketing", "sales", "legal"];
+  const lockedDepts = Object.keys(DEPT_CAPABILITIES).filter((d) => !unlocked.includes(d));
+
+  const unlockedSection = unlocked
+    .map((d) => `- ${d}: ${DEPT_CAPABILITIES[d] ?? ""}`)
+    .join("\n");
+
+  const lockedSection = lockedDepts.length
+    ? lockedDepts.map((d) => `- ${d}: ${DEPT_CAPABILITIES[d] ?? ""}`).join("\n")
+    : "(none — all departments unlocked)";
+
+  return `You are the STAFFD Command Center coordinator. Your job is to understand exactly what the user needs, ask one clarifying question if truly necessary, propose a clear task, and wait for confirmation before executing.
+
+DEPARTMENTS THE USER HAS ACCESS TO (route here first):
+${unlockedSection}
+
+DEPARTMENTS THE USER HAS NOT UNLOCKED YET (do NOT route here by default):
+${lockedSection}
 
 RULES:
-1. Read the user's message and identify what department and task fits best.
+1. Read the user's message and identify which UNLOCKED department best fits the request.
 2. If the request is clear enough, go straight to the proposal — don't ask questions you can figure out.
-3. Only ask ONE clarifying question if you genuinely cannot propose a useful task without it. Example: "Invoice template — for what kind of service?" But don't ask if context from their vault would cover it.
-4. When you're ready to execute, end your message with exactly this format on its own line:
-   READY:{"department":"<dept>","task":"<full specific task for the agent>"}
-5. NEVER execute before getting confirmation. The user must say yes, confirm, do it, go, approved, or similar.
-6. After confirmation, respond with only:
-   EXECUTE:{"department":"<dept>","task":"<full specific task>"}
-7. Keep all messages short and direct. No filler, no pleasantries beyond what's needed.
-8. If the message is off-topic or unclear, ask what they need in one short question.
+3. Only ask ONE clarifying question if you genuinely cannot propose a useful task without it. But don't ask if context from their vault would cover it.
+4. ALWAYS route to an UNLOCKED department first — the user can only execute against departments they have access to.
+5. If a LOCKED department would be a sharper fit for this specific request (e.g. a TikTok ad task best fits Paid Media but Marketing can handle it), include "lockedAlternative" in the READY payload so we can surface the upgrade nudge AFTER generating from the unlocked dept.
+6. When you're ready to execute, end your message with exactly this format on its own line:
+   READY:{"department":"<unlocked-dept>","task":"<full specific task>","lockedAlternative":"<locked-dept-or-empty>"}
+7. NEVER execute before getting confirmation. The user must say yes, confirm, do it, go, approved, or similar.
+8. After confirmation, respond with only:
+   EXECUTE:{"department":"<unlocked-dept>","task":"<full specific task>"}
+9. Keep all messages short and direct. No filler.
+10. NEVER route to a locked department. Always route to the best UNLOCKED fit, and use lockedAlternative for the soft nudge.
 
 TONE: Direct, confident, like a chief of staff. No corporate fluff.`;
 
@@ -39,8 +63,10 @@ export async function POST(req: Request) {
       return new Response("Messages required", { status: 400 });
     }
 
-    // Fetch vault context
+    // Fetch vault context + unlocked departments
     let vaultContext = "";
+    let unlockedDepts: string[] = ["marketing", "sales", "legal"]; // safe default
+
     if (pbToken && userId) {
       try {
         const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
@@ -56,7 +82,23 @@ export async function POST(req: Request) {
       } catch {
         // proceed without
       }
+
+      // Fetch unlocked departments via internal /api/trial endpoint
+      try {
+        const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+        const trialRes = await fetch(`${origin}/api/trial?userId=${userId}`);
+        if (trialRes.ok) {
+          const trialData = (await trialRes.json()) as { resolved_departments?: string[] };
+          if (Array.isArray(trialData.resolved_departments) && trialData.resolved_departments.length > 0) {
+            unlockedDepts = trialData.resolved_departments;
+          }
+        }
+      } catch {
+        // proceed with default
+      }
     }
+
+    const systemPrompt = buildSystemPrompt(unlockedDepts);
 
     const stream = await anthropic.messages.stream({
       model: "claude-sonnet-4-6",
@@ -64,7 +106,7 @@ export async function POST(req: Request) {
       system: [
         {
           type: "text",
-          text: SYSTEM_PROMPT + vaultContext,
+          text: systemPrompt + vaultContext,
           cache_control: { type: "ephemeral" },
         },
       ],

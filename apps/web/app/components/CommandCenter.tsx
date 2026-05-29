@@ -9,16 +9,38 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   isOutput?: boolean;
+  lockedAlternative?: string;
+}
+
+interface PendingAction {
+  department: string;
+  task: string;
+  lockedAlternative?: string;
 }
 
 type Phase = "idle" | "routing" | "confirmed" | "generating" | "done";
+
+const DEPT_LABELS: Record<string, string> = {
+  marketing: "Marketing", sales: "Sales", legal: "Legal", hr: "HR",
+  finance: "Finance", operations: "Operations", design: "Design",
+  "paid-media": "Paid Media", reputation: "Reputation", ceo: "The CEO",
+};
+
+const DEPT_HREFS: Record<string, string> = {
+  marketing: "/dashboard/marketing", sales: "/dashboard/sales",
+  legal: "/dashboard/legal", hr: "/dashboard/hr",
+  finance: "/dashboard/finance", operations: "/dashboard/operations",
+  design: "/dashboard/design", "paid-media": "/dashboard/paid-media",
+  reputation: "/dashboard/reputation", ceo: "/dashboard/ceo",
+};
 
 export default function CommandCenter() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [pendingAction, setPendingAction] = useState<{ department: string; task: string } | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [outputBuffer, setOutputBuffer] = useState("");
+  const [lastLockedAlt, setLastLockedAlt] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -50,6 +72,8 @@ export default function CommandCenter() {
         { role: "assistant", content: `EXECUTE:${JSON.stringify(pendingAction)}` },
       ];
       setMessages(confirmMessages);
+      // Remember the locked alternative to surface as nudge after generation
+      setLastLockedAlt(pendingAction.lockedAlternative?.trim() ? pendingAction.lockedAlternative : null);
       await runAgent(pendingAction.department, pendingAction.task, userId, pbToken);
       return;
     }
@@ -91,7 +115,7 @@ export default function CommandCenter() {
       const readyMatch = assistantText.match(/READY:(\{.+?\})/s);
       if (readyMatch?.[1]) {
         try {
-          const action = JSON.parse(readyMatch[1]) as { department: string; task: string };
+          const action = JSON.parse(readyMatch[1]) as PendingAction;
           setPendingAction(action);
           setPhase("idle");
         } catch {
@@ -161,6 +185,7 @@ export default function CommandCenter() {
     setPhase("idle");
     setPendingAction(null);
     setOutputBuffer("");
+    setLastLockedAlt(null);
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
@@ -231,31 +256,54 @@ export default function CommandCenter() {
               <div key={i} className="flex flex-col gap-1">
                 {msg.isOutput ? (
                   // Generated document output
-                  <div
-                    className="rounded-xl p-4"
-                    style={{ background: "#0D0D16", border: "1px solid #2A2A38" }}
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#5B21E8" }} />
-                      <span className="text-xs font-semibold" style={{ color: "#7070A0" }}>Generated</span>
-                      {display && (
-                        <button
-                          onClick={() => navigator.clipboard.writeText(display)}
-                          className="ml-auto text-xs transition-colors hover:text-white"
-                          style={{ color: "#5A5A70" }}
-                        >
-                          Copy
-                        </button>
+                  <>
+                    {/* Locked-match nudge — appears when a better-fit dept is locked */}
+                    {phase === "done" && lastLockedAlt && DEPT_LABELS[lastLockedAlt] && (
+                      <div
+                        className="rounded-xl px-4 py-3 mb-2 flex items-center gap-3"
+                        style={{ background: "rgba(91,33,232,0.08)", border: "1px solid rgba(91,33,232,0.25)" }}
+                      >
+                        <span style={{ fontSize: "16px" }}>💡</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs" style={{ color: "#D0D0E8", lineHeight: 1.5 }}>
+                            We routed this to your team. <strong style={{ color: "#A07BFF" }}>{DEPT_LABELS[lastLockedAlt]}</strong> would be a sharper fit.
+                          </p>
+                          <a
+                            href={DEPT_HREFS[lastLockedAlt] ?? "/dashboard"}
+                            className="text-xs font-semibold"
+                            style={{ color: "#A07BFF", textDecoration: "none" }}
+                          >
+                            Try it free →
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                    <div
+                      className="rounded-xl p-4"
+                      style={{ background: "#0D0D16", border: "1px solid #2A2A38" }}
+                    >
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className="w-1.5 h-1.5 rounded-full" style={{ background: "#5B21E8" }} />
+                        <span className="text-xs font-semibold" style={{ color: "#7070A0" }}>Generated</span>
+                        {display && (
+                          <button
+                            onClick={() => navigator.clipboard.writeText(display)}
+                            className="ml-auto text-xs transition-colors hover:text-white"
+                            style={{ color: "#5A5A70" }}
+                          >
+                            Copy
+                          </button>
+                        )}
+                      </div>
+                      {display ? (
+                        <div className="agent-output text-xs">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{display}</ReactMarkdown>
+                        </div>
+                      ) : (
+                        <span className="inline-block w-0.5 h-3.5 animate-pulse" style={{ background: "#5B21E8", verticalAlign: "middle" }} />
                       )}
                     </div>
-                    {display ? (
-                      <div className="agent-output text-xs">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{display}</ReactMarkdown>
-                      </div>
-                    ) : (
-                      <span className="inline-block w-0.5 h-3.5 animate-pulse" style={{ background: "#5B21E8", verticalAlign: "middle" }} />
-                    )}
-                  </div>
+                  </>
                 ) : (
                   // Coordinator message
                   <div className="flex gap-2.5">
