@@ -13,11 +13,11 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "STAFFD — Your AI-Powered Business",
-  description: "STAFFD gives every small business an AI-powered team. Marketing, Sales, Legal, HR, Finance — all working for you.",
+  title: "STAFFD — Hire your business staff",
+  description: "STAFFD staffs your business with specialists across Marketing, Sales, Legal, HR, Finance, Operations, Paid Media, Design, Reputation, and The CEO. On call the moment you sign up.",
   openGraph: {
     title: "STAFFD",
-    description: "Your AI-powered business team. Get STAFFD.",
+    description: "Staff your business. 83 specialists. 10 departments. On call the moment you hire them.",
     siteName: "STAFFD",
   },
 };

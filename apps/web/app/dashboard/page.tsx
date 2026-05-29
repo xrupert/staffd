@@ -233,7 +233,7 @@ export default function DashboardPage() {
                 Welcome to {currentPlan ? PLAN_LABELS[currentPlan] : "your new plan"}
               </p>
               <p className="text-xs" style={{ color: "#4A7A4A" }}>
-                Your departments are unlocked. Your AI team is ready.
+                Your departments are open for business. Your staff is on duty.
               </p>
             </div>
           </div>
@@ -352,7 +352,7 @@ export default function DashboardPage() {
             {userName ? `Welcome back, ${userName}.` : "Welcome back."}
           </h1>
           <p className="text-sm" style={{ color: "#5A5A70" }}>
-            Your AI team is ready.
+            Your staff is on duty.
           </p>
         </div>
 
@@ -377,7 +377,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold" style={{ color: "#F0F0E8" }}>
-                  Your AI team is working with {vaultPct}% of the context they need
+                  Your staff is working with {vaultPct}% of the context they need
                 </p>
                 <p className="text-xs mt-0.5" style={{ color: "#7A6A40" }}>
                   Fill in your Business Vault — the more they know, the better the output →

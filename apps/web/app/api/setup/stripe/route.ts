@@ -60,7 +60,7 @@ export async function POST() {
       } else {
         const product = await stripe.products.create({
           name: `STAFFD ${plan.name}`,
-          description: `STAFFD ${plan.name} plan — access to your AI business team`,
+          description: `STAFFD ${plan.name} plan — staff your business with specialists across every department`,
           metadata: { staffd_plan_id: plan.id },
         });
         productId = product.id;

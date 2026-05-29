@@ -88,7 +88,7 @@ export default function SignupPage() {
             className="font-bold mb-2"
             style={{ color: "#F0F0F8", fontSize: "1.875rem", lineHeight: 1.15, letterSpacing: "-0.02em" }}
           >
-            Build your AI team
+            Hire your staff
           </h1>
           <p className="text-sm" style={{ color: "#6060A0" }}>
             {pendingPlan

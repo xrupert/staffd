@@ -937,7 +937,7 @@ export default function DepartmentRoom({
               >
                 <span>🔐</span>
                 <span className="group-hover:text-purple-400 transition-colors">
-                  Add your business details to the Vault and your AI team will use them automatically →
+                  Add your business details to the Vault and your staff will use them automatically →
                 </span>
               </a>
               {templates.length === 0 && (

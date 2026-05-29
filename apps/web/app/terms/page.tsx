@@ -50,7 +50,7 @@ export default function TermsPage() {
           <Section title="2. What STAFFD is">
             <p>
               STAFFD is a software-as-a-service platform that gives small businesses access to a
-              team of AI agents organized into departments (Marketing, Sales, Legal, HR, Finance,
+              staff of specialists organized into departments (Marketing, Sales, Legal, HR, Finance,
               Operations, Paid Media, Design, Reputation, and a cross-department CEO function).
               Agents produce content, documents, and recommendations based on your Business Vault
               inputs and the tasks you give them.

@@ -42,7 +42,7 @@ export default function PrivacyPage() {
 
           <Section title="The short version">
             <p>
-              STAFFD only uses your business information to make your AI team produce better
+              STAFFD only uses your business information to make your staff produce better
               output for you. We do not sell your data, we do not train AI models on it, and
               you can delete everything at any time.
             </p>
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-5 space-y-2">
               <li><strong style={{ color: "#F0F0F8" }}>Account information</strong> — your name, email, and password (hashed) when you sign up.</li>
               <li><strong style={{ color: "#F0F0F8" }}>Business Vault data</strong> — anything you enter into your Business Vault (business name, industry, target audience, contact info, etc.).</li>
-              <li><strong style={{ color: "#F0F0F8" }}>Generated content</strong> — documents, drafts, and outputs your AI team produces for you.</li>
+              <li><strong style={{ color: "#F0F0F8" }}>Work product</strong> — documents, drafts, and reports your staff produces for you.</li>
               <li><strong style={{ color: "#F0F0F8" }}>Subscription data</strong> — your plan, billing status, and Stripe customer ID (we never store your card details).</li>
               <li><strong style={{ color: "#F0F0F8" }}>Anonymous usage analytics</strong> — collected via Plausible Analytics, which does not use cookies or track individuals.</li>
             </ul>
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
 
           <Section title="How we use it">
             <ul className="list-disc pl-5 space-y-2">
-              <li>To personalize the output your AI agents produce for your business.</li>
+              <li>To personalize the work your staff produces for your business.</li>
               <li>To remember context across sessions so your team gets better over time.</li>
               <li>To deliver, maintain, and improve the STAFFD platform.</li>
               <li>To process subscription payments via Stripe.</li>
@@ -84,7 +84,7 @@ export default function PrivacyPage() {
           <Section title="Who we share data with">
             <p>STAFFD shares the minimum data necessary with these service providers:</p>
             <ul className="list-disc pl-5 space-y-2 mt-3">
-              <li><strong style={{ color: "#F0F0F8" }}>Anthropic</strong> — to generate AI agent output (your task + Vault context).</li>
+              <li><strong style={{ color: "#F0F0F8" }}>Anthropic</strong> — to produce the work your staff delivers (your task + Vault context).</li>
               <li><strong style={{ color: "#F0F0F8" }}>Stripe</strong> — to process subscription payments. Stripe handles all card data directly.</li>
               <li><strong style={{ color: "#F0F0F8" }}>Vercel</strong> — to host the STAFFD application.</li>
               <li><strong style={{ color: "#F0F0F8" }}>Railway</strong> — to host backend services (database, integrations).</li>

@@ -246,7 +246,7 @@ export default function CalendarPage() {
             Plan &amp; Track
           </h1>
           <p className="text-sm mt-2" style={{ color: "#5A5A70" }}>
-            See what your AI team has produced and plan upcoming content.
+            See what your staff has produced and plan upcoming work.
           </p>
         </div>
 

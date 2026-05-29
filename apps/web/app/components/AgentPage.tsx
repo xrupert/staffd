@@ -378,7 +378,7 @@ export default function AgentPage({
             <div className="flex items-center justify-between">
               <a href="/dashboard/vault" className="flex items-center gap-3 text-xs group" style={{ color: "#3A3A55", textDecoration: "none" }}>
                 <span>🔐</span>
-                <span className="group-hover:text-purple-400 transition-colors">Add your business details to the Vault and your AI team will use them automatically →</span>
+                <span className="group-hover:text-purple-400 transition-colors">Add your business details to the Vault and your staff will use them automatically →</span>
               </a>
               {templates.length === 0 && (
                 <a href="/dashboard/templates" className="text-xs ml-4 flex-shrink-0 transition-colors hover:text-purple-400" style={{ color: "#3A3A55" }}>

@@ -153,7 +153,7 @@ export default function VaultPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#5B21E8" }}>Business Vault</p>
             <h1 className="font-bold mb-2" style={{ color: "#F0F0F8", fontSize: "2rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>Your Business Profile</h1>
-            <p className="text-sm" style={{ color: "#9090A8" }}>Everything your AI team knows about your business.</p>
+            <p className="text-sm" style={{ color: "#9090A8" }}>Everything your staff knows about your business.</p>
           </div>
           <div className="flex flex-col items-center gap-1.5 ml-6 flex-shrink-0">
             <div className="relative w-14 h-14">
@@ -187,7 +187,7 @@ export default function VaultPage() {
           {/* Contact details */}
           <div className="rounded-2xl p-7 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
             <p className="text-xs font-semibold uppercase tracking-widest mb-6" style={{ color: "#5A5A70" }}>Contact Details</p>
-            <p className="text-xs mb-5" style={{ color: "#3A3A50" }}>Used on invoices, contracts, and any document your AI team generates.</p>
+            <p className="text-xs mb-5" style={{ color: "#3A3A50" }}>Used on invoices, contracts, and any document your staff produces.</p>
             <div className="flex flex-col gap-5">
               <VaultField label="Phone number" placeholder="+1 (555) 000-0000" value={field("phone")} onChange={(v) => set("phone", v)} type="tel" />
               <VaultField label="Primary email" placeholder="hello@yourbusiness.com" value={field("primary_email")} onChange={(v) => set("primary_email", v)} type="email" />

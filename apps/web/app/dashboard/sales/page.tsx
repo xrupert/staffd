@@ -6,7 +6,7 @@ export default function SalesPage() {
       department="sales"
       icon="🤝"
       title="Sales"
-      tagline="Outreach, proposals, deal strategy, and pipeline — your AI sales team, always ready."
+      tagline="Outreach, proposals, deal strategy, and pipeline — your sales staff, always on."
       placeholder="e.g. 'cold email to a small business owner' or 'proposal for a new consulting engagement'…"
     />
   );

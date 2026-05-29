@@ -6,7 +6,7 @@ export default function FinancePage() {
       department="finance"
       icon="💰"
       title="Finance"
-      tagline="Invoices, budgets, projections, and financial documents — your AI CFO on call."
+      tagline="Invoices, budgets, projections, and financial documents — your CFO on call."
       placeholder="e.g. 'invoice template for my consulting business' or '90-day revenue projection with assumptions'…"
     />
   );

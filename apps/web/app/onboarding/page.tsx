@@ -321,7 +321,7 @@ export default function OnboardingPage() {
 
           {step === 4 && (
             <Step
-              title="What best describes why you need your AI team?"
+              title="What best describes why you need to staff up?"
               subtitle="Choose the one that hits closest."
             >
               <div className="grid grid-cols-1 gap-3">
@@ -342,7 +342,7 @@ export default function OnboardingPage() {
           {step === 5 && (
             <Step
               title="Why do your best customers choose you?"
-              subtitle="This shapes how your AI team communicates and strategizes."
+              subtitle="This shapes how your staff communicates and strategizes."
             >
               <div className="grid grid-cols-1 gap-3">
                 {SUPERPOWER_OPTIONS.map((opt) => (
@@ -409,7 +409,7 @@ export default function OnboardingPage() {
               className="btn-primary px-6 py-2.5 rounded-xl font-semibold text-white text-sm"
               style={{ opacity: saving ? 0.7 : 1 }}
             >
-              {saving ? "Setting up your team…" : "Build my AI team →"}
+              {saving ? "Staffing up…" : "Hire my staff →"}
             </button>
           )}
         </div>
@@ -529,7 +529,7 @@ function ResultsScreen({ recommended, onContinue }: { recommended: string[]; onC
       <div className="relative z-10 w-full max-w-lg text-center">
         <div className="text-4xl mb-4">✅</div>
         <h1 className="text-3xl font-bold mb-3" style={{ color: "#F0F0F8" }}>
-          Your AI team is ready.
+          Your staff is on duty.
         </h1>
         <p className="text-base mb-10" style={{ color: "#9090A8" }}>
           Based on your answers, we&apos;ve provisioned{" "}

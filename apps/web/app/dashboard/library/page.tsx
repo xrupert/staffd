@@ -121,7 +121,7 @@ export default function LibraryPage() {
             Your Generated Documents
           </h1>
           <p className="text-sm" style={{ color: "#5A5A70" }}>
-            Every document your AI team has created, saved automatically.
+            Every document your staff has produced, saved automatically.
           </p>
         </div>
 

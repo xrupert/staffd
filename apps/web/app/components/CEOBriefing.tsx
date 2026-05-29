@@ -183,7 +183,7 @@ export default function CEOBriefing() {
             }}
           >
             <p style={{ fontSize: "12px", color: "#3A3A55", margin: 0 }}>
-              Your situation, top priority, AI team activity, and what to focus on next — generated from your vault and document history.
+              Your situation, top priority, staff activity, and what to focus on next — synthesized from your vault and your team&apos;s recent work.
             </p>
           </div>
         )}

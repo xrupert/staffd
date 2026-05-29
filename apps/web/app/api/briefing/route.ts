@@ -146,8 +146,8 @@ ${vaultLines.length > 0
 }
 
 ${activityLines.length > 0
-  ? `AI TEAM ACTIVITY — Last 30 days (${totalDocs} total documents):\n${activityLines.join("\n")}`
-  : "AI TEAM ACTIVITY: No documents generated yet. Recommend where to start."
+  ? `STAFF ACTIVITY — Last 30 days (${totalDocs} total deliverables):\n${activityLines.join("\n")}`
+  : "STAFF ACTIVITY: Your staff hasn't produced any work yet. Recommend where to start."
 }
 
 ${missingFields.length > 0
@@ -165,7 +165,7 @@ Generate the weekly briefing using this exact structure:
 **Top Priority This Week**
 [One clear, specific action. Not a category — an actual thing to do.]
 
-**Your AI Team This Month**
+**Your Staff This Month**
 [Summarise what's been happening. If nothing yet, tell them where to start and why.]
 
 **What Would Make Your Team More Effective**
