@@ -111,6 +111,86 @@ async function updateSubscriptionByCustomer(
   }
 }
 
+/** Add a department to the user's unlocked list and store the add-on Stripe sub_id. */
+async function addDeptAddonForUser(
+  pbUrl: string,
+  adminToken: string,
+  userId: string,
+  department: string,
+  stripeSubId: string
+) {
+  const headers = { Authorization: adminToken, "Content-Type": "application/json" };
+
+  const res = await fetch(
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    { headers: { Authorization: adminToken } }
+  );
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      unlocked_departments?: string[];
+      dept_addon_subs?: Record<string, string>;
+    }>;
+  };
+  const existing = data.items?.[0];
+  if (!existing?.id) return; // no subscription record — addon checkout shouldn't have succeeded anyway
+
+  const currentDepts = existing.unlocked_departments ?? [];
+  const newDepts = currentDepts.includes(department) ? currentDepts : [...currentDepts, department];
+  const newAddonMap = { ...(existing.dept_addon_subs ?? {}), [department]: stripeSubId };
+
+  await fetch(`${pbUrl}/api/collections/subscriptions/records/${existing.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      unlocked_departments: newDepts,
+      dept_addon_subs: newAddonMap,
+    }),
+  });
+}
+
+/** Remove a department from the user's unlocked list when its add-on sub is cancelled. */
+async function removeDeptAddonByStripeSubId(
+  pbUrl: string,
+  adminToken: string,
+  stripeCustomerId: string,
+  stripeSubId: string
+) {
+  const headers = { Authorization: adminToken, "Content-Type": "application/json" };
+
+  const res = await fetch(
+    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${stripeCustomerId}')&perPage=1`,
+    { headers: { Authorization: adminToken } }
+  );
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      unlocked_departments?: string[];
+      dept_addon_subs?: Record<string, string>;
+    }>;
+  };
+  const existing = data.items?.[0];
+  if (!existing?.id) return;
+
+  const addonMap = existing.dept_addon_subs ?? {};
+  // Find which department this sub_id belonged to
+  const deptToRemove = Object.entries(addonMap).find(([, id]) => id === stripeSubId)?.[0];
+  if (!deptToRemove) return;
+
+  const newDepts = (existing.unlocked_departments ?? []).filter((d) => d !== deptToRemove);
+  const newAddonMap = { ...addonMap };
+  delete newAddonMap[deptToRemove];
+
+  await fetch(`${pbUrl}/api/collections/subscriptions/records/${existing.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      unlocked_departments: newDepts,
+      dept_addon_subs: newAddonMap,
+    }),
+  });
+}
+
 export async function POST(req: Request) {
   const body = await req.text();
   const sig = req.headers.get("stripe-signature") ?? "";
@@ -141,12 +221,22 @@ export async function POST(req: Request) {
         if (session.mode !== "subscription") break;
 
         const userId = session.metadata?.staffd_user_id;
-        const plan   = session.metadata?.staffd_plan;
         const customerId = typeof session.customer === "string" ? session.customer : null;
         const subId      = typeof session.subscription === "string" ? session.subscription : null;
+        const addonType  = session.metadata?.staffd_addon_type;
+        const addonDept  = session.metadata?.staffd_addon_dept;
+        const plan       = session.metadata?.staffd_plan;
 
-        if (!userId || !plan || !customerId) break;
+        if (!userId || !customerId) break;
 
+        // Add-on checkout — unlock a department, track the sub_id, don't touch the plan
+        if (addonType === "department" && addonDept && subId) {
+          await addDeptAddonForUser(pbUrl, adminToken, userId, addonDept, subId);
+          break;
+        }
+
+        // Standard plan checkout
+        if (!plan) break;
         await upsertSubscriptionForUser(pbUrl, adminToken, userId, {
           plan,
           stripe_customer: customerId,
@@ -157,11 +247,15 @@ export async function POST(req: Request) {
 
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
-        const priceId    = sub.items.data[0]?.price.id ?? "";
         const customerId = typeof sub.customer === "string" ? sub.customer : "";
-        const plan       = getPlanFromPriceId(priceId);
+        if (!customerId) break;
 
-        if (!plan || !customerId) break;
+        // Skip — add-on subs don't change the plan
+        if (sub.metadata?.staffd_addon_type === "department") break;
+
+        const priceId = sub.items.data[0]?.price.id ?? "";
+        const plan    = getPlanFromPriceId(priceId);
+        if (!plan) break;
 
         // Calculate active_until from current period end
         const periodEnd = (sub as unknown as { current_period_end?: number }).current_period_end;
@@ -180,6 +274,13 @@ export async function POST(req: Request) {
         const customerId = typeof sub.customer === "string" ? sub.customer : "";
         if (!customerId) break;
 
+        // Add-on cancellation — just remove the department, don't touch the plan
+        if (sub.metadata?.staffd_addon_type === "department") {
+          await removeDeptAddonByStripeSubId(pbUrl, adminToken, customerId, sub.id);
+          break;
+        }
+
+        // Standard plan cancellation — revert to starter
         await updateSubscriptionByCustomer(pbUrl, adminToken, customerId, {
           plan: "starter",
           stripe_sub_id: undefined,

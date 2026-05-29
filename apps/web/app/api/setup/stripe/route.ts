@@ -21,6 +21,16 @@ const PLANS = [
   { id: "agency",  name: "Agency",  monthly: 45000, annual: 450000 },
 ];
 
+// Add-on products (monthly only — no annual to keep the math simple)
+const ADDONS = [
+  {
+    id: "dept-addon",
+    name: "Department Add-on",
+    description: "Add another full department of specialists to your STAFFD plan",
+    monthly: 2900, // $29/mo
+  },
+];
+
 // Allow GET so you can trigger this by navigating to the URL in a browser
 export async function GET() { return POST(); }
 
@@ -92,6 +102,45 @@ export async function POST() {
           metadata: { staffd_plan_id: plan.id, staffd_interval: "annual" },
         });
         prices[`${plan.id}_annual`] = ap.id;
+      }
+    }
+
+    // ─── Add-ons (idempotent like plans) ───────────────────────────────────────
+    for (const addon of ADDONS) {
+      const existing = await stripe.products.search({
+        query: `metadata['staffd_addon_id']:'${addon.id}'`,
+        limit: 1,
+      });
+
+      let productId: string;
+      if (existing.data.length > 0) {
+        productId = existing.data[0]!.id;
+      } else {
+        const product = await stripe.products.create({
+          name: addon.name,
+          description: addon.description,
+          metadata: { staffd_addon_id: addon.id },
+        });
+        productId = product.id;
+      }
+
+      const existingPrice = await stripe.prices.search({
+        query: `product:'${productId}' AND metadata['staffd_interval']:'monthly'`,
+        limit: 1,
+      });
+
+      if (existingPrice.data.length > 0) {
+        prices[`${addon.id}_monthly`] = existingPrice.data[0]!.id;
+      } else {
+        const p = await stripe.prices.create({
+          product: productId,
+          unit_amount: addon.monthly,
+          currency: "usd",
+          recurring: { interval: "month" },
+          nickname: `STAFFD ${addon.name} Monthly`,
+          metadata: { staffd_addon_id: addon.id, staffd_interval: "monthly" },
+        });
+        prices[`${addon.id}_monthly`] = p.id;
       }
     }
 

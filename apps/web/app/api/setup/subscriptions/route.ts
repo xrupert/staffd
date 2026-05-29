@@ -28,21 +28,24 @@ export async function POST() {
     // Check if already exists
     const checkRes = await fetch(`${pbUrl}/api/collections/subscriptions`, { headers: { Authorization: token } });
     if (checkRes.ok) {
-      // Collection exists — patch schema to add unlocked_departments if missing
+      // Collection exists — patch schema to add any missing fields
       const colData = (await checkRes.json()) as { fields?: Array<{ name: string }> };
-      const hasUnlocked = colData.fields?.some((f) => f.name === "unlocked_departments");
-      if (!hasUnlocked) {
+      const existingFieldNames = new Set((colData.fields ?? []).map((f) => f.name));
+      const desiredFields = [
+        { name: "unlocked_departments", type: "json", required: false },
+        { name: "dept_addon_subs",      type: "json", required: false }, // { "design": "sub_xxx", ... }
+      ];
+      const missing = desiredFields.filter((f) => !existingFieldNames.has(f.name));
+      if (missing.length > 0) {
         const existing = colData as Record<string, unknown>;
         const fields = (existing.fields as unknown[]) ?? [];
         await fetch(`${pbUrl}/api/collections/subscriptions`, {
           method: "PATCH",
           headers,
-          body: JSON.stringify({
-            fields: [...fields, { name: "unlocked_departments", type: "json", required: false }],
-          }),
+          body: JSON.stringify({ fields: [...fields, ...missing] }),
         });
       }
-      return Response.json({ ok: true, created: false });
+      return Response.json({ ok: true, created: false, patched: missing.map((f) => f.name) });
     }
 
     // Create collection
@@ -60,6 +63,7 @@ export async function POST() {
           { name: "stripe_sub_id",   type: "text", required: false },
           { name: "active_until",         type: "text", required: false }, // ISO date
           { name: "unlocked_departments", type: "json", required: false }, // string[]
+          { name: "dept_addon_subs",      type: "json", required: false }, // { "design": "sub_xxx", ... }
         ],
       }),
     });

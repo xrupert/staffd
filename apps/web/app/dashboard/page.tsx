@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
 import CommandCenter from "../components/CommandCenter";
 import DepartmentPicker from "../components/DepartmentPicker";
+import AddDeptModal from "../components/AddDeptModal";
 
 const DEPARTMENTS = [
   { name: "Marketing", icon: "📣", tagline: "Content, campaigns & social", href: "/dashboard/marketing" },
@@ -32,6 +33,9 @@ export default function DashboardPage() {
   const [currentPlan, setCurrentPlan] = useState<string | null>(null);
   const [checkoutBanner, setCheckoutBanner] = useState<"success" | "cancelled" | null>(null);
   const [showDeptPicker, setShowDeptPicker] = useState(false);
+  const [showAddDept, setShowAddDept] = useState(false);
+  const [unlockedDepts, setUnlockedDepts] = useState<string[]>([]);
+  const [addonBanner, setAddonBanner] = useState<{ type: "success" | "cancelled"; dept?: string } | null>(null);
 
   useEffect(() => {
     if (!pb.authStore.isValid) {
@@ -51,15 +55,22 @@ export default function DashboardPage() {
     // Handle Stripe redirect params
     const params = new URLSearchParams(window.location.search);
     const checkout = params.get("checkout");
+    const addon    = params.get("addon");
+    const addonDept = params.get("dept") ?? undefined;
     const isSuccess = checkout === "success";
     if (isSuccess || checkout === "cancelled") {
       setCheckoutBanner(checkout as "success" | "cancelled");
-      // Clean URL without reload
       const clean = window.location.pathname;
       window.history.replaceState({}, "", clean);
       if (!isSuccess) setTimeout(() => setCheckoutBanner(null), 6000);
     }
-    // After checkout success, check if department selection is needed
+    if (addon === "success" || addon === "cancelled") {
+      setAddonBanner({ type: addon, dept: addonDept });
+      const clean = window.location.pathname;
+      window.history.replaceState({}, "", clean);
+      setTimeout(() => setAddonBanner(null), 6000);
+    }
+    // After plan checkout success, check if department selection is needed
     void loadPlan(isSuccess);
     // Ensure collections exist (no-op if already created)
     void fetch("/api/setup/subscriptions", { method: "POST" }).catch(() => null);
@@ -74,8 +85,10 @@ export default function DashboardPage() {
         const data = (await res.json()) as {
           plan: string;
           needs_department_selection?: boolean;
+          resolved_departments?: string[];
         };
         setCurrentPlan(data.plan ?? "starter");
+        setUnlockedDepts(data.resolved_departments ?? []);
         if (showPickerIfNeeded && data.needs_department_selection) {
           setShowDeptPicker(true);
         }
@@ -98,6 +111,13 @@ export default function DashboardPage() {
     } catch { /* proceed */ }
   }
 
+  const DEPT_LABEL_MAP: Record<string, string> = {
+    hr: "HR", finance: "Finance", operations: "Operations",
+    "paid-media": "Paid Media", design: "Design", reputation: "Reputation",
+  };
+
+  const canAddDept = currentPlan === "growth" || currentPlan === "pro";
+
   return (
     <>
     {showDeptPicker && currentPlan && (
@@ -109,6 +129,12 @@ export default function DashboardPage() {
           setTimeout(() => setCheckoutBanner("success"), 50);
           setTimeout(() => setCheckoutBanner(null), 6000);
         }}
+      />
+    )}
+    {showAddDept && (
+      <AddDeptModal
+        alreadyUnlocked={unlockedDepts}
+        onClose={() => setShowAddDept(false)}
       />
     )}
     <main className="min-h-screen flex flex-col" style={{ background: "#09090F" }}>
@@ -159,6 +185,35 @@ export default function DashboardPage() {
             <span className="text-base">👋</span>
             <p className="text-sm" style={{ color: "#7060A0" }}>
               No worries — your trial runs are still available whenever you&apos;re ready.
+            </p>
+          </div>
+        )}
+
+        {/* Addon banners */}
+        {addonBanner?.type === "success" && (
+          <div
+            className="flex items-center gap-3 rounded-2xl px-5 py-3.5 mb-6"
+            style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
+          >
+            <span className="text-base">✨</span>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: "#22C55E" }}>
+                {addonBanner.dept ? `${DEPT_LABEL_MAP[addonBanner.dept] ?? addonBanner.dept} added to your team` : "Department added"}
+              </p>
+              <p className="text-xs" style={{ color: "#4A7A4A" }}>
+                Your new specialists are ready. Open the department to get started.
+              </p>
+            </div>
+          </div>
+        )}
+        {addonBanner?.type === "cancelled" && (
+          <div
+            className="flex items-center gap-3 rounded-2xl px-5 py-3.5 mb-6"
+            style={{ background: "rgba(91,33,232,0.06)", border: "1px solid rgba(91,33,232,0.2)" }}
+          >
+            <span className="text-base">👋</span>
+            <p className="text-sm" style={{ color: "#7060A0" }}>
+              Add-on checkout cancelled. You can add a department any time.
             </p>
           </div>
         )}
@@ -320,9 +375,20 @@ export default function DashboardPage() {
         </div>
 
         {/* Department grid */}
-        <p className="text-xs font-semibold uppercase tracking-widest mb-4" style={{ color: "#3A3A50" }}>
-          Go directly to a department
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#3A3A50" }}>
+            Go directly to a department
+          </p>
+          {canAddDept && (
+            <button
+              onClick={() => setShowAddDept(true)}
+              className="text-xs font-semibold transition-colors"
+              style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer" }}
+            >
+              + Add another department · $29/mo
+            </button>
+          )}
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 gap-3">
           {DEPARTMENTS.map((dept) => (
