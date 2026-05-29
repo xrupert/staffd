@@ -132,6 +132,7 @@ export default function Home() {
 
       <footer className="fixed text-xs flex items-center gap-4" style={{ bottom: "24px", color: "#2A2A38" }}>
         <span>© 2026 STAFFD · urstaffd.com</span>
+        <a href="/pricing" style={{ color: "#3A3A50", textDecoration: "none" }}>Pricing</a>
         <a href="/privacy" style={{ color: "#3A3A50", textDecoration: "none" }}>Privacy</a>
         <a href="/terms" style={{ color: "#3A3A50", textDecoration: "none" }}>Terms</a>
       </footer>

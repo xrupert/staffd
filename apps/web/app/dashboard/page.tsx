@@ -97,6 +97,27 @@ export default function DashboardPage() {
         if (showPickerIfNeeded && data.needs_department_selection) {
           setShowDeptPicker(true);
         }
+
+        // If user signed up via the pricing page, fire Stripe checkout for the
+        // plan they picked. This runs once and only when they're still on starter.
+        const pendingPlan = localStorage.getItem("staffd_pending_plan");
+        const pendingInterval = localStorage.getItem("staffd_pending_interval") ?? "annual";
+        if (pendingPlan && pendingPlan !== "starter" && (data.plan ?? "starter") === "starter") {
+          localStorage.removeItem("staffd_pending_plan");
+          localStorage.removeItem("staffd_pending_interval");
+          const userEmail = (pb.authStore.record?.email as string) ?? "";
+          try {
+            const checkoutRes = await fetch("/api/stripe/checkout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                planId: pendingPlan, interval: pendingInterval, userId, userEmail,
+              }),
+            });
+            const co = (await checkoutRes.json()) as { url?: string };
+            if (co.url) window.location.href = co.url;
+          } catch { /* user can still pick a plan from the dashboard */ }
+        }
       }
     } catch { /* proceed */ }
   }

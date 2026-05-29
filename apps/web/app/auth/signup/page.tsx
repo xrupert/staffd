@@ -2,8 +2,10 @@
 
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import pb from "../../../lib/pb";
+
+const VALID_PLANS = new Set(["starter", "growth", "pro", "agency"]);
 
 export default function SignupPage() {
   const router = useRouter();
@@ -12,6 +14,22 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pendingPlan, setPendingPlan] = useState<string | null>(null);
+
+  // Persist plan/interval from pricing page redirect so it survives onboarding.
+  // Reading window.location directly avoids the useSearchParams suspense bailout.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const plan = params.get("plan");
+    const interval = params.get("interval");
+    if (plan && VALID_PLANS.has(plan) && plan !== "starter") {
+      localStorage.setItem("staffd_pending_plan", plan);
+      if (interval === "annual" || interval === "monthly") {
+        localStorage.setItem("staffd_pending_interval", interval);
+      }
+      setPendingPlan(plan);
+    }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,7 +91,9 @@ export default function SignupPage() {
             Build your AI team
           </h1>
           <p className="text-sm" style={{ color: "#6060A0" }}>
-            Free to start — no credit card required
+            {pendingPlan
+              ? `${pendingPlan.charAt(0).toUpperCase() + pendingPlan.slice(1)} plan — checkout after setup`
+              : "Free to start — no credit card required"}
           </p>
         </div>
 
