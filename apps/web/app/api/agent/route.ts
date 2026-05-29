@@ -178,7 +178,10 @@ OUTPUT RULES:
 - Feedback analysis: structured themes, root causes, top 3 priorities.
 - Ready to use today.`,
 
-  ceo: `You are The CEO — STAFFD's cross-department strategic advisor. You help business owners think clearly about strategy, priorities, growth, and decisions that matter most.
+  ceo: `You are The CEO — STAFFD's cross-department strategic advisor. You operate as the single executive mind for the owner's entire business, synthesizing across every other department's actual work.
+
+CRITICAL: When the CROSS-DEPARTMENT WORKLOAD block is present below, you MUST reference real activity from it (without quoting verbatim). Cite which department produced what, what's working, what's stalling, what's missing. Generic advice is failure — your job is to make this owner feel like you read every document their team produced this week.
+
 
 HOW TO USE THE VAULT:
 Think like a trusted advisor who knows this business deeply. Use the vault context to ground your strategy in their specific situation — their industry, competitive edge, current challenges, and what they most want off their plate. Don't reference the vault; just think with it.
@@ -385,25 +388,102 @@ export async function POST(req: Request) {
       systemPrompt = buildSystemPrompt(department, vault);
     }
 
-    // Inject prior work as memory context (last 2 docs for same user+department)
+    // Inject prior work as memory context.
+    // - Regular departments: last 2 docs from same user+department (continuity).
+    // - CEO: cross-department synthesis — last 3 docs from EACH unlocked department
+    //   so The CEO can see the full operating picture.
     if (userId && pbToken) {
       try {
         const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
-        const memRes = await fetch(
-          `${pbUrl}/api/collections/documents/records?filter=(user='${userId}'%26%26department='${department}')&sort=-created&perPage=2&fields=prompt,output,created`,
-          { headers: { Authorization: pbToken } }
-        );
-        if (memRes.ok) {
-          const memData = (await memRes.json()) as { items?: Array<{ prompt: string; output: string; created: string }> };
-          const prior = memData.items ?? [];
-          if (prior.length > 0) {
-            const memoryBlock = prior
-              .map((d, i) => {
-                const summary = d.output.length > 500 ? d.output.slice(0, 500) + "…" : d.output;
-                return `[Prior task ${i + 1}]\nTask: ${d.prompt}\nOutput: ${summary}`;
+
+        if (department === "ceo") {
+          // Resolve which departments to synthesize across
+          const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+          let unlockedDepts: string[] = ["marketing", "sales", "legal"];
+          try {
+            const trialRes = await fetch(`${origin}/api/trial?userId=${userId}`);
+            if (trialRes.ok) {
+              const trialData = (await trialRes.json()) as { resolved_departments?: string[] };
+              if (Array.isArray(trialData.resolved_departments) && trialData.resolved_departments.length > 0) {
+                unlockedDepts = trialData.resolved_departments;
+              }
+            }
+          } catch { /* fall back to defaults */ }
+
+          // Fetch up to 3 most-recent docs per unlocked department (in parallel)
+          const otherDepts = unlockedDepts.filter((d) => d !== "ceo");
+          const deptDocResults = await Promise.all(
+            otherDepts.map(async (dept) => {
+              try {
+                const memRes = await fetch(
+                  `${pbUrl}/api/collections/documents/records?filter=(user='${userId}'%26%26department='${dept}')&sort=-created&perPage=3&fields=prompt,output,department,created`,
+                  { headers: { Authorization: pbToken } }
+                );
+                if (!memRes.ok) return { dept, items: [] as Array<{ prompt: string; output: string; created: string }> };
+                const memData = (await memRes.json()) as { items?: Array<{ prompt: string; output: string; created: string }> };
+                return { dept, items: memData.items ?? [] };
+              } catch {
+                return { dept, items: [] as Array<{ prompt: string; output: string; created: string }> };
+              }
+            })
+          );
+
+          const sections: string[] = [];
+          for (const { dept, items } of deptDocResults) {
+            if (items.length === 0) continue;
+            const deptLines = items
+              .map((d) => {
+                const summary = d.output.length > 350 ? d.output.slice(0, 350) + "…" : d.output;
+                return `  • Task: ${d.prompt}\n    Output excerpt: ${summary}`;
               })
               .join("\n\n");
-            systemPrompt += `\n\n--- PRIOR WORK (context only — do not repeat) ---\n${memoryBlock}\n--- END PRIOR WORK ---`;
+            sections.push(`[${dept.toUpperCase()}]\n${deptLines}`);
+          }
+
+          if (sections.length > 0) {
+            systemPrompt += `\n\n--- CROSS-DEPARTMENT WORKLOAD (recent activity across the business — synthesize, don't repeat) ---\n${sections.join("\n\n")}\n--- END CROSS-DEPARTMENT WORKLOAD ---`;
+          } else {
+            systemPrompt += `\n\n--- CROSS-DEPARTMENT WORKLOAD ---\nNo recent work in other departments yet. Base advice on the Vault and the task at hand. Encourage the owner to start generating in their unlocked departments so future briefings can synthesize real activity.\n--- END CROSS-DEPARTMENT WORKLOAD ---`;
+          }
+
+          // Also include last 2 CEO conversations for continuity
+          try {
+            const ceoMemRes = await fetch(
+              `${pbUrl}/api/collections/documents/records?filter=(user='${userId}'%26%26department='ceo')&sort=-created&perPage=2&fields=prompt,output,created`,
+              { headers: { Authorization: pbToken } }
+            );
+            if (ceoMemRes.ok) {
+              const ceoMemData = (await ceoMemRes.json()) as { items?: Array<{ prompt: string; output: string; created: string }> };
+              const prior = ceoMemData.items ?? [];
+              if (prior.length > 0) {
+                const block = prior
+                  .map((d, i) => {
+                    const summary = d.output.length > 500 ? d.output.slice(0, 500) + "…" : d.output;
+                    return `[Prior CEO conversation ${i + 1}]\nTask: ${d.prompt}\nOutput: ${summary}`;
+                  })
+                  .join("\n\n");
+                systemPrompt += `\n\n--- PRIOR CEO CONVERSATIONS (context only — do not repeat) ---\n${block}\n--- END PRIOR CONVERSATIONS ---`;
+              }
+            }
+          } catch { /* proceed without CEO continuity */ }
+        } else {
+          // Regular department: same-department memory (last 2 docs)
+          const memRes = await fetch(
+            `${pbUrl}/api/collections/documents/records?filter=(user='${userId}'%26%26department='${department}')&sort=-created&perPage=2&fields=prompt,output,created`,
+            { headers: { Authorization: pbToken } }
+          );
+          if (memRes.ok) {
+            const memData = (await memRes.json()) as { items?: Array<{ prompt: string; output: string; created: string }> };
+            const prior = memData.items ?? [];
+            if (prior.length > 0) {
+              const memoryBlock = prior
+                .map((d, i) => {
+                  const summary = d.output.length > 500 ? d.output.slice(0, 500) + "…" : d.output;
+                  return `[Prior task ${i + 1}]\nTask: ${d.prompt}\nOutput: ${summary}`;
+                })
+                .join("\n\n");
+              systemPrompt += `\n\n--- PRIOR WORK (context only — do not repeat) ---\n${memoryBlock}\n--- END PRIOR WORK ---`;
+            }
           }
         }
       } catch {

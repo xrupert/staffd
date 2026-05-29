@@ -17,6 +17,7 @@ const DEPT_NAMES: Record<string, string> = {
   ceo: "Strategy",
   "paid-media": "Paid Media",
   design: "Design",
+  reputation: "Reputation",
 };
 
 export async function POST(req: Request) {

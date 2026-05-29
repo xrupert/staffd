@@ -268,10 +268,34 @@ export const agentQuickActions: Record<string, QuickAction[]> = {
     { label: "User feedback synthesis", prompt: "Help me synthesize customer feedback into product insights and priorities." },
   ],
   "ceo-agents-orchestrator": [
-    { label: "Product launch plan", prompt: "Coordinate a full product launch plan across Marketing, Sales, Legal, and Operations." },
-    { label: "Business health check", prompt: "Run a full business health check across all departments." },
-    { label: "Hiring plan", prompt: "Coordinate a hiring plan across HR, Legal, and Operations for a new role." },
-    { label: "Client acquisition system", prompt: "Build a client acquisition system coordinating Marketing, Sales, and Legal." },
+    { label: "Weekly business briefing", prompt: "Generate my weekly business briefing — synthesize what every department has been producing, what's working, what's stalling, and the 3 things that need my attention this week." },
+    { label: "Full business health check", prompt: "Run a full business health check across all my unlocked departments. Reference real work from each. Tell me what's strong, what's fragile, and what to prioritize." },
+    { label: "Product launch plan", prompt: "Coordinate a full product launch plan across Marketing, Sales, Legal, and Operations — based on what each department has already produced." },
+    { label: "Client acquisition system", prompt: "Build a client acquisition system coordinating Marketing, Sales, and any other relevant departments — grounded in what they have already produced." },
+  ],
+  "ceo-sprint-prioritizer": [
+    { label: "This week's priorities", prompt: "Force-rank what I should be focused on this week — based on what's actually moving and what's stalling across my departments." },
+    { label: "Kill list", prompt: "Give me my kill list — what should I stop doing this quarter based on what is and isn't producing results." },
+    { label: "2-week sprint", prompt: "Design a focused 2-week sprint for me with capacity-aware scope and a stop-doing list." },
+    { label: "Decision criteria", prompt: "Build me a decision framework for how I should rank initiatives going forward." },
+  ],
+  "ceo-trend-researcher": [
+    { label: "Industry trend scan", prompt: "Scan my industry for trends that matter to my business. Rank by relevance, time horizon, and business impact." },
+    { label: "Weak signals", prompt: "Identify the weak signals in my industry I should be tracking — small now, could matter soon." },
+    { label: "Scenario planning", prompt: "Build 3 scenarios (likely, upside, downside) for the next 12 months in my market — with implications for my business." },
+    { label: "Start / watch / ignore", prompt: "Give me a list of what to start, what to watch, and what to ignore based on current industry trends." },
+  ],
+  "ceo-feedback-synthesizer": [
+    { label: "Cross-source themes", prompt: "Synthesize the customer, team, and market feedback I have into 3-7 themes — ranked by source diversity and severity." },
+    { label: "Contradictions", prompt: "Find the contradictions in my feedback — where different sources tell different stories — and why that matters." },
+    { label: "Mind-changed brief", prompt: "Tell me what I should believe differently now compared to 3 months ago, based on the feedback I have." },
+    { label: "Decision frameworks", prompt: "Help me build decision frameworks for which signals should drive which decisions." },
+  ],
+  "ceo-cultural-intelligence-strategist": [
+    { label: "Market entry plan", prompt: "Build a market entry plan for a new geography or customer segment — covering fit, go-to-market mode, milestones, and risks." },
+    { label: "Localization framework", prompt: "Design a localization framework for my brand, product, pricing, support, and marketing in a new market." },
+    { label: "Cultural risk audit", prompt: "Audit the cultural assumptions I might be making that could derail my expansion plans." },
+    { label: "Partnership vs direct", prompt: "Help me decide whether to enter a new market via partnership or direct, with clear criteria." },
   ],
 };
 
