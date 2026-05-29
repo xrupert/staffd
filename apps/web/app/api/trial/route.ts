@@ -11,6 +11,8 @@
  * Locked departments get 3 trial runs. After that, an upgrade is required.
  */
 
+import { isCompedUser } from "../_lib/comp";
+
 const TRIAL_LIMIT = 3;
 
 // Departments unlocked on every plan (the 6 starter-pack agents live here)
@@ -96,17 +98,20 @@ export async function GET(req: Request) {
       unlocked_departments: string[] | null;
     } | null;
 
-    const plan = sub?.plan ?? "starter";
+    // Comp check — internal accounts get free Agency access regardless of Stripe state
+    const comped = await isCompedUser(pbUrl, token, userId);
+    const effectivePlan = comped ? "agency" : (sub?.plan ?? "starter");
     const unlockedDepts = sub?.unlocked_departments ?? null;
-    const resolved = resolveUnlocked(plan, unlockedDepts);
+    const resolved = resolveUnlocked(effectivePlan, unlockedDepts);
 
     return Response.json({
-      plan,
+      plan: effectivePlan,
       trial_runs: sub?.trial_runs ?? {},
       sub_id: sub?.id ?? null,
       unlocked_departments: unlockedDepts ?? [],
-      needs_department_selection: (plan === "growth" || plan === "pro") && (!unlockedDepts || unlockedDepts.length === 0),
+      needs_department_selection: (effectivePlan === "growth" || effectivePlan === "pro") && (!unlockedDepts || unlockedDepts.length === 0),
       resolved_departments: [...resolved],
+      comp: comped || undefined,
     });
   } catch (err) {
     console.error("Trial GET error:", err);
@@ -144,7 +149,9 @@ export async function POST(req: Request) {
       unlocked_departments: string[] | null;
     } | null;
 
-    const plan = sub?.plan ?? "starter";
+    // Comp check — internal accounts have agency-level access without a sub record
+    const comped = await isCompedUser(pbUrl, token, userId);
+    const plan = comped ? "agency" : (sub?.plan ?? "starter");
     const planDepts = resolveUnlocked(plan, sub?.unlocked_departments ?? null);
 
     // If department is already fully unlocked on their plan, no trial tracking needed

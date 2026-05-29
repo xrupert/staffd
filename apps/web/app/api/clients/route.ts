@@ -5,6 +5,8 @@
  * Restricted to Agency plan users. Returns 403 otherwise.
  */
 
+import { isCompedUser } from "../_lib/comp";
+
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
     method: "POST",
@@ -20,8 +22,10 @@ async function getAdminToken(pbUrl: string): Promise<string> {
 }
 
 async function isAgencyUser(pbUrl: string, token: string, userId: string): Promise<boolean> {
-  // Bypass for the jrw-solutions comp will be wired here later; for now
-  // a user qualifies as Agency if their subscription record says so.
+  // Comped accounts (e.g. @jrw-solutions.com) get Agency access automatically
+  if (await isCompedUser(pbUrl, token, userId)) return true;
+
+  // Otherwise check the subscription record for an active Agency plan
   const res = await fetch(
     `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
     { headers: { Authorization: token } }
