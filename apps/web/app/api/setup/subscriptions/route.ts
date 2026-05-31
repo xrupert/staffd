@@ -32,8 +32,13 @@ export async function POST() {
       const colData = (await checkRes.json()) as { fields?: Array<{ name: string }> };
       const existingFieldNames = new Set((colData.fields ?? []).map((f) => f.name));
       const desiredFields = [
-        { name: "unlocked_departments", type: "json", required: false },
-        { name: "dept_addon_subs",      type: "json", required: false }, // { "design": "sub_xxx", ... }
+        { name: "unlocked_departments", type: "json",   required: false },
+        { name: "dept_addon_subs",      type: "json",   required: false }, // { "design": "sub_xxx", ... }
+        { name: "image_credits_used",   type: "number", required: false }, // resets monthly
+        { name: "video_credits_used",   type: "number", required: false }, // resets monthly
+        { name: "image_credits_topup",  type: "number", required: false }, // never resets
+        { name: "video_credits_topup",  type: "number", required: false }, // never resets
+        { name: "credits_reset_at",     type: "text",   required: false }, // ISO YYYY-MM-01 of current month
       ];
       const missing = desiredFields.filter((f) => !existingFieldNames.has(f.name));
       if (missing.length > 0) {
@@ -61,9 +66,14 @@ export async function POST() {
           { name: "trial_runs",      type: "json", required: false }, // { dept: count }
           { name: "stripe_customer", type: "text", required: false },
           { name: "stripe_sub_id",   type: "text", required: false },
-          { name: "active_until",         type: "text", required: false }, // ISO date
-          { name: "unlocked_departments", type: "json", required: false }, // string[]
-          { name: "dept_addon_subs",      type: "json", required: false }, // { "design": "sub_xxx", ... }
+          { name: "active_until",         type: "text",   required: false }, // ISO date
+          { name: "unlocked_departments", type: "json",   required: false }, // string[]
+          { name: "dept_addon_subs",      type: "json",   required: false }, // { "design": "sub_xxx", ... }
+          { name: "image_credits_used",   type: "number", required: false }, // resets monthly
+          { name: "video_credits_used",   type: "number", required: false }, // resets monthly
+          { name: "image_credits_topup",  type: "number", required: false }, // never resets
+          { name: "video_credits_topup",  type: "number", required: false }, // never resets
+          { name: "credits_reset_at",     type: "text",   required: false }, // ISO YYYY-MM-01
         ],
       }),
     });

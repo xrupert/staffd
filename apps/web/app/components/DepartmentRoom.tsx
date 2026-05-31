@@ -82,6 +82,10 @@ export default function DepartmentRoom({
   const [imageLoading, setImageLoading] = useState(false);
   const [imageRatio, setImageRatio] = useState<"1:1" | "16:9" | "9:16" | "4:3">("1:1");
   const [imageError, setImageError] = useState("");
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [videoError, setVideoError] = useState("");
+  const [creditsRemaining, setCreditsRemaining] = useState<{ image: number; video: number } | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -89,8 +93,21 @@ export default function DepartmentRoom({
     void loadAgents();
     void loadContext();
     void loadTrialStatus();
+    void loadCreditsState();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
+
+  async function loadCreditsState() {
+    if (!pb.authStore.isValid) return;
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId) return;
+    try {
+      const res = await fetch(`/api/credits?userId=${userId}`);
+      if (!res.ok) return;
+      const data = (await res.json()) as { totalRemaining?: { image: number; video: number } };
+      if (data.totalRemaining) setCreditsRemaining(data.totalRemaining);
+    } catch { /* proceed */ }
+  }
 
   async function loadAgents() {
     try {
@@ -196,6 +213,8 @@ export default function DepartmentRoom({
     setLinkCopied(false);
     setImageUrl(null);
     setImageError("");
+    setVideoUrl(null);
+    setVideoError("");
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -378,47 +397,93 @@ export default function DepartmentRoom({
 
   async function generateImage() {
     if (!output || imageLoading) return;
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId) return;
     setImageLoading(true);
     setImageError("");
     setImageUrl(null);
     try {
-      const res = await fetch("/api/integrations/replicate", {
+      const res = await fetch("/api/integrations/muapi", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: output, aspectRatio: imageRatio }),
+        body: JSON.stringify({ userId, kind: "image", prompt: output, aspectRatio: imageRatio }),
       });
-      const data = (await res.json()) as { imageUrl?: string; message?: string; error?: string };
+      const data = (await res.json()) as { url?: string; message?: string; error?: string; remaining?: number };
       if (res.status === 503) {
         setImageError(data.message ?? "Image generation not configured.");
-      } else if (!res.ok || !data.imageUrl) {
+      } else if (res.status === 402) {
+        setImageError(data.message ?? "Out of image credits this month.");
+      } else if (!res.ok || !data.url) {
         setImageError(data.message ?? data.error ?? "Failed to generate image.");
       } else {
-        setImageUrl(data.imageUrl);
+        setImageUrl(data.url);
+        if (typeof data.remaining === "number") {
+          setCreditsRemaining((c) => ({ image: data.remaining!, video: c?.video ?? 0 }));
+        }
       }
     } catch {
-      setImageError("Failed to reach image service.");
+      setImageError("Failed to reach generation service.");
     } finally {
       setImageLoading(false);
     }
   }
 
-  async function downloadImage() {
-    if (!imageUrl) return;
+  async function generateVideo() {
+    if (!output || videoLoading) return;
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId) return;
+    setVideoLoading(true);
+    setVideoError("");
+    setVideoUrl(null);
     try {
-      const res = await fetch(imageUrl);
+      const res = await fetch("/api/integrations/muapi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, kind: "video", prompt: output, aspectRatio: imageRatio }),
+      });
+      const data = (await res.json()) as { url?: string; message?: string; error?: string; remaining?: number };
+      if (res.status === 503) {
+        setVideoError(data.message ?? "Video generation not configured.");
+      } else if (res.status === 402) {
+        setVideoError(data.message ?? "Out of video credits this month.");
+      } else if (!res.ok || !data.url) {
+        setVideoError(data.message ?? data.error ?? "Failed to generate video.");
+      } else {
+        setVideoUrl(data.url);
+        if (typeof data.remaining === "number") {
+          setCreditsRemaining((c) => ({ image: c?.image ?? 0, video: data.remaining! }));
+        }
+      }
+    } catch {
+      setVideoError("Failed to reach generation service.");
+    } finally {
+      setVideoLoading(false);
+    }
+  }
+
+  async function downloadMedia(url: string, ext: "png" | "mp4") {
+    try {
+      const res = await fetch(url);
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const objUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `staffd-image-${Date.now()}.png`;
+      a.href = objUrl;
+      a.download = `staffd-${ext === "png" ? "image" : "video"}-${Date.now()}.${ext}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objUrl);
     } catch {
-      // Fallback — open in new tab
-      window.open(imageUrl, "_blank");
+      window.open(url, "_blank");
     }
+  }
+
+  async function downloadImage() {
+    if (imageUrl) await downloadMedia(imageUrl, "png");
+  }
+
+  async function downloadVideo() {
+    if (videoUrl) await downloadMedia(videoUrl, "mp4");
   }
 
   async function sendAsTicket() {
@@ -975,7 +1040,7 @@ export default function DepartmentRoom({
                       <select
                         value={imageRatio}
                         onChange={(e) => setImageRatio(e.target.value as typeof imageRatio)}
-                        disabled={imageLoading}
+                        disabled={imageLoading || videoLoading}
                         className="text-xs"
                         style={{
                           background: "transparent",
@@ -983,7 +1048,7 @@ export default function DepartmentRoom({
                           color: "#9090A8",
                           borderRadius: "6px",
                           padding: "2px 6px",
-                          cursor: imageLoading ? "not-allowed" : "pointer",
+                          cursor: imageLoading || videoLoading ? "not-allowed" : "pointer",
                         }}
                       >
                         <option value="1:1">Square</option>
@@ -993,12 +1058,25 @@ export default function DepartmentRoom({
                       </select>
                       <button
                         onClick={() => void generateImage()}
-                        disabled={imageLoading}
+                        disabled={imageLoading || videoLoading}
                         className="text-xs transition-colors hover:text-white"
                         style={{ color: imageUrl ? "#22C55E" : imageError ? "#F59E0B" : "#5A5A70" }}
                       >
                         {imageLoading ? "Rendering…" : imageUrl ? "Image ready ✓" : "Generate Image →"}
                       </button>
+                      <button
+                        onClick={() => void generateVideo()}
+                        disabled={imageLoading || videoLoading}
+                        className="text-xs transition-colors hover:text-white"
+                        style={{ color: videoUrl ? "#22C55E" : videoError ? "#F59E0B" : "#5A5A70" }}
+                      >
+                        {videoLoading ? "Filming…" : videoUrl ? "Video ready ✓" : "Generate Video →"}
+                      </button>
+                      {creditsRemaining && (
+                        <span className="text-xs" style={{ color: "#3A3A55" }}>
+                          · {creditsRemaining.image} 🖼️ / {creditsRemaining.video} 🎬
+                        </span>
+                      )}
                     </>
                   )}
                   {(department === "legal" || department === "sales") && (
@@ -1109,6 +1187,61 @@ export default function DepartmentRoom({
                       src={imageUrl}
                       alt="Generated by your design specialist"
                       style={{ display: "block", width: "100%", height: "auto", maxHeight: "640px", objectFit: "contain", background: "#0D0D14" }}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* Generated video — appears below output for Design department */}
+              {department === "design" && (videoUrl || videoLoading || videoError) && (
+                <div
+                  className="mt-4 rounded-xl overflow-hidden"
+                  style={{ background: "#0D0D14", border: "1px solid #2A2A38" }}
+                >
+                  <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#5B21E8" }}>
+                      Generated Video
+                    </p>
+                    {videoUrl && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => void downloadVideo()}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer" }}
+                        >
+                          Download MP4
+                        </button>
+                        <button
+                          onClick={() => void generateVideo()}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                        >
+                          Regenerate
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {videoLoading && (
+                    <div className="flex items-center justify-center" style={{ padding: "60px 20px" }}>
+                      <div className="flex flex-col items-center gap-3">
+                        <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
+                        <p className="text-xs" style={{ color: "#5A5A70" }}>Your Producer is filming — usually 30-60 seconds…</p>
+                      </div>
+                    </div>
+                  )}
+                  {videoError && !videoLoading && (
+                    <div style={{ padding: "20px" }}>
+                      <p className="text-xs" style={{ color: "#F59E0B", lineHeight: 1.5 }}>{videoError}</p>
+                    </div>
+                  )}
+                  {videoUrl && !videoLoading && (
+                    <video
+                      src={videoUrl}
+                      controls
+                      autoPlay
+                      loop
+                      muted
+                      style={{ display: "block", width: "100%", maxHeight: "640px", background: "#0D0D14" }}
                     />
                   )}
                 </div>
