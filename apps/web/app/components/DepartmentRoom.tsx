@@ -86,6 +86,8 @@ export default function DepartmentRoom({
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState("");
   const [creditsRemaining, setCreditsRemaining] = useState<{ image: number; video: number } | null>(null);
+  // Conversation thread — keeps the specialist talking to the user across turns
+  const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -204,17 +206,31 @@ export default function DepartmentRoom({
     const finalTask = (customTask ?? task).trim();
     if (!finalTask || loading) return;
 
-    setOutput("");
+    // Is this a follow-up (continuing the same conversation) or a fresh task?
+    const isFollowUp = conversation.length > 0;
+
     setError("");
     setLoading(true);
     setIntegrationStatus("idle");
     setIntegrationMsg("");
-    setSavedDocId(null);
-    setLinkCopied(false);
-    setImageUrl(null);
-    setImageError("");
-    setVideoUrl(null);
-    setVideoError("");
+    if (!isFollowUp) {
+      // Fresh task — wipe everything
+      setOutput("");
+      setSavedDocId(null);
+      setLinkCopied(false);
+      setImageUrl(null);
+      setImageError("");
+      setVideoUrl(null);
+      setVideoError("");
+    }
+
+    // Append the user's turn immediately so they see it in the thread
+    const updatedConversation: Array<{ role: "user" | "assistant"; content: string }> = [
+      ...conversation,
+      { role: "user", content: finalTask },
+    ];
+    setConversation(updatedConversation);
+    setTask(""); // clear the input
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -224,12 +240,21 @@ export default function DepartmentRoom({
       ? localStorage.getItem("staffd_active_client")
       : null;
 
+    // For follow-ups, send a single "task" that bundles the prior conversation
+    // so the agent has full context without us refactoring the agent route schema.
+    const taskWithContext = isFollowUp
+      ? updatedConversation
+          .map((m) => (m.role === "user" ? `User: ${m.content}` : `You: ${m.content}`))
+          .join("\n\n") +
+        "\n\nContinue the conversation. If you have enough information now, produce the final deliverable. Don't ask more questions if you can act."
+      : finalTask;
+
     try {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          task: finalTask,
+          task: taskWithContext,
           department,
           agentId: activeAgent?.id,
           userId,
@@ -261,18 +286,43 @@ export default function DepartmentRoom({
         const { done, value } = await reader.read();
         if (done) break;
         result += decoder.decode(value, { stream: true });
-        setOutput(result);
+        setOutput(result); // latest output for image/video generation to use
+        // Update the streaming assistant message in the thread
+        setConversation((prev) => {
+          const next = [...prev];
+          // Make sure we have an assistant placeholder
+          if (next[next.length - 1]?.role !== "assistant") {
+            next.push({ role: "assistant", content: result });
+          } else {
+            next[next.length - 1] = { role: "assistant", content: result };
+          }
+          return next;
+        });
         outputRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       }
 
       void saveDocument(finalTask, result, userId);
-      // Decrement local trial counter (server already recorded the run)
-      setTrialRemaining(prev => prev !== null ? Math.max(0, prev - 1) : null);
+      // Only count one trial run per fresh task, not per follow-up
+      if (!isFollowUp) {
+        setTrialRemaining(prev => prev !== null ? Math.max(0, prev - 1) : null);
+      }
     } catch {
       setError("Something went wrong. Try again.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function startFresh() {
+    setConversation([]);
+    setOutput("");
+    setTask("");
+    setSavedDocId(null);
+    setImageUrl(null);
+    setVideoUrl(null);
+    setImageError("");
+    setVideoError("");
+    setError("");
   }
 
   async function saveDocument(prompt: string, content: string, userId: string) {
@@ -956,24 +1006,38 @@ export default function DepartmentRoom({
           </div>
         )}
 
-        {/* Input */}
+        {/* Input — stays visible across the conversation so the user can keep
+            answering, refining, or asking follow-ups */}
         <div className="rounded-2xl overflow-hidden mb-5 no-print" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
           <textarea
             value={task}
             onChange={(e) => { setTask(e.target.value); setActiveChip(""); }}
             onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void run(); }}
-            placeholder={activeAgent ? `Ask ${activeAgent.name} — ${placeholder}` : placeholder}
-            rows={4}
+            placeholder={
+              conversation.length > 0
+                ? `Answer ${activeAgent?.name ?? "your specialist"} above, refine, or ask for what you want next…`
+                : (activeAgent ? `Ask ${activeAgent.name} — ${placeholder}` : placeholder)
+            }
+            rows={conversation.length > 0 ? 3 : 4}
             className="w-full px-5 py-4 text-sm outline-none resize-none"
             style={{ background: "transparent", color: "#F0F0F8", lineHeight: "1.7", caretColor: "#5B21E8" }}
           />
           <div className="flex items-center justify-between px-5 py-3" style={{ borderTop: "1px solid #1E1E2A" }}>
             <div className="flex items-center gap-3">
-              <span className="text-xs" style={{ color: "#2E2E45" }}>⌘ Enter to run</span>
+              <span className="text-xs" style={{ color: "#2E2E45" }}>⌘ Enter to send</span>
               {activeAgent && (
                 <span className="text-xs" style={{ color: "#3A3A55" }}>
                   {activeAgent.emoji} {activeAgent.name}
                 </span>
+              )}
+              {conversation.length > 0 && (
+                <button
+                  onClick={startFresh}
+                  className="text-xs transition-colors hover:text-white"
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70" }}
+                >
+                  Start fresh
+                </button>
               )}
             </div>
             <button
@@ -985,7 +1049,7 @@ export default function DepartmentRoom({
                 cursor: !task.trim() || loading ? "not-allowed" : "pointer",
               }}
             >
-              {loading ? "Working…" : "Generate →"}
+              {loading ? "Working…" : conversation.length > 0 ? "Reply →" : "Generate →"}
             </button>
           </div>
         </div>
