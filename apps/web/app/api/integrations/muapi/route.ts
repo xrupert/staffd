@@ -21,14 +21,21 @@ const VALID_RATIOS = new Set(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"]);
 function routeImageModel(prompt: string, requested?: string): string {
   if (requested) return requested;
   const p = prompt.toLowerCase();
-  // Typography, logos, UI mockups, posters → Recraft (best for typography)
-  if (/\b(logo|typeface|typography|poster|banner with text|ui mockup|interface|app screen)\b/.test(p)) {
-    return "recraft-v3";
-  }
-  // Text inside an image (signs, billboards, labels) → Ideogram
-  if (/\b(text reads|sign that says|billboard|label with|words on)\b/.test(p)) {
+
+  // ANY readable text in the image → Ideogram (best at rendering legible words)
+  // Detects: text in quotes, "reading", "saying", "overlay text", "typography",
+  // "poster", "banner", "headline", "title", "caption", "label", etc.
+  const hasQuotedText = /"[^"]{2,}"|'[^']{3,}'/.test(prompt); // text in quotes
+  const textKeywords = /\b(text|words|quote|saying|reading|overlay|headline|title text|caption text|sign that says|label|propaganda poster|banner|typography|sub.?head)\b/.test(p);
+  if (hasQuotedText || textKeywords) {
     return "ideogram-v3";
   }
+
+  // Logos, brand marks, UI mockups → Recraft (best for clean typography and vector-style)
+  if (/\b(logo|brand mark|wordmark|app icon|ui mockup|interface|app screen|wireframe)\b/.test(p)) {
+    return "recraft-v3";
+  }
+
   // Default — Flux Pro handles most photoreal + illustration excellently
   return "flux-pro-1.1";
 }
