@@ -78,6 +78,10 @@ export default function DepartmentRoom({
   const [savedDocId, setSavedDocId] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showTeamDrawer, setShowTeamDrawer] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
+  const [imageRatio, setImageRatio] = useState<"1:1" | "16:9" | "9:16" | "4:3">("1:1");
+  const [imageError, setImageError] = useState("");
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
@@ -190,6 +194,8 @@ export default function DepartmentRoom({
     setIntegrationMsg("");
     setSavedDocId(null);
     setLinkCopied(false);
+    setImageUrl(null);
+    setImageError("");
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -367,6 +373,51 @@ export default function DepartmentRoom({
     } catch {
       setIntegrationStatus("error");
       setIntegrationMsg("Failed to reach CRM.");
+    }
+  }
+
+  async function generateImage() {
+    if (!output || imageLoading) return;
+    setImageLoading(true);
+    setImageError("");
+    setImageUrl(null);
+    try {
+      const res = await fetch("/api/integrations/replicate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: output, aspectRatio: imageRatio }),
+      });
+      const data = (await res.json()) as { imageUrl?: string; message?: string; error?: string };
+      if (res.status === 503) {
+        setImageError(data.message ?? "Image generation not configured.");
+      } else if (!res.ok || !data.imageUrl) {
+        setImageError(data.message ?? data.error ?? "Failed to generate image.");
+      } else {
+        setImageUrl(data.imageUrl);
+      }
+    } catch {
+      setImageError("Failed to reach image service.");
+    } finally {
+      setImageLoading(false);
+    }
+  }
+
+  async function downloadImage() {
+    if (!imageUrl) return;
+    try {
+      const res = await fetch(imageUrl);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `staffd-image-${Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Fallback — open in new tab
+      window.open(imageUrl, "_blank");
     }
   }
 
@@ -919,6 +970,37 @@ export default function DepartmentRoom({
                       {integrationStatus === "sending" ? "Opening ticket…" : integrationStatus === "sent" ? "Ticket opened ✓" : "Send as Ticket"}
                     </button>
                   )}
+                  {department === "design" && (
+                    <>
+                      <select
+                        value={imageRatio}
+                        onChange={(e) => setImageRatio(e.target.value as typeof imageRatio)}
+                        disabled={imageLoading}
+                        className="text-xs"
+                        style={{
+                          background: "transparent",
+                          border: "1px solid #2A2A38",
+                          color: "#9090A8",
+                          borderRadius: "6px",
+                          padding: "2px 6px",
+                          cursor: imageLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        <option value="1:1">Square</option>
+                        <option value="16:9">Landscape</option>
+                        <option value="9:16">Portrait</option>
+                        <option value="4:3">4:3</option>
+                      </select>
+                      <button
+                        onClick={() => void generateImage()}
+                        disabled={imageLoading}
+                        className="text-xs transition-colors hover:text-white"
+                        style={{ color: imageUrl ? "#22C55E" : imageError ? "#F59E0B" : "#5A5A70" }}
+                      >
+                        {imageLoading ? "Rendering…" : imageUrl ? "Image ready ✓" : "Generate Image →"}
+                      </button>
+                    </>
+                  )}
                   {(department === "legal" || department === "sales") && (
                     <button
                       onClick={() => void sendForSignature()}
@@ -976,6 +1058,59 @@ export default function DepartmentRoom({
               ) : (
                 <div className="agent-output">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
+                </div>
+              )}
+
+              {/* Generated image — appears below output for Design department */}
+              {department === "design" && (imageUrl || imageLoading || imageError) && (
+                <div
+                  className="mt-5 rounded-xl overflow-hidden"
+                  style={{ background: "#0D0D14", border: "1px solid #2A2A38" }}
+                >
+                  <div className="px-5 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#5B21E8" }}>
+                      Generated Image
+                    </p>
+                    {imageUrl && (
+                      <div className="flex items-center gap-3">
+                        <button
+                          onClick={() => void downloadImage()}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer" }}
+                        >
+                          Download PNG
+                        </button>
+                        <button
+                          onClick={() => void generateImage()}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                        >
+                          Regenerate
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {imageLoading && (
+                    <div className="flex items-center justify-center" style={{ padding: "48px 20px" }}>
+                      <div className="flex flex-col items-center gap-3">
+                        <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
+                        <p className="text-xs" style={{ color: "#5A5A70" }}>Your designer is rendering…</p>
+                      </div>
+                    </div>
+                  )}
+                  {imageError && !imageLoading && (
+                    <div style={{ padding: "20px" }}>
+                      <p className="text-xs" style={{ color: "#F59E0B", lineHeight: 1.5 }}>{imageError}</p>
+                    </div>
+                  )}
+                  {imageUrl && !imageLoading && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={imageUrl}
+                      alt="Generated by your design specialist"
+                      style={{ display: "block", width: "100%", height: "auto", maxHeight: "640px", objectFit: "contain", background: "#0D0D14" }}
+                    />
+                  )}
                 </div>
               )}
             </div>

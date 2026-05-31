@@ -296,9 +296,10 @@ export const DEPARTMENT_CATEGORIES: Record<string, DeptCategory[]> = {
       tagline: "Build a brand that is instantly recognisable.",
       capabilities: [
         "Brand guidelines, color palettes & typography rules",
-        "AI image generation prompts for any format or platform",
+        "Image prompts that produce social, hero, and product visuals",
         "Visual storytelling, inclusive imagery direction",
       ],
+      integrationFeatures: ["Generate real images on demand without leaving the platform"],
       agentIds: [
         "design-brand-guardian",
         "design-visual-storyteller",
