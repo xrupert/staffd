@@ -370,6 +370,41 @@ export default function DepartmentRoom({
     }
   }
 
+  async function sendAsTicket() {
+    if (!output || integrationStatus === "sending") return;
+    const email = prompt("Customer's email address:");
+    if (!email?.trim()) return;
+    const name = prompt("Customer's name:") ?? "Customer";
+    setIntegrationStatus("sending");
+    setIntegrationMsg("");
+    try {
+      const res = await fetch("/api/integrations/chatwoot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerName: name.trim() || "Customer",
+          customerEmail: email.trim(),
+          subject: task.slice(0, 80) || "Customer reply",
+          reply: output,
+        }),
+      });
+      const data = (await res.json()) as { conversationUrl?: string; message?: string; error?: string };
+      if (res.status === 503) {
+        setIntegrationMsg("Support tickets not configured. Add CHATWOOT_URL, CHATWOOT_API_KEY and CHATWOOT_ACCOUNT_ID to your environment.");
+        setIntegrationStatus("error");
+      } else if (!res.ok) {
+        setIntegrationStatus("error");
+        setIntegrationMsg(data.message ?? "Failed to create ticket.");
+      } else {
+        setIntegrationStatus("sent");
+        setIntegrationMsg(data.conversationUrl ? `Ticket opened → ${data.conversationUrl}` : "Ticket opened in Chatwoot.");
+      }
+    } catch {
+      setIntegrationStatus("error");
+      setIntegrationMsg("Failed to reach support system.");
+    }
+  }
+
   async function sendForSignature() {
     if (!output || integrationStatus === "sending") return;
     const email = prompt("Signer's email address:");
@@ -872,6 +907,16 @@ export default function DepartmentRoom({
                       style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
                     >
                       {integrationStatus === "sending" ? "Sending…" : integrationStatus === "sent" ? "Campaign saved ✓" : "Send as Campaign"}
+                    </button>
+                  )}
+                  {department === "reputation" && (
+                    <button
+                      onClick={() => void sendAsTicket()}
+                      disabled={integrationStatus === "sending"}
+                      className="text-xs transition-colors hover:text-white"
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                    >
+                      {integrationStatus === "sending" ? "Opening ticket…" : integrationStatus === "sent" ? "Ticket opened ✓" : "Send as Ticket"}
                     </button>
                   )}
                   {(department === "legal" || department === "sales") && (
