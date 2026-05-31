@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../../lib/pb";
 import SchedulingSettings from "../../components/SchedulingSettings";
+import ConnectedAccounts from "../../components/ConnectedAccounts";
 
 export default function SettingsPage() {
   const [name, setName] = useState("");
@@ -181,6 +182,9 @@ export default function SettingsPage() {
 
         {/* Scheduling section */}
         <SchedulingSettings />
+
+        {/* Connected social accounts */}
+        <ConnectedAccounts />
 
         {/* Password section */}
         <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>

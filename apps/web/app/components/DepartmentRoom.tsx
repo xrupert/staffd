@@ -486,6 +486,40 @@ export default function DepartmentRoom({
     if (videoUrl) await downloadMedia(videoUrl, "mp4");
   }
 
+  async function publishMedia(platform: "tiktok" | "youtube" | "instagram", mediaUrl: string) {
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId || !mediaUrl) return;
+    const caption = task.trim() || output.slice(0, 200);
+    const confirmMsg = `Publish to ${platform.charAt(0).toUpperCase() + platform.slice(1)}? The post will use your latest task description as the caption.`;
+    if (!confirm(confirmMsg)) return;
+    setIntegrationStatus("sending");
+    setIntegrationMsg("");
+    try {
+      const res = await fetch("/api/integrations/muapi/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, platform, mediaUrl, caption }),
+      });
+      const data = (await res.json()) as { postUrl?: string; message?: string; error?: string };
+      if (res.status === 503) {
+        setIntegrationStatus("error");
+        setIntegrationMsg(data.message ?? "Publishing not configured.");
+      } else if (!res.ok && data.error !== "not_connected") {
+        setIntegrationStatus("error");
+        setIntegrationMsg(data.message ?? "Publish failed.");
+      } else if (data.error === "not_connected") {
+        setIntegrationStatus("error");
+        setIntegrationMsg(data.message ?? `Connect your ${platform} account in Settings first.`);
+      } else {
+        setIntegrationStatus("sent");
+        setIntegrationMsg(data.postUrl ? `Posted → ${data.postUrl}` : data.message ?? `Published to ${platform}.`);
+      }
+    } catch {
+      setIntegrationStatus("error");
+      setIntegrationMsg("Failed to reach publishing service.");
+    }
+  }
+
   async function sendAsTicket() {
     if (!output || integrationStatus === "sending") return;
     const email = prompt("Customer's email address:");
@@ -1150,7 +1184,15 @@ export default function DepartmentRoom({
                       Generated Image
                     </p>
                     {imageUrl && (
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                          onClick={() => void publishMedia("instagram", imageUrl)}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
+                          title="Publish to Instagram"
+                        >
+                          📷 Instagram
+                        </button>
                         <button
                           onClick={() => void downloadImage()}
                           className="text-xs transition-colors hover:text-white"
@@ -1203,7 +1245,31 @@ export default function DepartmentRoom({
                       Generated Video
                     </p>
                     {videoUrl && (
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                          onClick={() => void publishMedia("tiktok", videoUrl)}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#000000", background: "rgba(255,255,255,0.1)", padding: "2px 8px", borderRadius: "6px", border: "1px solid #2A2A38", cursor: "pointer" }}
+                          title="Publish to TikTok"
+                        >
+                          🎵 TikTok
+                        </button>
+                        <button
+                          onClick={() => void publishMedia("youtube", videoUrl)}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#FF0000", background: "none", border: "none", cursor: "pointer" }}
+                          title="Publish to YouTube"
+                        >
+                          ▶️ YouTube
+                        </button>
+                        <button
+                          onClick={() => void publishMedia("instagram", videoUrl)}
+                          className="text-xs transition-colors hover:text-white"
+                          style={{ color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
+                          title="Publish to Instagram"
+                        >
+                          📷 Instagram
+                        </button>
                         <button
                           onClick={() => void downloadVideo()}
                           className="text-xs transition-colors hover:text-white"
