@@ -66,6 +66,15 @@ The product name STAFFD is also a verb. **You "staff" your business.**
 
 Annual = 2 months free (monthly × 10). Default-selected on the pricing page. Pricing page always shows the round monthly subscription number; annual shows "Billed annually at $X — save $Y" callout.
 
+### Add-ons (recurring)
+
+| Add-on | Price | Who can buy it | Purpose |
+|---|---|---|---|
+| **Extra department** | $29/mo per dept | Growth, Pro | Add more departments without changing plan |
+| **The CEO** | $49/mo | Starter, Growth | Get the cross-department CEO without promoting to Pro yet — also acts as a soft Pro upsell |
+
+CEO add-on math is intentional: Growth ($79) + CEO ($49) = $128/mo. Pro is $149/mo and includes CEO **plus** 2 additional departments. $21/mo difference for substantial extra value = clear upsell at point of add-on purchase.
+
 ### Top-up packs (credit purchases when monthly allowance runs out)
 
 | Pack | Price | Margin |
@@ -842,23 +851,25 @@ WORKER_SECRET                Manual worker trigger via x-worker-secret header
 **Revenue and product gaps:**
 
 3. **Stripe top-up SKUs.** Plan/dept-addon prices exist. Image/video credit top-ups do NOT. Need 6 one-time Stripe products + checkout flow + webhook handler that credits the user.
-4. **Credits widget on dashboard.** No visible balance or "Top up" CTA. Users discover their limit by hitting 402.
-5. **Intelligent cross-functional handoff.** Started but not shipped. Must route through the orchestrator (not be a standalone Claude call) and pull relevance from the Vault.
-6. **Multi-turn conversation persistence.** Currently each turn creates a new document; full thread not preserved. Required precondition for the Vault's conversation history layer.
-7. **3-Layer Briefing flow (UI).** Agents now ask intelligent questions (system prompts updated), but no structured "brief me" modal that walks users through a guided flow.
-8. **Successful pattern tracking.** No system to mark + reuse prompts that produced extraordinary results.
-9. **Smart Search UI for Pro+.** Semantic Vault search for power users. Requires Qdrant.
-10. **White-label (Agency).** Per-client logos/branding on docs/booking pages.
-11. **Studio Mode for Pro+.** Model picker + cost display toggle.
+4. **CEO add-on SKU.** $49/mo recurring subscription for Starter/Growth users. Needs Stripe product + checkout + webhook handler that unlocks CEO access without changing the user's plan. Acts as a soft Pro upsell.
+5. **Credits widget on dashboard.** No visible balance or "Top up" CTA. Users discover their limit by hitting 402.
+6. **Smart aspect ratio auto-selection.** Currently the user picks Square/Landscape/Portrait/4:3 manually. The system should detect the target platform from the prompt ("Instagram post" → 1:1, "TikTok video" → 9:16, "Facebook ad" → 1.91:1, etc.) and pre-select. User can still override.
+7. **Intelligent cross-functional handoff.** Started but not shipped. Must route through the orchestrator (not be a standalone Claude call) and pull relevance from the Vault.
+8. **Multi-turn conversation persistence.** Currently each turn creates a new document; full thread not preserved. Required precondition for the Vault's conversation history layer.
+9. **3-Layer Briefing flow (UI).** Agents now ask intelligent questions (system prompts updated), but no structured "brief me" modal that walks users through a guided flow.
+10. **Successful pattern tracking.** No system to mark + reuse prompts that produced extraordinary results.
+11. **Smart Search UI for Pro+.** Semantic Vault search for power users. Requires Qdrant.
+12. **White-label (Agency).** Per-client logos/branding on docs/booking pages.
+13. **Studio Mode for Pro+.** Model picker + cost display toggle.
 
 **Deferred / decided against:**
 
-12. **Open-Generative-AI fork integration.** Decided against — Muapi backs everything (cleaner architecture).
-13. **openreel-video.** Deferred — browser-based video editor, not generation. Future when video customers ask.
-14. **MoneyPrinterTurbo.** Skipped — GPU infrastructure cost prohibitive vs. Muapi.
-15. **Knowledge graph Vault (Phase 3).** After Qdrant is stable.
-16. **Brand voice extraction (Phase 3).** Continuous extraction of voice patterns from kept work.
-17. **The Demo Page.** Last by user's explicit rule. Demonstrates everything once everything works.
+14. **Open-Generative-AI fork integration.** Decided against — Muapi backs everything (cleaner architecture).
+15. **openreel-video.** Deferred — browser-based video editor, not generation. Future when video customers ask.
+16. **MoneyPrinterTurbo.** Skipped — GPU infrastructure cost prohibitive vs. Muapi.
+17. **Knowledge graph Vault (Phase 3).** After Qdrant is stable.
+18. **Brand voice extraction (Phase 3).** Continuous extraction of voice patterns from kept work.
+19. **The Demo Page.** Last by user's explicit rule. Demonstrates everything once everything works.
 
 ---
 
@@ -866,14 +877,27 @@ WORKER_SECRET                Manual worker trigger via x-worker-secret header
 
 This is the running record of locked product/architecture decisions. Anyone reading this should treat these as binding unless explicitly revisited.
 
-1. **CEO is Pro/Agency only.** Not an add-on for Starter/Growth. Forces upgrade decision.
-2. **Pricing always shows monthly subscription number.** Annual toggle adds "Billed annually at $X — save $Y" callout. Never shows effective per-month price as the headline.
-3. **All video is HD.** No SD/HD split. Porsche, not Volkswagen.
+1. **CEO is included in Pro and Agency by default. Also available as a $49/mo add-on for Starter and Growth users.** The add-on sits intentionally close to the gap to Pro — Growth ($79) + CEO add-on ($49) = $128/mo, only $21 less than Pro at $149/mo which includes CEO **plus** two additional full departments. Starter ($39) + CEO add-on ($49) = $88/mo similarly invites stepping up. The system surfaces this math at the moment of add-on purchase as a soft upsell to Pro. Anyone paying for CEO is a hot upgrade prospect.
+2. **Annual interval is the default-selected toggle.** Pricing page lands with Annual highlighted with the "2 months free" badge. Monthly is the alternative the user can toggle to. **The headline price always shows the round monthly subscription number** ($39, $79, $149, $450). When Annual is selected, a "Billed annually at $X — save $Y" callout appears underneath. Never show the effective per-month price as the headline — it produces confusing decimals like $32.50 that break trust.
+3. **All video is HD. All images use premium models. No tier-based quality split.** Porsche, not Volkswagen. STAFFD selects the best available Muapi model for the task type. Primary model selection is documented per use case (text-in-image → Ideogram V3, cinematic video → Kling Pro, photoreal hero image → Flux Pro 1.1, etc.) with named backups for graceful degradation. Best tools, every time. The user does not pick or see model names; the system routes silently.
 4. **Default-to-action specialists.** Agents produce work on first response when vault provides enough context. Only ask one focused question when truly ambiguous.
 5. **No competitor name leakage.** Never mention Midjourney, DALL-E, Stable Diffusion, etc. in user-facing copy or specialist outputs.
 6. **STAFFD generates directly via Muapi.** Specialists don't tell users to paste into other tools. The Image Prompt Engineer's prompt goes straight to our generator.
 7. **Universal distillation at the integration boundary.** Specialists produce whatever they normally produce. Muapi route handles extraction-to-prompt. No per-agent prompt engineering needed.
-8. **Smart routing happens server-side and silently.** User picks aspect ratio. System picks model. Studio Mode for Pro+ to override.
+8. **Smart routing happens server-side and silently. Aspect ratio is platform-aware and auto-selected.** STAFFD detects the target platform from the user's request and pre-selects the right aspect ratio:
+   - Instagram feed post → 1:1 or 4:5
+   - Instagram Story / Reel → 9:16
+   - TikTok → 9:16
+   - Facebook feed → 1:1 or 1.91:1 (ad)
+   - Facebook Story → 9:16
+   - YouTube video → 16:9
+   - YouTube Shorts → 9:16
+   - YouTube thumbnail → 16:9
+   - X/Twitter post → 16:9 or 1:1
+   - LinkedIn post → 1.91:1 or 1:1
+   - Pinterest pin → 2:3 (1000×1500)
+   - Web hero image → 16:9 or 21:9
+   The user can override via the ratio selector, but the smart default is pre-selected based on the prompt content. The user does not need to know the right ratio per platform — the application does. Model selection follows the same principle: the system silently picks the best Muapi model for the task content (text-in-image → Ideogram, cinematic → Kling Pro, photoreal default → Flux Pro). Studio Mode (Pro+) lets power users override both.
 9. **Cross-functional handoff is intelligent.** System suggests next steps based on what was produced and the user's unlocked plan. Locked depts shown as upgrade triggers.
 10. **Comp accounts use the same code path.** No special UI. They simply resolve as `plan: agency` with 100× credits. Easy to revoke.
 11. **No tracked-changes amends to commits.** New commit on each meaningful change.
@@ -882,6 +906,7 @@ This is the running record of locked product/architecture decisions. Anyone read
 14. **Graphify is dev-time only.** It maps code, not business data. Wrong tool for the Vault. Used by the team building STAFFD, not by the user-facing runtime.
 15. **Qdrant is the Vault's memory engine.** Right tool for semantic retrieval. One instance on Railway serves all users via per-user (or per-user-per-client) collection scoping.
 16. **Brain and Memory are co-equal foundations.** Orchestrator without Vault is a smart router with no context. Vault without Orchestrator is a smart database with no decision-maker. Both must exist before further "smart" features.
+17. **Every specialist has its own reference materials and quality standards. The Orchestrator's job is to gather the right context BEFORE the specialist runs — no specialist works blind.** Each agent definition in `packages/agents` includes a role, principles, output format, reference styles, and a quality bar. When the Orchestrator routes work to a specialist, it bundles: the user's task + relevant Vault excerpts + semantically relevant past wins from Qdrant + conversation history + peer-department output (when cross-functional). The specialist's job is to execute at the standard the references describe. The Orchestrator's job is to make sure they have everything they need to produce excellence.
 
 ---
 
