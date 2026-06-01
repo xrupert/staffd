@@ -81,6 +81,14 @@ export default function DepartmentRoom({
   const [linkCopied, setLinkCopied] = useState(false);
   const [showTeamDrawer, setShowTeamDrawer] = useState(false);
   const [showHandoff, setShowHandoff] = useState(false);
+  const [handoffSuggestions, setHandoffSuggestions] = useState<Array<{
+    department: string;
+    label: string;
+    task: string;
+    rationale: string;
+    locked: boolean;
+  }> | null>(null);
+  const [handoffLoading, setHandoffLoading] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleSaving, setScheduleSaving] = useState(false);
@@ -561,21 +569,23 @@ export default function DepartmentRoom({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, kind: "image", prompt: output, aspectRatio: imageRatio }),
       });
-      const data = (await res.json()) as { url?: string; message?: string; error?: string; remaining?: number };
+      const data = (await res.json()) as { url?: string; message?: string; error?: string; detail?: string; remaining?: number };
       if (res.status === 503) {
         setImageError(data.message ?? "Image generation not configured.");
       } else if (res.status === 402) {
         setImageError(data.message ?? "Out of image credits this month.");
       } else if (!res.ok || !data.url) {
-        setImageError(data.message ?? data.error ?? "Failed to generate image.");
+        // Show the actual upstream error so the user (and we) know what to fix
+        const reason = data.detail ?? data.message ?? data.error ?? "Failed to generate image.";
+        setImageError(reason.length > 500 ? reason.slice(0, 500) + "…" : reason);
       } else {
         setImageUrl(data.url);
         if (typeof data.remaining === "number") {
           setCreditsRemaining((c) => ({ image: data.remaining!, video: c?.video ?? 0 }));
         }
       }
-    } catch {
-      setImageError("Failed to reach generation service.");
+    } catch (err) {
+      setImageError(`Failed to reach generation service: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setImageLoading(false);
     }
@@ -594,13 +604,14 @@ export default function DepartmentRoom({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, kind: "video", prompt: output, aspectRatio: imageRatio }),
       });
-      const data = (await res.json()) as { url?: string; message?: string; error?: string; remaining?: number };
+      const data = (await res.json()) as { url?: string; message?: string; error?: string; detail?: string; remaining?: number };
       if (res.status === 503) {
         setVideoError(data.message ?? "Video generation not configured.");
       } else if (res.status === 402) {
         setVideoError(data.message ?? "Out of video credits this month.");
       } else if (!res.ok || !data.url) {
-        setVideoError(data.message ?? data.error ?? "Failed to generate video.");
+        const reason = data.detail ?? data.message ?? data.error ?? "Failed to generate video.";
+        setVideoError(reason.length > 500 ? reason.slice(0, 500) + "…" : reason);
       } else {
         setVideoUrl(data.url);
         if (typeof data.remaining === "number") {
@@ -1384,18 +1395,34 @@ export default function DepartmentRoom({
                       <button
                         onClick={() => void generateImage()}
                         disabled={imageLoading || videoLoading}
-                        className="text-xs transition-colors hover:text-white"
-                        style={{ color: imageUrl ? "#22C55E" : imageError ? "#F59E0B" : "#5A5A70" }}
+                        className="text-xs font-semibold transition-colors"
+                        style={{
+                          color: imageUrl ? "#22C55E" : imageError ? "#F59E0B" : "#fff",
+                          background: imageUrl ? "rgba(34,197,94,0.12)" : imageError ? "rgba(245,158,11,0.12)" : "#5B21E8",
+                          border: imageUrl ? "1px solid rgba(34,197,94,0.3)" : imageError ? "1px solid rgba(245,158,11,0.3)" : "1px solid #5B21E8",
+                          padding: "4px 12px",
+                          borderRadius: "8px",
+                          cursor: (imageLoading || videoLoading) ? "wait" : "pointer",
+                          opacity: (imageLoading || videoLoading) ? 0.6 : 1,
+                        }}
                       >
-                        {imageLoading ? "Rendering…" : imageUrl ? "Image ready ✓" : "Generate Image →"}
+                        {imageLoading ? "Rendering…" : imageUrl ? "Image ready ✓" : imageError ? "Retry image" : "Generate Image →"}
                       </button>
                       <button
                         onClick={() => void generateVideo()}
                         disabled={imageLoading || videoLoading}
-                        className="text-xs transition-colors hover:text-white"
-                        style={{ color: videoUrl ? "#22C55E" : videoError ? "#F59E0B" : "#5A5A70" }}
+                        className="text-xs font-semibold transition-colors"
+                        style={{
+                          color: videoUrl ? "#22C55E" : videoError ? "#F59E0B" : "#fff",
+                          background: videoUrl ? "rgba(34,197,94,0.12)" : videoError ? "rgba(245,158,11,0.12)" : "#5B21E8",
+                          border: videoUrl ? "1px solid rgba(34,197,94,0.3)" : videoError ? "1px solid rgba(245,158,11,0.3)" : "1px solid #5B21E8",
+                          padding: "4px 12px",
+                          borderRadius: "8px",
+                          cursor: (imageLoading || videoLoading) ? "wait" : "pointer",
+                          opacity: (imageLoading || videoLoading) ? 0.6 : 1,
+                        }}
                       >
-                        {videoLoading ? "Filming…" : videoUrl ? "Video ready ✓" : "Generate Video →"}
+                        {videoLoading ? "Filming…" : videoUrl ? "Video ready ✓" : videoError ? "Retry video" : "Generate Video →"}
                       </button>
                       {creditsRemaining && (
                         <span className="text-xs" style={{ color: "#3A3A55" }}>

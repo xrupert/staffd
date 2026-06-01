@@ -123,7 +123,9 @@ async function submitPrediction(
   modelEndpoint: string,
   input: Record<string, unknown>
 ): Promise<PredictionResult> {
-  const res = await fetch(`${MUAPI_URL}/api/v1/${modelEndpoint}`, {
+  const url = `${MUAPI_URL}/api/v1/${modelEndpoint}`;
+  console.log("[muapi] submitting", { url, model: modelEndpoint });
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${MUAPI_KEY}`,
@@ -133,7 +135,8 @@ async function submitPrediction(
   });
   if (!res.ok) {
     const detail = await res.text();
-    throw new Error(`Muapi submit failed (${res.status}): ${detail.slice(0, 400)}`);
+    console.error("[muapi] submit failed", { status: res.status, url, detail: detail.slice(0, 500) });
+    throw new Error(`Muapi ${res.status} on ${modelEndpoint}: ${detail.slice(0, 300)}`);
   }
   return (await res.json()) as PredictionResult;
 }
