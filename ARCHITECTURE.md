@@ -572,19 +572,62 @@ Never resets. Depleted only after monthly allowance is exhausted. Purchased via 
 
 ---
 
-## 13. The Vault
+## 13. The Vault — Living Memory Layer
 
-The Vault is the user's business context — used silently by every specialist to produce on-brand work.
+**The Vault is not a profile. It is the living memory of the entire business.** Every interaction adds to it. Every retrieval is semantic. The 100th conversation with a specialist is infinitely smarter than the 1st because the Vault holds the previous 99.
 
-### Phases
+This is the engine that makes STAFFD genuinely learn the business over time. Without it, every session starts cold and the platform is just a chat wrapper.
 
-| Phase | What | Status |
-|---|---|---|
-| **Phase 1** | Flat JSON fields injected as `--- BUSINESS VAULT ---` block in the system prompt | ✅ live |
-| **Phase 2** | Semantic retrieval via Qdrant — agents fetch only the relevant context per task | ⏳ planned |
-| **Phase 3** | Knowledge graph — nodes for facts, edges for relationships, CEO queries it for briefings | future |
+### Layers of the Vault
 
-### Field inventory (Phase 1)
+| Layer | What it holds | Storage | Today |
+|---|---|---|---|
+| **Business Profile** | Business name, industry, focus, voice, target audience, brand details | `businesses` collection (PocketBase) | ✅ live |
+| **Work History** | Every document the staff has produced | `documents` collection (PocketBase) | ✅ stored, ❌ not semantically searchable |
+| **Conversation History** | Every turn the user has had with a specialist or the Command Center | **TO BUILD** — currently lost (only the final doc is saved) | ❌ |
+| **Successful Patterns** | The prompts that produced kept / shared / published / regenerated work — the "what worked" library | **TO BUILD** — pattern tracking required | ❌ |
+| **Brand Voice Corpus** | The user's actual produced work as the truest signal of their voice | Derived from `documents`, but not extracted as a corpus | ❌ |
+| **Decisions Made** | Strategic choices from CEO briefings, what the owner committed to | **TO BUILD** — decisions collection required | ❌ |
+| **Scheduling Rules** | Booking slug, timezone, availability windows | `businesses` (booking_* fields) | ✅ live |
+
+### The flow at runtime (the way it must work)
+
+```
+User interaction (ask in a department, talk to Command Center)
+   ↓
+Specialist produces output
+   ↓
+Save artifact to PocketBase (doc / turn / pattern)
+   ↓
+Embed the artifact (voyage-3 or openai text-embedding-3-large)
+   ↓
+Store vector in Qdrant — collection scoped by user (or user+client for Agency)
+   ↓
+NEXT TIME the user asks anything:
+   ↓
+Query Qdrant for the 5-10 most semantically relevant past artifacts
+   ↓
+Inject those into the specialist's prompt as living memory
+   ↓
+Specialist produces work that builds on what came before
+```
+
+### What the Vault unlocks
+
+- "Write me an Instagram caption about paint jobs" → specialist sees the last 5 captions the user kept, the last 3 paint-job related outputs, the brand voice patterns — produces something stylistically continuous
+- "Draft a sales proposal for a new prospect" → Sales sees the user's last 3 proposals (what they actually sent), the winning language patterns, the pricing structures used — drafts based on real history
+- "What should I focus on this week?" → The CEO synthesizes thematic patterns from the last 30 days of work across every department, not a chronological dump
+- "Regenerate that Patton image but more cinematic" → System recalls the exact prompt that produced the original, mutates it intentionally
+
+### Graphify vs Qdrant — clearing the confusion
+
+**Graphify** is a code mapper — it understands repository structure, not business data. **Not the right tool for the Vault.** Graphify is a dev-time tool for the team building STAFFD, not a runtime component.
+
+**Qdrant** is a vector database for semantic search. **The right tool for the Vault.** Stores embeddings of every Vault artifact and serves the "most semantically relevant past work" queries.
+
+**Embedding model**: voyage-3 or openai text-embedding-3-large. ~$0.02 per 1,000 embeddings — negligible cost even at scale. One Qdrant instance on Railway (~$10/mo flat) serves all users, scoped by collection name.
+
+### Field inventory (Business Profile layer)
 
 `business_name, industry, description, target_audience, website, phone, primary_email, secondary_email, other_email, address, focus, situation, superpower, magic_wand, logo`
 
@@ -592,11 +635,19 @@ Plus scheduling fields (booking_*).
 
 ### Agency-mode override
 
-When the active user is on the Agency plan and has switched to acting as a client (via `ClientSwitcher`), the agent route loads the **client's** vault instead of the agency's own. See `/api/agent/route.ts` `clientId` branch. Verified by checking `agency_user === userId` to prevent leakage.
+When the user is on the Agency plan and has switched to acting as a client via `ClientSwitcher`, the agent route loads the **client's** Vault instead of the agency's own — including the client's profile fields AND (once Qdrant is wired) the client's semantic history. Verified by checking `agency_user === userId` to prevent leakage between clients.
 
-### Smart memory (planned)
+### Phases (the real roadmap)
 
-Today agents see "last 2 documents from same user+department" as memory. With Qdrant, this becomes "the 3 most semantically relevant past documents to the current task." The CEO becomes "synthesizer of thematic patterns" instead of "synthesizer of chronological lists."
+| Phase | What | Status | When |
+|---|---|---|---|
+| **Phase 1** — Static profile | Flat JSON fields injected as `--- BUSINESS VAULT ---` block | ✅ live | Done |
+| **Phase 1.5** — Same-dept memory | Last 2 documents from same user+department injected as prior work | ✅ live | Done |
+| **Phase 2** — Conversation persistence | Each turn saved to a `conversations` collection; threads survive sessions | ❌ to build | Now |
+| **Phase 2** — Qdrant semantic retrieval | Documents + conversation turns + patterns embedded and queryable | ❌ to build | Now (co-equal with Orchestrator) |
+| **Phase 2** — Successful pattern tracking | "Pattern" = a prompt + output the user kept/shared/published. Stored, embedded, surfaced. | ❌ to build | Now |
+| **Phase 3** — Knowledge graph | Facts as nodes, relationships as edges. CEO queries it for cross-cutting briefings. | ❌ future | After Phase 2 stable |
+| **Phase 3** — Brand voice extraction | Continuous extraction of voice patterns from kept work. Updates as the business evolves. | ❌ future | After Phase 2 stable |
 
 ---
 
@@ -663,6 +714,15 @@ CHATWOOT_ACCOUNT_ID          Numeric account id (usually 1)
 # ─── Plausible ────────────────────────────────────────────────────────────
 NEXT_PUBLIC_PLAUSIBLE_URL    Self-hosted URL — drives layout script tag
 NEXT_PUBLIC_PLAUSIBLE_DOMAIN Site domain for tracking (default urstaffd.com)
+
+# ─── Qdrant (Vault Phase 2 — semantic memory) ─────────────────────────────
+QDRANT_URL                   Self-hosted Railway URL
+QDRANT_API_KEY               Auth token for the Qdrant instance
+
+# ─── Embeddings (Vault Phase 2) ───────────────────────────────────────────
+VOYAGE_API_KEY               voyage-3 for embeddings (preferred)
+# OR
+OPENAI_API_KEY               text-embedding-3-large fallback
 
 # ─── App ──────────────────────────────────────────────────────────────────
 NEXT_PUBLIC_APP_URL          Public app origin
@@ -772,20 +832,33 @@ WORKER_SECRET                Manual worker trigger via x-worker-secret header
 - ✅ Schedule-for-review button + calendar integration
 - ✅ Resume banner ("Continue last session?") on dept entry
 
-### ❌ MISSING / BROKEN
-1. **THE CENTRAL ORCHESTRATOR (the brain).** Highest priority. Multiple ad-hoc Claude calls scattered across routes. Must consolidate behind `/api/orchestrator` using the `ceo-agents-orchestrator` system prompt.
-2. **Intelligent cross-functional handoff.** Started but not shipped. Should suggest specific next-step tasks based on what was produced, with locked depts shown as upgrade triggers. Must route through orchestrator (not be a standalone Claude call).
+### ❌ MISSING / BROKEN (in priority order)
+
+**Foundation gaps — both required before further "smart" features:**
+
+1. **THE CENTRAL ORCHESTRATOR (the brain).** Multiple ad-hoc Claude calls scattered across routes. Must consolidate behind `/api/orchestrator` using the `ceo-agents-orchestrator` system prompt.
+2. **THE LIVING VAULT (the memory).** Currently a flat business profile + chronological docs. Missing: conversation persistence, Qdrant embeddings, successful pattern tracking, semantic retrieval into agent context. This is the engine that makes STAFFD learn the business over time. Without it every session starts cold.
+
+**Revenue and product gaps:**
+
 3. **Stripe top-up SKUs.** Plan/dept-addon prices exist. Image/video credit top-ups do NOT. Need 6 one-time Stripe products + checkout flow + webhook handler that credits the user.
 4. **Credits widget on dashboard.** No visible balance or "Top up" CTA. Users discover their limit by hitting 402.
-5. **Qdrant smart memory.** Vault still uses Phase 1 flat-field injection. Phase 2 semantic retrieval not built.
-6. **3-Layer Briefing flow (UI).** Specialist agents now ask intelligent questions (system prompts updated for this), but there's no structured "brief me" modal that walks the user through a guided flow.
-7. **White-label (Agency).** Per-client logos/branding on docs/booking pages.
-8. **Open-Generative-AI fork integration.** Decided against — Muapi backs everything instead (cleaner architecture).
-9. **openreel-video.** Deferred — browser-based video editor, not generation. Future when video customers ask.
-10. **MoneyPrinterTurbo.** Skipped — GPU infrastructure cost prohibitive vs. Muapi.
-11. **Multi-turn conversation persistence.** Each turn creates a new document. Conversation history not preserved as one thread.
-12. **Studio Mode for Pro+.** Model picker + cost display toggle. Defer until orchestrator is live.
-13. **The Demo Page.** Last by user's explicit rule. Demonstrates everything once everything works.
+5. **Intelligent cross-functional handoff.** Started but not shipped. Must route through the orchestrator (not be a standalone Claude call) and pull relevance from the Vault.
+6. **Multi-turn conversation persistence.** Currently each turn creates a new document; full thread not preserved. Required precondition for the Vault's conversation history layer.
+7. **3-Layer Briefing flow (UI).** Agents now ask intelligent questions (system prompts updated), but no structured "brief me" modal that walks users through a guided flow.
+8. **Successful pattern tracking.** No system to mark + reuse prompts that produced extraordinary results.
+9. **Smart Search UI for Pro+.** Semantic Vault search for power users. Requires Qdrant.
+10. **White-label (Agency).** Per-client logos/branding on docs/booking pages.
+11. **Studio Mode for Pro+.** Model picker + cost display toggle.
+
+**Deferred / decided against:**
+
+12. **Open-Generative-AI fork integration.** Decided against — Muapi backs everything (cleaner architecture).
+13. **openreel-video.** Deferred — browser-based video editor, not generation. Future when video customers ask.
+14. **MoneyPrinterTurbo.** Skipped — GPU infrastructure cost prohibitive vs. Muapi.
+15. **Knowledge graph Vault (Phase 3).** After Qdrant is stable.
+16. **Brand voice extraction (Phase 3).** Continuous extraction of voice patterns from kept work.
+17. **The Demo Page.** Last by user's explicit rule. Demonstrates everything once everything works.
 
 ---
 
@@ -805,26 +878,48 @@ This is the running record of locked product/architecture decisions. Anyone read
 10. **Comp accounts use the same code path.** No special UI. They simply resolve as `plan: agency` with 100× credits. Easy to revoke.
 11. **No tracked-changes amends to commits.** New commit on each meaningful change.
 12. **Voice is non-negotiable.** "Staff", "specialists", "hire", "promote". Never "AI team", "agents", "subscribe", "upgrade".
+13. **The Vault is living memory, not a profile.** Profile + work history + conversation history + successful patterns + brand voice corpus + decisions made. Every interaction adds to it. Every retrieval is semantic.
+14. **Graphify is dev-time only.** It maps code, not business data. Wrong tool for the Vault. Used by the team building STAFFD, not by the user-facing runtime.
+15. **Qdrant is the Vault's memory engine.** Right tool for semantic retrieval. One instance on Railway serves all users via per-user (or per-user-per-client) collection scoping.
+16. **Brain and Memory are co-equal foundations.** Orchestrator without Vault is a smart router with no context. Vault without Orchestrator is a smart database with no decision-maker. Both must exist before further "smart" features.
 
 ---
 
 ## 19. Onward — Build Priorities
 
-In order. The first three are foundation; the rest can be parallelized.
+**The first TWO are foundation and they're co-equal.** Everything else depends on them being built right. Build them in parallel if practical, but neither ships meaningfully until both exist.
 
-1. **Build the central orchestrator** (`/api/orchestrator`) using the `ceo-agents-orchestrator` system prompt. Refactor `/api/orchestrate`, `/api/briefing`, and the unshipped handoff suggestion logic to route through it. **This unblocks every "smart" feature going forward.**
+### 🧠 FOUNDATION 1 — The Brain (Central Orchestrator)
 
-2. **Ship the credit top-up flow.** 6 Stripe one-time SKUs ($9.99 / $24.99 / $54.99 image packs + $22.99 / $54.99 / $109.99 video packs) + checkout + webhook → `addTopupCredits()`. Add a `Credits` widget to the dashboard showing remaining balance + a "Top up" CTA when low.
+Build `/api/orchestrator` using the `ceo-agents-orchestrator` system prompt as its operating instructions. Single entry point for every "smart" decision: Command Center routing, CEO weekly briefings, cross-functional handoff suggestions, intent classification, dispatch to the right specialist with the right context. Refactor `/api/orchestrate`, `/api/briefing`, and any future ad-hoc Claude calls to route through it. **Hard rule: any new "smart" feature MUST go through the orchestrator. No more scattered Claude calls.**
 
-3. **Intelligent cross-functional handoff (through orchestrator).** Replace the dumb Send-to picker with 2-3 smart suggestions per output. Locked depts shown as upgrade triggers. Tied directly to the orchestrator.
+### 🧬 FOUNDATION 2 — The Memory (Living Vault via Qdrant)
 
-4. **Qdrant smart memory.** Deploy Qdrant on Railway. Embed every saved document. Agents pull the 3 most semantically relevant past works. The CEO uses this for thematic synthesis.
+Deploy Qdrant on Railway. Wire embedding pipeline (voyage-3 or openai text-embedding-3-large). Build:
+
+- **Conversation persistence layer.** New `conversations` collection in PocketBase that captures every turn (department, agent, user message, assistant message, timestamp, document_id if it produced an artifact). Threads survive sessions.
+- **Embedding pipeline.** On every document save and every conversation turn, embed and store in Qdrant. Collection scoped per user (or per user+client for Agency).
+- **Pattern tracking.** When a user keeps / shares / regenerates / publishes a work, mark its prompt+output as a "successful pattern." Store with extra weight in Qdrant.
+- **Semantic retrieval into agent context.** Every agent run queries Qdrant for the 5-10 most semantically relevant artifacts (not "last 2 same-dept docs") and injects them as living memory.
+- **Smart Search UI for Pro+.** Pro and Agency users get a search bar that semantically queries their entire Vault — "find every reference to refund policy across my work."
+
+The orchestrator and the Vault are co-equal because the brain's decisions are only as good as the memory it reads from. A brilliant orchestrator with no memory is just a smart router. A rich vault with no orchestrator is just a smart database. Together they're the platform.
+
+---
+
+### After Foundation — Parallelizable
+
+3. **Ship the credit top-up flow.** 6 Stripe one-time SKUs ($9.99 / $24.99 / $54.99 image packs + $22.99 / $54.99 / $109.99 video packs) + checkout + webhook → `addTopupCredits()`. Add a `Credits` widget to the dashboard showing remaining balance + a "Top up" CTA when low.
+
+4. **Intelligent cross-functional handoff (through orchestrator).** Replace the dumb Send-to picker with 2-3 smart suggestions per output. Locked depts shown as upgrade triggers. Tied directly to the orchestrator + uses the Vault for relevance.
 
 5. **Studio Mode for Pro+.** Power-user toggle that exposes model picker + per-generation cost.
 
 6. **White-label polish.** Per-client logos on document headers and booking pages.
 
-7. **Demo page.** Last. Wraps everything as a sales walkthrough.
+7. **Knowledge graph (Phase 3 Vault).** After Phase 2 Qdrant is stable. Facts as nodes, relationships as edges. CEO queries it for cross-cutting briefings.
+
+8. **Demo page.** Last. Wraps everything as a sales walkthrough.
 
 ---
 
