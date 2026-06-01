@@ -19,56 +19,79 @@ const MUAPI_URL = (process.env.MUAPI_URL ?? "https://api.muapi.ai").replace(/\/$
 const MUAPI_KEY = process.env.MUAPI_API_KEY ?? "";
 
 /**
- * Universal prompt distillation. Specialists across STAFFD produce all sorts of
- * outputs — focused image prompts, multi-section creative briefs, layout specs,
- * brand guidelines, marketing concepts. Image models can only handle dense
- * 2-4 sentence visual descriptions. This step extracts a clean, focused prompt
- * from whatever the specialist wrote so the model always gets exactly what it
- * needs to render well.
+ * Universal prompt ENRICHMENT — the boundary step in our 3-Layer Briefing Flow.
  *
- * Heuristic: if the input is already short (< 400 chars) and reads like a prompt
- * (no markdown headers, no bulleted lists, no LAYOUT SPEC / COLOR DIRECTION
- * sections), skip distillation to save the call.
+ * Different specialists produce different artifacts. The Image Prompt Engineer
+ * produces a Layer-2 dense prompt directly (100-300 words, all the modifiers,
+ * ready to render). But Visual Storyteller produces a full layout brief, Brand
+ * Guardian produces a brand spec, etc. None of those go to the model verbatim.
+ *
+ * This step takes whatever the specialist wrote and ENRICHES it into a
+ * Layer-2-quality dense prompt. We never compress, simplify, or "distill" the
+ * intent away — we add the dense visual modifiers needed for an extraordinary
+ * render while preserving every strategic choice the specialist made.
+ *
+ * Heuristic skip: if the input is already a Layer-2 dense prompt (looks like
+ * one — 80-400 words, no markdown structure, reads as continuous visual
+ * description), pass through. Otherwise enrich.
  */
-function needsDistillation(text: string, kind: "image" | "video"): boolean {
-  if (text.length > 600) return true;
-  // Detect structured doc markers — these signal a brief, not a prompt
-  if (/^#{1,3}\s|##\s|\*\*[A-Z]/m.test(text)) return true;
-  if (/LAYOUT SPEC|COLOR DIRECTION|DESIGNER NOTES|VISUAL HIERARCHY|TYPOGRAPHY|BRAND GUIDELINES/i.test(text)) return true;
+function needsEnrichment(text: string): boolean {
+  // Structured artifacts (briefs, specs, layouts) need enrichment
+  if (/^#{1,3}\s|##\s|\*\*[A-Z][A-Z\s]+:/m.test(text)) return true;
+  if (/LAYOUT SPEC|COLOR DIRECTION|DESIGNER NOTES|VISUAL HIERARCHY|TYPOGRAPHY HIERARCHY|BRAND GUIDELINES|CORE CONCEPT/i.test(text)) return true;
   if (/PROMPT \d|VARIATION \d/i.test(text)) return true;
-  if (text.split("\n").length > 8) return true;
+  // Long structured documents
+  if (text.length > 1500) return true;
+  if (text.split("\n").filter(l => l.trim()).length > 10) return true;
+  // Very short input — barely a prompt, needs enrichment to flesh out
+  if (text.length < 120) return true;
   return false;
 }
 
-async function distillToPrompt(rawInput: string, kind: "image" | "video"): Promise<string> {
-  if (!needsDistillation(rawInput, kind)) return rawInput.trim();
+async function enrichToPrompt(rawInput: string, kind: "image" | "video"): Promise<string> {
+  if (!needsEnrichment(rawInput)) return rawInput.trim();
 
   const mediumWord = kind === "image" ? "image" : "video";
-  const systemPrompt = `You convert creative briefs, strategy docs, and visual specifications into a single dense ${mediumWord} generation prompt suitable for an AI ${mediumWord} model.
+  const systemPrompt = `You are STAFFD's prompt enricher. You receive creative briefs, strategy docs, layout specs, or raw user requests and turn them into a single DENSE, SOPHISTICATED ${mediumWord} generation prompt of 100-300 words that produces extraordinary output.
 
-OUTPUT RULES:
-- ONE prompt only. 2-5 sentences. No more.
-- Visually specific: subject, setting, lighting, mood, style, medium.
-- If the source mentions text-on-${mediumWord}, include the text in quotes with typography and placement specs.
-- If source describes a layout (infographic, poster, slide), describe it as a visual composition with concrete visual elements.
+YOU NEVER COMPRESS OR SIMPLIFY. You ENRICH. Every strategic choice in the source must survive into the prompt, plus you add the dense visual modifiers needed for a stunning render.
+
+WHAT TO INCLUDE — ALL AXES, SPECIFIC TO THE SOURCE:
+- Subject with specific details (age, expression, clothing, posture, what they're doing)
+- Setting with specific details (location, era, time of day, atmosphere)
+- Framing and composition (wide / medium / close, angle, depth of field, rule of thirds, etc.)
+- Lighting — direction, quality, color temperature, contrast, time of day
+- Mood (single specific word — heroic, intimate, foreboding, jubilant, etc.)
+- Medium and style (oil painting / photography / 3D render / editorial illustration / propaganda poster, etc.)
+- Multiple style references where they unlock fidelity (Norman Rockwell, Wes Anderson palette, Pixar 3D, Annie Leibovitz portraiture, vintage propaganda, etc.)
+- Specific palette / color anchors
+- Texture and material detail
+- Lens and camera notes when photoreal (35mm, shallow depth of field, golden hour, etc.)
+- For ${mediumWord} with text: write the actual text in quotes, specify typography style and exact placement (lower-third banner, diagonal sash, top-left, etc.)
+
+WHAT YOU MUST NEVER DO:
+- Never strip detail to "make it shorter."
 - Never mention Midjourney, DALL-E, Stable Diffusion, Flux, Kling, or any platform name.
-- Never include negative prompts or aspect ratio flags.
+- Never include negative prompts or aspect ratio flags (--ar 16:9 etc.).
 - Never write "Here's the prompt" or any preamble.
-- Just the prompt itself. Nothing else.`;
+- Never use markdown, bullet lists, or section headers — produce continuous prose suitable to send to an image model.
+
+If the source contains text-on-${mediumWord} (quoted lines, "reading", "saying", overlay text, headlines), include it in your prompt with typography style and placement preserved.
+
+Output ONLY the dense enriched prompt. Nothing else.`;
 
   try {
     const msg = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 400,
+      max_tokens: 1200,
       system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: rawInput }],
     });
     const block = msg.content[0];
-    const distilled = block?.type === "text" ? block.text.trim() : "";
-    return distilled || rawInput.trim();
+    const enriched = block?.type === "text" ? block.text.trim() : "";
+    // Only use enriched output if it's substantially dense (not a refusal)
+    return (enriched.length > 80) ? enriched : rawInput.trim();
   } catch {
-    // Fall back to the raw input if distillation fails — better to try
-    // generating with imperfect input than to fail entirely
     return rawInput.trim();
   }
 }
@@ -210,10 +233,11 @@ export async function POST(req: Request) {
 
     const ratio = VALID_RATIOS.has(aspectRatio) ? aspectRatio : "1:1";
 
-    // Distill the input down to a focused prompt the model can render well.
-    // Specialists may produce strategic briefs, layout specs, or full prompts —
-    // this normalizes them all into something the image/video model handles.
-    const focusedPrompt = await distillToPrompt(prompt, kind);
+    // Enrich the input into a Layer-2 dense prompt (the 3-Layer Briefing Flow
+    // boundary step). Specialists may produce strategic briefs, layout specs,
+    // or full prompts — this elevates them all to the sophistication needed
+    // for extraordinary renders. Never compresses; only enriches.
+    const focusedPrompt = await enrichToPrompt(prompt, kind);
 
     const modelEndpoint = kind === "image"
       ? routeImageModel(focusedPrompt, model)

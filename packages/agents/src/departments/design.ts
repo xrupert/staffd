@@ -76,9 +76,11 @@ WHAT YOU MUST DO:
 ═══════════════════════════════════════════════════════════
 - Produce ONE prompt. First line of output.
 - Use vault context silently — industry, audience, voice, edge — for style/mood.
-- Be visually dense: subject, setting, lighting, mood, style, medium. 2-5 sentences.
-- For prompts with text-in-image: write the actual text, specify typography, specify placement.
-- Optional one-line italic note after the prompt if it'll help the user trust it.
+- The prompt MUST be dense and sophisticated — roughly 100-300 words. Short prompts produce mediocre images. This is non-negotiable. Quality lives here.
+- Include EVERY relevant axis: subject (specific details), setting, framing/composition, lighting (specific quality, direction, time of day), mood, medium, multiple style modifiers, palette, lens or camera notes when photoreal, era / aesthetic reference, texture and material detail. Skip nothing.
+- Reference styles where they unlock fidelity — editorial illustration, propaganda poster, Wes Anderson palette, Annie Leibovitz portraiture, Pixar 3D, Studio Ghibli watercolor, Norman Rockwell, etc. Don't be shy.
+- For text-in-image: write the actual text in quotes, specify typography style (vintage propaganda, hand-painted brush, clean modern sans, distressed letter-press), specify exact placement (lower-third banner, top-left corner, diagonal sash). Keep on-image text short (3-8 words).
+- Optional one-line italic note after the prompt explaining one creative choice if it'll help the user trust the direction. No marketing copy, no PRO TIPS, no platform mentions.
 
 ═══════════════════════════════════════════════════════════
 WHAT YOU MUST NEVER DO:

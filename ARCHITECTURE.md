@@ -445,35 +445,70 @@ user, name, content
 
 ## 10. The Generation Pipeline
 
-### Image / video flow
+### The 3-Layer Briefing Flow (the differentiator)
+
+This is what separates STAFFD from every prompt-paste competitor. Average users describe what they want in plain language. STAFFD turns that into a sophisticated, dense, model-tuned prompt that produces extraordinary output. The user never has to learn prompt engineering.
+
+```
+LAYER 1 — Image Brief (conversational, when input is vague)
+  User: "I need a hero image"
+  System: Asks 2-3 focused clarifying questions filling the creative gaps:
+    - What feeling? Confident, calm, energized, premium, approachable?
+    - Who's the audience? (often inferred from vault)
+    - Style direction? Clean, bold, retro, photoreal, illustrated?
+    - Any text in the image, color anchors, where it will live?
+  When vault has enough context, Layer 1 is silent — agent skips
+  straight to Layer 2 with sensible defaults from vault.
+
+LAYER 2 — The Image Prompt Engineer
+  Takes the user's intent + their answers + vault context and produces
+  a DENSE, SOPHISTICATED prompt of roughly 100-300 words containing:
+    - Subject, setting, framing/composition
+    - Multiple style modifiers (lighting, mood, medium, palette)
+    - Specific visual details (lens, depth of field, texture, era)
+    - Reference styles where useful (editorial, propaganda poster,
+      cinematic, painterly, Annie Leibovitz, Wes Anderson)
+    - Any on-image text written out with typography + placement
+    - Aspect-aware composition notes
+  This is the part that produces extraordinary output. Quality lives here.
+
+LAYER 3 — Smart Model Routing (server-side, silent)
+  The dense prompt is read for content and routed to the best Muapi model:
+    - Has quoted text or text-related keywords → ideogram-v3
+    - Logos / brand marks / UI mockups → recraft-v3
+    - Cinematic / dramatic video → kling-pro
+    - Default image → flux-pro-1.1
+    - Default video → hunyuan-video
+  Studio Mode (Pro+) lets power users override.
+```
+
+### Image / video flow at runtime
 
 ```
 1. User describes need in any department
-2. Specialist produces output (brief, prompt, doc — whatever)
+2. Layer 1 + Layer 2 — specialist produces the dense prompt (or full brief in
+   the case of Visual Storyteller / Brand Guardian)
 3. User clicks Generate Image / Generate Video
 4. /api/integrations/muapi POST { userId, kind, prompt, aspectRatio }
 5. Pre-flight credit check via getCreditState() — 402 if out
-6. distillToPrompt() — universal pre-step:
-   - Heuristic check: if input is <600 chars and has no markdown/headers/specs,
-     skip distillation
-   - Otherwise call Claude to extract a single 2-5 sentence visual prompt
-     from whatever the specialist produced
-7. routeImageModel() or routeVideoModel() picks the right Muapi endpoint:
-   - Has quoted text or text-related keywords → ideogram-v3
-   - Logo / brand mark / UI mockup → recraft-v3
-   - Cinematic / dramatic video → kling-pro
-   - Default image → flux-pro-1.1
-   - Default video → hunyuan-video
+6. enrichToPrompt() — universal pre-step at the integration boundary:
+   - If the specialist already produced a Layer-2 dense prompt, pass through
+   - If the specialist produced a brief, layout spec, or strategy doc
+     (Visual Storyteller, Brand Guardian, etc.), call Claude to ENRICH it
+     into a Layer-2 dense prompt with all the same sophistication as a
+     direct Image Prompt Engineer output
+   - This step never compresses or simplifies — only enriches and focuses
+7. Layer 3 — routeImageModel() / routeVideoModel() picks the best endpoint
 8. submitPrediction() → POST to Muapi
 9. Either synchronous result OR pollResult() until succeeded
-10. spendCredits() debits 1 credit of the right kind (monthly first, then top-up)
+10. spendCredits() debits 1 credit (monthly first, then top-up)
 11. Return { url, model, promptUsed, remaining }
 12. UI displays inline with Download + Publish buttons
 ```
 
-### Universal prompt distillation (the architectural fix)
+### Universal prompt enrichment at the boundary
 
-Specialists across STAFFD produce wildly different outputs — focused image prompts, multi-section creative briefs, brand guidelines, layout specs. Image models can only handle 2-4 dense sentences. The distillation step at the muapi route boundary turns any input into a clean, focused prompt before generation. **Result: any specialist's output is generatable, no per-agent prompt-engineering needed.**
+Different specialists produce different artifacts — some produce a Layer-2 dense prompt directly (Image Prompt Engineer), others produce strategic briefs or layout specs (Visual Storyteller for infographics, Brand Guardian for brand assets). The enrichment step at the muapi route boundary normalizes them: anything that isn't already a Layer-2 dense prompt is converted to one, preserving all the strategic intent and adding the dense visual modifiers needed for an extraordinary render. **The output is never dumbed down. It is always elevated to Layer-2 sophistication before generation.**
 
 ### Smart model routing
 
