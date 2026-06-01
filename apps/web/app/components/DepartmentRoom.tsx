@@ -76,8 +76,16 @@ export default function DepartmentRoom({
   const [trialRemaining, setTrialRemaining] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState("");
   const [savedDocId, setSavedDocId] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [showTeamDrawer, setShowTeamDrawer] = useState(false);
+  const [showHandoff, setShowHandoff] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleMsg, setScheduleMsg] = useState("");
+  const [resumeBanner, setResumeBanner] = useState<{ id: string; agent: string; preview: string; created: string } | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [imageRatio, setImageRatio] = useState<"1:1" | "16:9" | "9:16" | "4:3">("1:1");
@@ -96,8 +104,30 @@ export default function DepartmentRoom({
     void loadContext();
     void loadTrialStatus();
     void loadCreditsState();
+    void loadResumeBanner();
+    void loadHandoffSource();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [department]);
+
+  async function loadHandoffSource() {
+    // If we got here from another department's "Send to..." button, pull in
+    // the source doc and prefill a smart cross-functional task.
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const fromId = params.get("from");
+    if (!fromId) return;
+    try {
+      const src = await pb.collection("documents").getOne(fromId);
+      const srcAgent = (src.agent_name as string) ?? "your team";
+      const srcDept = (src.department as string) ?? "";
+      const srcOutput = (src.output as string) ?? "";
+      const preview = srcOutput.length > 1200 ? srcOutput.slice(0, 1200) + "…" : srcOutput;
+      const task = `This work was just produced by ${srcAgent} in the ${srcDept} department:\n\n---\n${preview}\n---\n\nProduce the matching piece from this department that pairs with it.`;
+      setTask(task);
+      // Clean the URL so refreshing doesn't re-trigger
+      window.history.replaceState({}, "", window.location.pathname);
+    } catch { /* proceed */ }
+  }
 
   async function loadCreditsState() {
     if (!pb.authStore.isValid) return;
@@ -217,11 +247,14 @@ export default function DepartmentRoom({
       // Fresh task — wipe everything
       setOutput("");
       setSavedDocId(null);
+      setSavedAt(null);
+      setCopied(false);
       setLinkCopied(false);
       setImageUrl(null);
       setImageError("");
       setVideoUrl(null);
       setVideoError("");
+      setResumeBanner(null); // dismiss resume banner once user starts fresh work
     }
 
     // Append the user's turn immediately so they see it in the thread
@@ -339,7 +372,77 @@ export default function DepartmentRoom({
         client: activeClientId ?? "",
       });
       setSavedDocId(rec.id);
+      setSavedAt(new Date());
     } catch { /* proceed */ }
+  }
+
+  async function loadResumeBanner() {
+    if (!pb.authStore.isValid) return;
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId) return;
+    try {
+      const res = await pb.collection("documents").getList(1, 1, {
+        filter: `user = '${userId}' && department = '${department}'`,
+        sort: "-created",
+      });
+      const last = res.items[0];
+      if (!last) return;
+      // Only show if it's recent (within 7 days)
+      const created = new Date(last.created as string);
+      const hoursOld = (Date.now() - created.getTime()) / 3600000;
+      if (hoursOld < 168) {
+        setResumeBanner({
+          id: last.id,
+          agent: (last.agent_name as string) ?? department,
+          preview: ((last.prompt as string) ?? "").slice(0, 80),
+          created: last.created as string,
+        });
+      }
+    } catch { /* proceed */ }
+  }
+
+  async function copyOutput() {
+    if (!output) return;
+    await navigator.clipboard.writeText(output);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  async function scheduleForReview() {
+    if (!scheduleDate || !output || scheduleSaving) return;
+    setScheduleSaving(true);
+    setScheduleMsg("");
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      const activeClientId = typeof window !== "undefined"
+        ? localStorage.getItem("staffd_active_client")
+        : null;
+      await pb.collection("scheduled_content").create({
+        user: userId,
+        department,
+        agent_name: activeAgent?.name ?? department,
+        task: `Review: ${(task || output).slice(0, 100)}`,
+        scheduled_date: scheduleDate,
+        status: "review",
+        client: activeClientId ?? "",
+      });
+      setScheduleMsg("Scheduled on your calendar.");
+      setTimeout(() => {
+        setShowSchedule(false);
+        setScheduleMsg("");
+        setScheduleDate("");
+      }, 1500);
+    } catch {
+      setScheduleMsg("Couldn't schedule — try again.");
+    } finally {
+      setScheduleSaving(false);
+    }
+  }
+
+  function handoffToDepartment(targetDept: string) {
+    if (!savedDocId) return;
+    // Carry the source document id so the target dept can prefill a smart task
+    window.location.href = `/dashboard/${targetDept}?from=${savedDocId}`;
   }
 
   async function copyShareLink() {
@@ -745,6 +848,44 @@ export default function DepartmentRoom({
           </div>
         </header>
 
+        {/* Resume banner — pick up where you left off */}
+        {resumeBanner && !output && conversation.length === 0 && (
+          <a
+            href={`/doc/${resumeBanner.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block mb-5 no-print"
+            style={{ textDecoration: "none" }}
+          >
+            <div
+              className="flex items-center gap-3 rounded-xl px-4 py-3"
+              style={{
+                background: "rgba(91,33,232,0.08)",
+                border: "1px solid rgba(91,33,232,0.25)",
+              }}
+            >
+              <span style={{ fontSize: "16px" }}>↩️</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold" style={{ color: "#D0D0E8" }}>
+                  Continue last session with {resumeBanner.agent}?
+                </p>
+                <p className="text-xs mt-0.5 truncate" style={{ color: "#7060A0" }}>
+                  &ldquo;{resumeBanner.preview}{resumeBanner.preview.length >= 80 ? "…" : ""}&rdquo;
+                </p>
+              </div>
+              <span className="text-xs font-semibold" style={{ color: "#A07BFF" }}>Open →</span>
+              <button
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setResumeBanner(null); }}
+                className="text-xs"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70" }}
+                title="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          </a>
+        )}
+
         {/* Dept header */}
         <div className="mb-7 no-print">
           <div className="flex items-start justify-between gap-3 mb-2">
@@ -1082,35 +1223,121 @@ export default function DepartmentRoom({
                 )}
               </div>
               {output && !loading && (
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* Saved indicator — the document persisted, here's where */}
+                  {savedAt && (
+                    <a
+                      href="/dashboard/library"
+                      className="text-xs font-semibold flex items-center gap-1"
+                      style={{
+                        color: "#22C55E",
+                        background: "rgba(34,197,94,0.08)",
+                        border: "1px solid rgba(34,197,94,0.25)",
+                        padding: "3px 8px",
+                        borderRadius: "999px",
+                        textDecoration: "none",
+                      }}
+                      title="Saved automatically — click to view in Library"
+                    >
+                      ✓ Saved
+                    </a>
+                  )}
                   <button
-                    onClick={() => void navigator.clipboard.writeText(output)}
-                    className="text-xs transition-colors hover:text-white"
-                    style={{ color: "#5A5A70" }}
+                    onClick={() => void copyOutput()}
+                    className="text-xs font-semibold transition-colors"
+                    style={{
+                      color: copied ? "#22C55E" : "#A07BFF",
+                      background: "rgba(91,33,232,0.10)",
+                      border: "1px solid rgba(91,33,232,0.25)",
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                    }}
                   >
-                    Copy
+                    {copied ? "Copied ✓" : "Copy"}
                   </button>
                   <button
                     onClick={() => window.print()}
-                    className="text-xs transition-colors hover:text-white"
-                    style={{ color: "#5A5A70" }}
+                    className="text-xs font-semibold transition-colors hover:text-white"
+                    style={{
+                      color: "#A07BFF",
+                      background: "rgba(91,33,232,0.10)",
+                      border: "1px solid rgba(91,33,232,0.25)",
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                    }}
                   >
                     Save PDF
                   </button>
                   <button
                     onClick={() => void exportToDocx(output, businessName || undefined)}
-                    className="text-xs transition-colors hover:text-white"
-                    style={{ color: "#5A5A70" }}
+                    className="text-xs font-semibold transition-colors hover:text-white"
+                    style={{
+                      color: "#A07BFF",
+                      background: "rgba(91,33,232,0.10)",
+                      border: "1px solid rgba(91,33,232,0.25)",
+                      padding: "3px 10px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                    }}
                   >
                     Download .docx
                   </button>
                   {savedDocId && (
                     <button
                       onClick={() => void copyShareLink()}
-                      className="text-xs transition-colors"
-                      style={{ color: linkCopied ? "#22C55E" : "#5B21E8" }}
+                      className="text-xs font-semibold transition-colors"
+                      style={{
+                        color: linkCopied ? "#22C55E" : "#A07BFF",
+                        background: "rgba(91,33,232,0.10)",
+                        border: "1px solid rgba(91,33,232,0.25)",
+                        padding: "3px 10px",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                      }}
                     >
-                      {linkCopied ? "Link copied ✓" : "Share →"}
+                      {linkCopied ? "Link copied ✓" : "Share link"}
+                    </button>
+                  )}
+                  {savedDocId && (
+                    <button
+                      onClick={() => setShowHandoff(true)}
+                      className="text-xs font-semibold transition-colors"
+                      style={{
+                        color: "#A07BFF",
+                        background: "rgba(91,33,232,0.10)",
+                        border: "1px solid rgba(91,33,232,0.25)",
+                        padding: "3px 10px",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                      }}
+                      title="Send this to another department for the next step"
+                    >
+                      Send to…
+                    </button>
+                  )}
+                  {output && (
+                    <button
+                      onClick={() => {
+                        // Default to one week from today
+                        const d = new Date();
+                        d.setDate(d.getDate() + 7);
+                        setScheduleDate(d.toISOString().slice(0, 10));
+                        setShowSchedule(true);
+                      }}
+                      className="text-xs font-semibold transition-colors"
+                      style={{
+                        color: "#A07BFF",
+                        background: "rgba(91,33,232,0.10)",
+                        border: "1px solid rgba(91,33,232,0.25)",
+                        padding: "3px 10px",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                      }}
+                      title="Schedule this for review on your calendar"
+                    >
+                      Schedule
                     </button>
                   )}
                   {department === "marketing" && (
@@ -1414,6 +1641,108 @@ export default function DepartmentRoom({
           currentPlan={currentPlan}
           onClose={() => setShowUpgrade(false)}
         />
+      )}
+
+      {/* Send to... cross-functional handoff modal */}
+      {showHandoff && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 px-4"
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)" }}
+          onClick={() => setShowHandoff(false)}
+        >
+          <div
+            className="w-full max-w-xl rounded-2xl overflow-hidden"
+            style={{ background: "#0D0D14", border: "1px solid #2A2A38" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-7 py-5 flex items-start justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>Cross-functional handoff</p>
+                <h2 className="text-lg font-bold" style={{ color: "#F0F0F8" }}>Send to which department?</h2>
+                <p className="text-xs mt-1" style={{ color: "#5A5A70" }}>
+                  This work goes to the next team. They&apos;ll see what was made and produce the matching piece.
+                </p>
+              </div>
+              <button onClick={() => setShowHandoff(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px" }}>×</button>
+            </div>
+            <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {[
+                { id: "marketing",  icon: "📣", label: "Marketing" },
+                { id: "sales",      icon: "🤝", label: "Sales" },
+                { id: "legal",      icon: "⚖️", label: "Legal" },
+                { id: "hr",         icon: "👥", label: "HR" },
+                { id: "finance",    icon: "💰", label: "Finance" },
+                { id: "operations", icon: "⚙️", label: "Operations" },
+                { id: "paid-media", icon: "📈", label: "Paid Media" },
+                { id: "design",     icon: "🎨", label: "Design" },
+                { id: "reputation", icon: "🛡️", label: "Reputation" },
+                { id: "ceo",        icon: "🎯", label: "The CEO" },
+              ].filter((d) => d.id !== department).map((d) => (
+                <button
+                  key={d.id}
+                  onClick={() => handoffToDepartment(d.id)}
+                  className="rounded-xl p-3 flex items-center gap-2.5 text-left transition-all"
+                  style={{ background: "#111118", border: "1px solid #2A2A38", cursor: "pointer" }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "rgba(91,33,232,0.45)"; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = "#2A2A38"; }}
+                >
+                  <span className="text-base flex-shrink-0">{d.icon}</span>
+                  <span className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>{d.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Schedule for review modal */}
+      {showSchedule && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50 px-4"
+          style={{ background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)" }}
+          onClick={() => setShowSchedule(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl overflow-hidden"
+            style={{ background: "#0D0D14", border: "1px solid #2A2A38" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-7 py-5 flex items-start justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>Schedule for review</p>
+                <h2 className="text-lg font-bold" style={{ color: "#F0F0F8" }}>Pick a date</h2>
+                <p className="text-xs mt-1" style={{ color: "#5A5A70" }}>This appears on your calendar so it&apos;s easy to come back to.</p>
+              </div>
+              <button onClick={() => setShowSchedule(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px" }}>×</button>
+            </div>
+            <div className="p-7">
+              <input
+                type="date"
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none mb-3"
+                style={{ background: "#111118", border: "1px solid #2A2A38", color: "#F0F0F8" }}
+              />
+              {scheduleMsg && (
+                <p className="text-xs mb-3" style={{ color: scheduleMsg.includes("Couldn") ? "#EF4444" : "#22C55E" }}>{scheduleMsg}</p>
+              )}
+              <button
+                onClick={() => void scheduleForReview()}
+                disabled={!scheduleDate || scheduleSaving}
+                className="w-full py-3 rounded-xl text-sm font-semibold text-white"
+                style={{
+                  background: "#5B21E8",
+                  border: "none",
+                  cursor: scheduleSaving ? "not-allowed" : "pointer",
+                  opacity: !scheduleDate || scheduleSaving ? 0.5 : 1,
+                }}
+              >
+                {scheduleSaving ? "Scheduling…" : "Add to calendar →"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </main>
     </>
