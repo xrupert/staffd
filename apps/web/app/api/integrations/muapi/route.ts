@@ -10,10 +10,68 @@
  * https://api.muapi.ai).
  */
 
+import Anthropic from "@anthropic-ai/sdk";
 import { spendCredits, getCreditState } from "../../_lib/credits";
+
+const anthropic = new Anthropic();
 
 const MUAPI_URL = (process.env.MUAPI_URL ?? "https://api.muapi.ai").replace(/\/$/, "");
 const MUAPI_KEY = process.env.MUAPI_API_KEY ?? "";
+
+/**
+ * Universal prompt distillation. Specialists across STAFFD produce all sorts of
+ * outputs — focused image prompts, multi-section creative briefs, layout specs,
+ * brand guidelines, marketing concepts. Image models can only handle dense
+ * 2-4 sentence visual descriptions. This step extracts a clean, focused prompt
+ * from whatever the specialist wrote so the model always gets exactly what it
+ * needs to render well.
+ *
+ * Heuristic: if the input is already short (< 400 chars) and reads like a prompt
+ * (no markdown headers, no bulleted lists, no LAYOUT SPEC / COLOR DIRECTION
+ * sections), skip distillation to save the call.
+ */
+function needsDistillation(text: string, kind: "image" | "video"): boolean {
+  if (text.length > 600) return true;
+  // Detect structured doc markers — these signal a brief, not a prompt
+  if (/^#{1,3}\s|##\s|\*\*[A-Z]/m.test(text)) return true;
+  if (/LAYOUT SPEC|COLOR DIRECTION|DESIGNER NOTES|VISUAL HIERARCHY|TYPOGRAPHY|BRAND GUIDELINES/i.test(text)) return true;
+  if (/PROMPT \d|VARIATION \d/i.test(text)) return true;
+  if (text.split("\n").length > 8) return true;
+  return false;
+}
+
+async function distillToPrompt(rawInput: string, kind: "image" | "video"): Promise<string> {
+  if (!needsDistillation(rawInput, kind)) return rawInput.trim();
+
+  const mediumWord = kind === "image" ? "image" : "video";
+  const systemPrompt = `You convert creative briefs, strategy docs, and visual specifications into a single dense ${mediumWord} generation prompt suitable for an AI ${mediumWord} model.
+
+OUTPUT RULES:
+- ONE prompt only. 2-5 sentences. No more.
+- Visually specific: subject, setting, lighting, mood, style, medium.
+- If the source mentions text-on-${mediumWord}, include the text in quotes with typography and placement specs.
+- If source describes a layout (infographic, poster, slide), describe it as a visual composition with concrete visual elements.
+- Never mention Midjourney, DALL-E, Stable Diffusion, Flux, Kling, or any platform name.
+- Never include negative prompts or aspect ratio flags.
+- Never write "Here's the prompt" or any preamble.
+- Just the prompt itself. Nothing else.`;
+
+  try {
+    const msg = await anthropic.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 400,
+      system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
+      messages: [{ role: "user", content: rawInput }],
+    });
+    const block = msg.content[0];
+    const distilled = block?.type === "text" ? block.text.trim() : "";
+    return distilled || rawInput.trim();
+  } catch {
+    // Fall back to the raw input if distillation fails — better to try
+    // generating with imperfect input than to fail entirely
+    return rawInput.trim();
+  }
+}
 
 const VALID_RATIOS = new Set(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"]);
 
@@ -148,12 +206,18 @@ export async function POST(req: Request) {
     }
 
     const ratio = VALID_RATIOS.has(aspectRatio) ? aspectRatio : "1:1";
+
+    // Distill the input down to a focused prompt the model can render well.
+    // Specialists may produce strategic briefs, layout specs, or full prompts —
+    // this normalizes them all into something the image/video model handles.
+    const focusedPrompt = await distillToPrompt(prompt, kind);
+
     const modelEndpoint = kind === "image"
-      ? routeImageModel(prompt, model)
-      : routeVideoModel(prompt, model);
+      ? routeImageModel(focusedPrompt, model)
+      : routeVideoModel(focusedPrompt, model);
 
     const input: Record<string, unknown> = {
-      prompt: prompt.trim(),
+      prompt: focusedPrompt,
       aspect_ratio: ratio,
     };
     if (kind === "video") {
@@ -195,6 +259,7 @@ export async function POST(req: Request) {
       success: true,
       url: resultUrl,
       model: modelEndpoint,
+      promptUsed: focusedPrompt,
       remaining: spend.remaining,
     });
   } catch (err) {
