@@ -4,8 +4,20 @@
   "outputDirectory": ".next",
   "crons": [
     {
-      "path": "/api/worker/tick",
+      "path": "/api/worker/scheduled",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/worker/vault",
+      "schedule": "*/1 * * * *"
+    },
+    {
+      "path": "/api/worker/morning-brief",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/worker/brief-push-dispatcher",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
