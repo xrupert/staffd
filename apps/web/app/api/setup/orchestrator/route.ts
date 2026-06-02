@@ -52,8 +52,8 @@ async function ensureCollection(pbUrl: string) {
         type: "base",
         fields: REQUIRED_FIELDS,
         indexes: [
-          "CREATE INDEX idx_orch_user_created ON orchestrator_decisions (user, created)",
-          "CREATE INDEX idx_orch_intent_created ON orchestrator_decisions (intent, created)",
+          // PB rejects (user, created) at create-time — drop it; default sort works.
+          // ORDER BY created on this collection runs without an explicit index at our volume.
         ],
       }),
     });

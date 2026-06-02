@@ -183,14 +183,14 @@ export async function POST() {
       "CREATE INDEX idx_vei_source ON vault_embeddings_index (source_id)",
     ]);
     const patterns = await ensureCollection(url, token, "vault_patterns", PATTERNS_FIELDS, [
-      "CREATE INDEX idx_vp_user_created ON vault_patterns (user, created)",
+      // PB rejects (user, created) at create-time — drop it; default sort works.
       "CREATE INDEX idx_vp_doc ON vault_patterns (document_id)",
     ]);
     const metrics = await ensureCollection(url, token, "vault_retrieval_metrics", RETRIEVAL_METRICS_FIELDS, [
-      "CREATE INDEX idx_vrm_user_created ON vault_retrieval_metrics (user, created)",
+      // PB rejects (user, created) at create-time — drop it; default sort works.
     ]);
     const decisions = await ensureCollection(url, token, "vault_decisions", DECISIONS_FIELDS, [
-      "CREATE INDEX idx_vd_user_created ON vault_decisions (user, created)",
+      // PB rejects (user, created) at create-time — drop it; default sort works.
       "CREATE INDEX idx_vd_user_kind ON vault_decisions (user, decision_kind)",
       "CREATE INDEX idx_vd_doc ON vault_decisions (document_id)",
     ]);

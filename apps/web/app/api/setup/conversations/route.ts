@@ -53,8 +53,8 @@ async function ensureCollection(pbUrl: string) {
         type: "base",
         fields: REQUIRED_FIELDS,
         indexes: [
-          "CREATE INDEX idx_conv_user_created ON conversations (user, created)",
-          "CREATE INDEX idx_conv_thread ON conversations (thread_id, created)",
+          // PB rejects (*, created) at create-time — drop them; default sort works.
+          "CREATE INDEX idx_conv_thread_id ON conversations (thread_id)",
           "CREATE INDEX idx_conv_user_dept ON conversations (user, department)",
         ],
       }),
