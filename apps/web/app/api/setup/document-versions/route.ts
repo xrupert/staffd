@@ -30,10 +30,13 @@ const REQUIRED_FIELDS = [
   { name: "restored_from",  type: "number", required: false },
 ];
 
+// Hotfix B1 — PB rejects indexes that reference the autodate `created`
+// column at collection-create time ("no such column: created"), because the
+// column isn't materialized until after the collection exists. We only
+// pre-create the unique constraint here; PB auto-uses `created` in ORDER BY
+// without an explicit index for typical scan volumes.
 const INDEXES = [
   "CREATE UNIQUE INDEX idx_dv_doc_version ON document_versions (document, version_number)",
-  "CREATE INDEX idx_dv_user_created ON document_versions (user, created)",
-  "CREATE INDEX idx_dv_doc_created ON document_versions (document, created)",
 ];
 
 async function getAdminToken(pbUrl: string): Promise<string> {

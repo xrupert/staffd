@@ -160,9 +160,10 @@ export async function handleBrief(req: OrchestratorRequest): Promise<Orchestrato
         .join("\n")
     : "Your staff hasn't produced any work in the last 30 days. Recommend where to start.";
 
-  // Phase 5 — recent outcomes + decisions from Listmonk / Docuseal / Twenty
-  // feedback. Surfaces real-world signal (deals closed, contracts signed,
-  // emails that landed) so the brief is grounded in outcomes, not drafts.
+  // Phase 5 — recent outcomes + decisions from the staff's downstream tools
+  // (Email Engine / E-Sign / CRM / Support Inbox). Surfaces real-world signal
+  // (deals closed, contracts signed, emails that landed) so the brief is
+  // grounded in outcomes, not drafts. Vendor names stay out of model output.
   const outcomeLines = decisions.length > 0
     ? decisions
         .slice(0, 12)
@@ -175,7 +176,7 @@ export async function handleBrief(req: OrchestratorRequest): Promise<Orchestrato
           return `- ${when} ${tag} ${d.title}${impact}`;
         })
         .join("\n")
-    : "No tracked outcomes yet — once Listmonk/Docuseal/Twenty webhooks fire, real-world results show up here.";
+    : "No tracked outcomes yet — as your staff sends emails, books meetings, and gets contracts signed, results will roll up here.";
 
   const userPrompt = `Today is ${today}.
 

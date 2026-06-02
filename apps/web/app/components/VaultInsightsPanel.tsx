@@ -4,14 +4,15 @@
  * Vault Insights panel (Phase 5).
  *
  * Surfaces the last 30 days of `vault_decisions` — real-world outcomes and
- * decisions fed by the Listmonk / Docuseal / Twenty webhook receivers (plus
- * any manual events logged via /api/vault/outcome).
+ * decisions fed by webhook receivers (Email Engine / E-Sign / CRM / Support
+ * Inbox) plus any manual events logged via /api/vault/outcome.
  *
  * This is the user-facing view of the moat: the system shows them what
  * actually happened in the world (deals closed, contracts signed, emails
- * that landed) instead of just what STAFFD generated.
+ * that landed) instead of just what their staff drafted.
  *
- * Empty state coaches them on what they'll see once webhooks fire.
+ * Brand: vendor names are NEVER shown to the user — only STAFFD-branded
+ * functional labels. Swap a vendor later, UI stays unchanged.
  */
 
 import { useEffect, useState } from "react";
@@ -28,13 +29,16 @@ type DecisionRow = {
   created: string;
 };
 
+// Brand rename — vendor names are an implementation detail, never shown to
+// the user. These STAFFD-branded labels describe what the staff does with
+// the service, not which SaaS sits behind it.
 const SOURCE_BADGE: Record<string, { label: string; color: string; bg: string }> = {
-  docuseal:  { label: "Docuseal",  color: "#22C55E", bg: "rgba(34,197,94,0.12)" },
-  listmonk:  { label: "Listmonk",  color: "#0EA5E9", bg: "rgba(14,165,233,0.12)" },
-  twenty:    { label: "Twenty",    color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
-  plausible: { label: "Plausible", color: "#A07BFF", bg: "rgba(160,123,255,0.12)" },
-  chatwoot:  { label: "Chatwoot",  color: "#EC4899", bg: "rgba(236,72,153,0.12)" },
-  manual:    { label: "Manual",    color: "#9090A8", bg: "rgba(144,144,168,0.12)" },
+  docuseal:  { label: "E-Sign",        color: "#22C55E", bg: "rgba(34,197,94,0.12)" },
+  listmonk:  { label: "Email Engine",  color: "#0EA5E9", bg: "rgba(14,165,233,0.12)" },
+  twenty:    { label: "CRM",           color: "#F59E0B", bg: "rgba(245,158,11,0.12)" },
+  plausible: { label: "Analytics",     color: "#A07BFF", bg: "rgba(160,123,255,0.12)" },
+  chatwoot:  { label: "Support Inbox", color: "#EC4899", bg: "rgba(236,72,153,0.12)" },
+  manual:    { label: "Logged",        color: "#9090A8", bg: "rgba(144,144,168,0.12)" },
 };
 
 const KIND_LABEL: Record<string, string> = {
@@ -124,9 +128,9 @@ export default function VaultInsightsPanel() {
       >
         <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Insights</h2>
         <p className="text-xs leading-relaxed" style={{ color: "#9090A8" }}>
-          Once you connect Listmonk, Docuseal, or Twenty, real-world outcomes show up here —
-          contracts signed, deals won, emails that landed, meetings booked. Your CEO uses these
-          to shape weekly priorities instead of guessing.
+          As your staff sends emails, books meetings, and gets contracts signed, the results
+          roll up here — deals won, content published, customers replied to. Your CEO uses
+          these to set weekly priorities instead of guessing.
         </p>
       </section>
     );

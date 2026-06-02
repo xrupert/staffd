@@ -70,28 +70,35 @@ export async function POST(req: Request) {
     },
   });
 
-  // Pull department / task / rationale / lockedAlternative from either the
-  // success decision or the degraded fallback — the envelope shape is the
-  // same down both paths.
+  // Pull department / agentId / task / rationale / lockedAlternative from
+  // either the success decision or the degraded fallback — the envelope shape
+  // is the same down both paths.
   let department: string;
+  let agentId: string | undefined;
   let task: string;
   let rationale: string;
   let lockedAlt: string;
 
   if (response.ok) {
     department = response.decision.department ?? "marketing";
+    agentId = response.decision.agentId;
     task = (response.decision.task ?? userMessage).trim() || userMessage;
     rationale = (response.decision.rationale ?? "").trim();
     lockedAlt = extractLockedAlternative(response.notes);
   } else {
     department = response.degraded.department ?? "marketing";
+    agentId = response.degraded.agentId;
     task = (response.degraded.task ?? userMessage).trim() || userMessage;
     rationale = (response.degraded.rationale ?? "").trim();
     lockedAlt = "";
   }
 
+  // Hotfix A2 — agentId is now part of the READY: payload so the Command
+  // Center can route the user's confirm action to the SPECIFIC specialist
+  // (not the dept's first-in-list default, which caused the SEMrush bug).
   const readyLine = `READY:${JSON.stringify({
     department,
+    agentId: agentId ?? "",
     task,
     lockedAlternative: lockedAlt,
   })}`;

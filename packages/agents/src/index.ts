@@ -1,5 +1,6 @@
 export type { AgentDef, Department, VaultContext, IndustryPack, IndustryPackMeta } from "./types";
 export { buildPrompt } from "./utils/buildPrompt";
+export { STAFFD_BRAND_LAWS } from "./brand-laws";
 
 export { marketingAgents } from "./departments/marketing";
 export { salesAgents } from "./departments/sales";
@@ -40,10 +41,24 @@ import { paidMediaAgents } from "./departments/paid-media";
 import { reputationAgents } from "./departments/reputation";
 import { ceoAgents } from "./departments/ceo";
 import { allPackAgents } from "./packs";
+import { STAFFD_BRAND_LAWS } from "./brand-laws";
 import type { AgentDef, Department } from "./types";
 
-/** All agents across all departments + packs — flat list */
-export const allAgents: AgentDef[] = [
+/**
+ * Hotfix bundle A — every specialist's system prompt is auto-prepended with
+ * STAFFD_BRAND_LAWS so the model can NEVER drift into generic behavior
+ * (recommending SEMrush/Ahrefs, using "wheelhouse", etc.). Single source of
+ * truth — specialists do not restate these rules.
+ */
+function applyBrandLaws(agents: AgentDef[]): AgentDef[] {
+  return agents.map((a) => ({
+    ...a,
+    systemPrompt: `${STAFFD_BRAND_LAWS}\n\n---\n\n${a.systemPrompt ?? ""}`,
+  }));
+}
+
+/** All agents across all departments + packs — flat list, brand-laws applied. */
+export const allAgents: AgentDef[] = applyBrandLaws([
   ...marketingAgents,
   ...salesAgents,
   ...legalAgents,
@@ -57,7 +72,7 @@ export const allAgents: AgentDef[] = [
   // Phase 8 — packed agents joined into the global pool so `getAgent(id)`
   // resolves them; dept rosters filter them out unless `activePacks` is set.
   ...allPackAgents,
-];
+]);
 
 /** Look up a single agent by id */
 export function getAgent(id: string): AgentDef | undefined {

@@ -10,6 +10,7 @@
  */
 
 import { isCompedUser } from "./comp";
+import { PACK_IDS } from "@staffd/agents";
 import { getAdminToken, pbUrl, pbEscape, adminHeaders, pbFirst } from "./pb";
 
 const TRIAL_LIMIT = 3;
@@ -103,6 +104,14 @@ export async function resolveDepartments(userId: string): Promise<TrialState> {
     const unlockedDepts = sub?.unlocked_departments ?? null;
     const resolved = resolveUnlocked(plan, unlockedDepts, sub?.ceo_addon_sub ?? null);
 
+    // Hotfix E1 — comped accounts (jrw-solutions.com et al.) get EVERY
+    // industry pack auto-activated. This matches the comp = "full agency
+    // with everything turned on" intent and was the gap behind the user's
+    // "less than 100 agents active" observation: 83 core + 55 packed = 138
+    // specialists, but pack agents only surface when the pack is active.
+    const subscribedPacks = Array.isArray(sub?.industry_packs) ? sub.industry_packs : [];
+    const activePacks = comped ? [...PACK_IDS] : subscribedPacks;
+
     return {
       plan,
       resolved: [...resolved],
@@ -113,7 +122,7 @@ export async function resolveDepartments(userId: string): Promise<TrialState> {
         (!unlockedDepts || unlockedDepts.length === 0),
       subId: sub?.id ?? null,
       comp: comped,
-      activePacks: Array.isArray(sub?.industry_packs) ? sub.industry_packs : [],
+      activePacks,
     };
   } catch {
     return fallback;

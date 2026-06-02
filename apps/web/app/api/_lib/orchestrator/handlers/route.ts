@@ -9,7 +9,7 @@
  * This handler ships in B1. B2 cuts the legacy `/api/orchestrate` over to it.
  */
 
-import { getAgent } from "@staffd/agents";
+import { getAgent, getDepartmentAgents, routeTask, type Department } from "@staffd/agents";
 import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
 import { resolveDepartments } from "../../trial";
 import { callLLM } from "../llm";
@@ -35,6 +35,7 @@ function parseDecision(text: string): { decision: OrchestratorDecision; lockedAl
     try {
       const parsed = JSON.parse(m[1]!) as {
         department?: string;
+        agentId?: string;
         task?: string;
         rationale?: string;
         lockedAlternative?: string;
@@ -43,6 +44,7 @@ function parseDecision(text: string): { decision: OrchestratorDecision; lockedAl
         return {
           decision: {
             department: parsed.department,
+            agentId: parsed.agentId || undefined,
             task: parsed.task,
             rationale: parsed.rationale ?? "",
           },
@@ -52,6 +54,30 @@ function parseDecision(text: string): { decision: OrchestratorDecision; lockedAl
     } catch { /* keep scanning */ }
   }
   return null;
+}
+
+/**
+ * Hotfix bundle A4 — smart fallback agent picker.
+ *
+ * When the orchestrator LLM returns a department but no agentId (or an
+ * invalid one), score every specialist in that department by keyword overlap
+ * between the user's message and the specialist's tags. Pick the highest
+ * scorer. Fall back to the department's canonical default only if NOTHING
+ * matches — which is rare because tags are intentionally broad.
+ */
+function pickAgentForDept(
+  department: string,
+  message: string,
+  activePacks: string[],
+): string | undefined {
+  const pool = getDepartmentAgents(department as Department, { activePacks });
+  if (pool.length === 0) return undefined;
+
+  // First try tag-keyword scoring against the user's actual message.
+  const matched = routeTask(message, department as Department);
+  if (matched && pool.some((a) => a.id === matched.id)) return matched.id;
+
+  return pool[0]?.id;
 }
 
 export async function handleRoute(req: OrchestratorRequest): Promise<OrchestratorResponse> {
@@ -67,6 +93,29 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
 
   const unlockedDepts = trialState?.resolved.length ? trialState.resolved : ["marketing","sales","legal"];
   const lockedDepts = ALL_DEPTS.filter((d) => !unlockedDepts.includes(d));
+  const activePacks = trialState?.activePacks ?? [];
+
+  // Hotfix bundle A1 — build the full roster of available specialists across
+  // unlocked departments so the LLM can pick the right one BY NAME, not just
+  // the right department. This is the single biggest fix in this PR: routing
+  // to "marketing" alone caused the SEO question to land on the Content
+  // Creator who then recommended SEMrush/Ahrefs.
+  const rosterByDept: Record<string, Array<{ id: string; name: string; description: string; tags: string[] }>> = {};
+  for (const d of unlockedDepts) {
+    const agents = getDepartmentAgents(d as Department, { activePacks });
+    rosterByDept[d] = agents.map((a) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      tags: a.tags,
+    }));
+  }
+  const rosterText = Object.entries(rosterByDept)
+    .map(([dept, agents]) =>
+      `${dept}:\n` +
+      agents.map((a) => `  - ${a.id} (${a.name}) — ${a.description} [tags: ${a.tags.join(", ")}]`).join("\n")
+    )
+    .join("\n\n");
 
   // Retrieval is opportunistic for route — small cap, may degrade silently.
   const retrieval = message && req.userId
@@ -83,13 +132,25 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   const baseSystem = agent?.systemPrompt ?? "You are the STAFFD Command Center coordinator.";
 
   const protocol = `
-You are routing a user request to a department. The user has these UNLOCKED departments: ${unlockedDepts.join(", ")}.
-LOCKED (do not route here): ${lockedDepts.join(", ") || "(none)"}.
+You are routing a user request to a SPECIFIC SPECIALIST on the user's staff.
+
+UNLOCKED DEPARTMENTS: ${unlockedDepts.join(", ")}
+LOCKED (do not route here, but you may name in lockedAlternative): ${lockedDepts.join(", ") || "(none)"}
+
+AVAILABLE SPECIALISTS (you MUST pick one of these agentId values):
+${rosterText}
 
 Return exactly ONE line at the end of your response with this shape and no surrounding prose:
-ROUTE:{"department":"<unlocked-dept>","task":"<specific task>","rationale":"<one short sentence>","lockedAlternative":"<locked-dept-or-empty>"}
+ROUTE:{"department":"<unlocked-dept>","agentId":"<exact-id-from-list-above>","task":"<specific task>","rationale":"<one short sentence naming the specialist>","lockedAlternative":"<locked-dept-or-empty>"}
 
-Pick the unlocked department that best fits the request. If a locked department would be a sharper fit, name it in lockedAlternative so the platform can surface the upsell after the unlocked dept runs. Never route to a locked department.`.trim();
+CRITICAL routing rules:
+1. agentId MUST be one of the ids in AVAILABLE SPECIALISTS above. Copy-paste exactly. No invented ids.
+2. Match the user's intent to the specialist whose tags + description fit best — NOT the first agent in the department. Example: "help with SEO" → marketing-seo-specialist, NOT marketing-content-creator. "AEO / answer engine optimization" → marketing-agentic-search-optimizer.
+3. Department must be the one that owns the chosen specialist.
+4. rationale should name the specialist by their human name (e.g. "Your SEO Specialist on the Marketing team is the right fit").
+5. Never route to a locked department.
+
+Reminder (already enforced by brand laws downstream, but informing your choice): the user does not want external tools recommended. Pick the specialist who can actually do the work; that specialist will deliver it.`.trim();
 
   const memoryBlock = retrieval.items.length > 0
     ? `\n\n--- LIVING MEMORY (recent relevant work) ---\n${retrieval.items.map((it) => `• [${it.dept ?? "?"}] ${it.text}`).join("\n")}\n--- END LIVING MEMORY ---`
@@ -142,10 +203,25 @@ Pick the unlocked department that best fits the request. If a locked department 
     };
   }
 
+  // Hotfix bundle A4 — validate the LLM-picked agentId. If invalid or
+  // missing, fall back to the smart keyword picker (NOT the first-in-list
+  // default — that's what caused the SEMrush bug).
+  const dept = parsed.decision.department!;
+  let agentId = parsed.decision.agentId;
+  if (agentId) {
+    const candidate = getAgent(agentId);
+    const inDept = candidate && candidate.department === dept &&
+      (!candidate.pack || activePacks.includes(candidate.pack));
+    if (!inDept) agentId = undefined;
+  }
+  if (!agentId) {
+    agentId = pickAgentForDept(dept, message, activePacks);
+  }
+
   return {
     ok: true,
     intent: "route",
-    decision: parsed.decision,
+    decision: { ...parsed.decision, agentId },
     notes: parsed.lockedAlternative ? `lockedAlternative:${parsed.lockedAlternative}` : undefined,
     vaultCostFlag: retrieval.costFlag,
     latencyMs: result.latencyMs,

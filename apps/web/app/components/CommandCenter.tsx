@@ -16,6 +16,7 @@ interface Message {
 
 interface PendingAction {
   department: string;
+  agentId?: string;
   task: string;
   lockedAlternative?: string;
 }
@@ -132,7 +133,9 @@ export default function CommandCenter() {
       setMessages(confirmMessages);
       // Remember the locked alternative to surface as nudge after generation
       setLastLockedAlt(pendingAction.lockedAlternative?.trim() ? pendingAction.lockedAlternative : null);
-      await runAgent(pendingAction.department, pendingAction.task, userId, pbToken);
+      // Hotfix A2 — pass the orchestrator-picked agentId so the right
+      // specialist runs (not the dept's first-in-list default).
+      await runAgent(pendingAction.department, pendingAction.task, userId, pbToken, pendingAction.agentId);
       return;
     }
 
@@ -194,7 +197,7 @@ export default function CommandCenter() {
     setTimeout(scrollToBottom, 100);
   }
 
-  async function runAgent(department: string, task: string, userId: string, pbToken: string) {
+  async function runAgent(department: string, task: string, userId: string, pbToken: string, agentId?: string) {
     setOutputBuffer("");
     // Add a generating message placeholder
     setMessages((prev) => [...prev, { role: "assistant", content: "", isOutput: true }]);
@@ -209,6 +212,10 @@ export default function CommandCenter() {
         body: JSON.stringify({
           task,
           department,
+          // Hotfix A2 — orchestrator-picked specialist id (when set).
+          // Without this, /api/agent falls back to the dept's first-listed
+          // agent, which routed SEO questions to the Content Creator.
+          agentId: agentId || undefined,
           userId,
           pbToken,
           clientId: activeClientId ?? undefined,
