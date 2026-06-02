@@ -20,10 +20,14 @@
 
 import { adminHeaders, getAdminToken, pbUrl } from "../../../_lib/pb";
 import { enqueue } from "../../../_lib/vault/queue";
+import { appendVersion } from "../../../_lib/vault/versions";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-async function verifyDocOwnership(docId: string, pbToken: string): Promise<{ ok: true; userId: string } | { ok: false }> {
+async function verifyDocOwnership(
+  docId: string,
+  pbToken: string,
+): Promise<{ ok: true; userId: string; currentContent: string } | { ok: false }> {
   try {
     const url = pbUrl();
     const res = await fetch(
@@ -31,8 +35,9 @@ async function verifyDocOwnership(docId: string, pbToken: string): Promise<{ ok:
       { headers: { Authorization: pbToken } }
     );
     if (!res.ok) return { ok: false };
-    const data = (await res.json()) as { user?: string };
-    return data.user ? { ok: true, userId: data.user } : { ok: false };
+    const data = (await res.json()) as { user?: string; output?: string };
+    if (!data.user) return { ok: false };
+    return { ok: true, userId: data.user, currentContent: data.output ?? "" };
   } catch {
     return { ok: false };
   }
@@ -60,6 +65,29 @@ export async function POST(req: Request, { params }: RouteContext) {
     return Response.json({ error: "not_found_or_forbidden" }, { status: 404 });
   }
 
+  // Phase 27 — snapshot the CURRENT content as a new version BEFORE we
+  // overwrite. If this is the first save, the "current" content is whatever
+  // the worker first produced, so version 1 captures the original draft.
+  // Skip the snapshot when the new content matches the current content
+  // (no-op edit — common when the user opens the editor and clicks Save
+  // without changes).
+  let snapshotVersion: number | null = null;
+  if (ownership.currentContent && ownership.currentContent !== content) {
+    try {
+      const { versionNumber } = await appendVersion({
+        userId,
+        documentId: id,
+        content: ownership.currentContent,
+        source: "edit",
+      });
+      snapshotVersion = versionNumber;
+    } catch (err) {
+      // Versioning failure should not block the save — log + proceed.
+      // The user's edit still persists; only the history is missing.
+      console.error("[save-edit] appendVersion failed:", err);
+    }
+  }
+
   // PATCH the document with new content + clear stale summary/tokens.
   try {
     const adminToken = await getAdminToken();
@@ -85,5 +113,10 @@ export async function POST(req: Request, { params }: RouteContext) {
   // Fire-and-forget re-index. Worker picks up next minute.
   const queueId = await enqueue("document", id, { force: true });
 
-  return Response.json({ ok: true, queueId, action: "saved_and_reindex_queued" });
+  return Response.json({
+    ok: true,
+    queueId,
+    snapshotVersion, // null when no snapshot was created (no-op edit)
+    action: "saved_and_reindex_queued",
+  });
 }

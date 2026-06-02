@@ -18,6 +18,7 @@ import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
+import VersionHistory from "./VersionHistory";
 
 type Props = {
   /** Current rendered content. Parent owns the source of truth. */
@@ -197,6 +198,19 @@ export default function DraftEditor({
         <p className="text-xs mt-2" style={{ color: msg.ok ? "#22C55E" : "#EF4444" }}>
           {msg.text}
         </p>
+      )}
+
+      {/* Phase 27 — collapsible version history. Only meaningful once the
+          document has been persisted (documentId is set). */}
+      {documentId && (
+        <VersionHistory
+          documentId={documentId}
+          onRestored={(restored) => {
+            setDraft(restored);
+            onSaved?.(restored);
+            setMsg({ ok: true, text: "Restored. Your staff will refresh their memory shortly." });
+          }}
+        />
       )}
     </div>
   );

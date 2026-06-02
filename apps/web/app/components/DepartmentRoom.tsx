@@ -10,6 +10,7 @@ import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
 import HandoffPanel from "./HandoffPanel";
 import PackUpsellCard from "./PackUpsellCard";
+import PackActiveBadge from "./PackActiveBadge";
 import DraftEditor from "./DraftEditor";
 import { DEPARTMENT_CATEGORIES, type DeptCategory } from "../lib/departmentCategories";
 
@@ -107,8 +108,31 @@ export default function DepartmentRoom({
   const [creditsRemaining, setCreditsRemaining] = useState<{ image: number; video: number } | null>(null);
   // Conversation thread — keeps the specialist talking to the user across turns
   const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  // Phase 30 — persistent per-department thread id. Mirrors Command Center's
+  // pattern so /api/agent + /api/orchestrate stitch turns server-side and the
+  // Thread Picker can recover the dept-specific conversation later.
+  const [threadId, setThreadId] = useState<string>("");
   const outputRef = useRef<HTMLDivElement>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
+
+  // Per-department thread storage key. Each dept gets its own thread so
+  // switching from Marketing to Sales preserves context per surface.
+  const threadStorageKey = `staffd_dept_thread_id_v1:${department}`;
+
+  // Initialize / rotate the per-dept thread on mount + when department changes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const existing = window.localStorage.getItem(threadStorageKey);
+      if (existing) { setThreadId(existing); return; }
+      const fresh = window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      window.localStorage.setItem(threadStorageKey, fresh);
+      setThreadId(fresh);
+    } catch {
+      setThreadId(`${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [department]);
 
   useEffect(() => {
     void loadAgents();
@@ -305,6 +329,9 @@ export default function DepartmentRoom({
           pbToken,
           templateContent: selectedTemplate?.content ?? undefined,
           clientId: activeClientId ?? undefined,
+          // Phase 30 — per-dept thread id so server-side conversation
+          // persistence + Thread Picker can recover this room's history.
+          threadId: threadId || undefined,
         }),
       });
 
@@ -367,6 +394,16 @@ export default function DepartmentRoom({
     setImageError("");
     setVideoError("");
     setError("");
+    // Phase 30 — rotate the per-dept thread id so the next message starts a
+    // fresh server-side conversation. Old thread stays recoverable via Thread
+    // Picker (drawer in Command Center).
+    if (typeof window !== "undefined") {
+      try {
+        const fresh = window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        window.localStorage.setItem(threadStorageKey, fresh);
+        setThreadId(fresh);
+      } catch { /* silent */ }
+    }
   }
 
   async function saveDocument(prompt: string, content: string, userId: string) {
@@ -880,6 +917,11 @@ export default function DepartmentRoom({
             </a>
           </div>
         </header>
+
+        {/* Phase 28 — when a relevant pack is ACTIVE, surface a quiet
+            "Pack active" affirmation. Silent otherwise. Mutually exclusive
+            with PackUpsellCard below in practice. */}
+        <PackActiveBadge department={department} />
 
         {/* Phase 9 — contextual pack upsell. Silently absent unless the user's
             industry signals a specific pack AND they don't already have it

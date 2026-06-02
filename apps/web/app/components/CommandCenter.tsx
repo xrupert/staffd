@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
 import ThreadPickerDrawer, { type HydratedMessage } from "./ThreadPickerDrawer";
+import CommandCenterSuggestions from "./CommandCenterSuggestions";
 
 interface Message {
   role: "user" | "assistant";
@@ -343,6 +344,12 @@ export default function CommandCenter() {
         onSwitch={switchToThread}
         onNewThread={reset}
       />
+
+      {/* Phase 29 — suggested prompts row. Only rendered before the first
+          message so the chrome stays clean during conversations. */}
+      {messages.length === 0 && phase === "idle" && (
+        <CommandCenterSuggestions onPick={(prompt) => { setInput(prompt); setTimeout(() => void send(prompt), 0); }} />
+      )}
 
       {/* Message thread */}
       {messages.length > 0 && (
