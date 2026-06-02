@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
+import ThreadPickerDrawer, { type HydratedMessage } from "./ThreadPickerDrawer";
 
 interface Message {
   role: "user" | "assistant";
@@ -34,6 +35,21 @@ const DEPT_HREFS: Record<string, string> = {
   reputation: "/dashboard/reputation", ceo: "/dashboard/ceo",
 };
 
+const THREAD_STORAGE_KEY = "staffd_command_center_thread_id_v1";
+
+function loadOrCreateThreadId(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const existing = window.localStorage.getItem(THREAD_STORAGE_KEY);
+    if (existing) return existing;
+    const fresh = (window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    window.localStorage.setItem(THREAD_STORAGE_KEY, fresh);
+    return fresh;
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+}
+
 export default function CommandCenter() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -41,8 +57,49 @@ export default function CommandCenter() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [outputBuffer, setOutputBuffer] = useState("");
   const [lastLockedAlt, setLastLockedAlt] = useState<string | null>(null);
+  // Phase 4 — small agent-credit badge in the header.
+  const [agentCredits, setAgentCredits] = useState<number | null>(null);
+  // Phase 9 — persistent conversation thread. Survives reloads via localStorage
+  // so /api/agent + /api/orchestrate can stitch turns together server-side.
+  const [threadId, setThreadId] = useState<string>("");
+  // Phase 25 — thread picker drawer.
+  const [threadPickerOpen, setThreadPickerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setThreadId(loadOrCreateThreadId());
+  }, []);
+
+  // Phase 25 — switch to an existing thread (hydrates message history).
+  function switchToThread(newThreadId: string, hydrated: HydratedMessage[]) {
+    setThreadId(newThreadId);
+    if (typeof window !== "undefined") {
+      try { window.localStorage.setItem(THREAD_STORAGE_KEY, newThreadId); } catch { /* silent */ }
+    }
+    setMessages(hydrated.map((m) => ({ role: m.role, content: m.content })));
+    setPendingAction(null);
+    setOutputBuffer("");
+    setLastLockedAlt(null);
+    setPhase("idle");
+    setInput("");
+    setTimeout(() => inputRef.current?.focus(), 50);
+  }
+
+  // Load agent credit balance on mount + after every generation completes
+  // (phase transitions to "done"), so the badge stays in sync with usage.
+  useEffect(() => {
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId) return;
+    void fetch(`/api/credits?userId=${encodeURIComponent(userId)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data && typeof data.agentCreditsTopup === "number") {
+          setAgentCredits(data.agentCreditsTopup);
+        }
+      })
+      .catch(() => {});
+  }, [phase]);
 
   function scrollToBottom() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -148,7 +205,15 @@ export default function CommandCenter() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ task, department, userId, pbToken, clientId: activeClientId ?? undefined }),
+        body: JSON.stringify({
+          task,
+          department,
+          userId,
+          pbToken,
+          clientId: activeClientId ?? undefined,
+          // Phase 9 — threadId persists conversation turns across reloads.
+          threadId: threadId || undefined,
+        }),
       });
       if (!res.ok) throw new Error("Agent failed");
 
@@ -189,6 +254,16 @@ export default function CommandCenter() {
     setPendingAction(null);
     setOutputBuffer("");
     setLastLockedAlt(null);
+    // Phase 9 — rotate the threadId on reset so the next chat is a fresh
+    // conversation. Server-side `conversations` rows stay intact under the
+    // old threadId for future thread-picker UX.
+    if (typeof window !== "undefined") {
+      try {
+        const fresh = (window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+        window.localStorage.setItem(THREAD_STORAGE_KEY, fresh);
+        setThreadId(fresh);
+      } catch { /* silent */ }
+    }
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
@@ -221,16 +296,53 @@ export default function CommandCenter() {
             <p className="text-xs" style={{ color: "#5A5A70" }}>Tell me what you need — I'll route it to the right specialist</p>
           </div>
         </div>
-        {messages.length > 0 && (
+        <div className="flex items-center gap-3">
+          {/* Phase 25 — thread picker entry point. Always visible so users
+              know past conversations are recoverable. */}
           <button
-            onClick={reset}
+            onClick={() => setThreadPickerOpen(true)}
             className="text-xs transition-colors hover:text-white"
-            style={{ color: "#3A3A55" }}
+            style={{ color: "#A07BFF" }}
+            title="Switch, rename, or archive past threads"
           >
-            Clear
+            Threads
           </button>
-        )}
+          {/* Phase 4 — agent credits badge. Only shown when user actually has
+              a topup balance; absent state stays clean. */}
+          {agentCredits !== null && agentCredits > 0 && (
+            <span
+              className="text-xs px-2 py-1 rounded-md"
+              style={{
+                background: "rgba(91,33,232,0.1)",
+                color: "#A07BFF",
+                border: "1px solid rgba(91,33,232,0.25)",
+                fontWeight: 600,
+              }}
+              title="Agent credits remaining"
+            >
+              {agentCredits.toLocaleString()} credits
+            </span>
+          )}
+          {messages.length > 0 && (
+            <button
+              onClick={reset}
+              className="text-xs transition-colors hover:text-white"
+              style={{ color: "#3A3A55" }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Phase 25 — thread picker drawer. Renders nothing when closed. */}
+      <ThreadPickerDrawer
+        open={threadPickerOpen}
+        onClose={() => setThreadPickerOpen(false)}
+        currentThreadId={threadId}
+        onSwitch={switchToThread}
+        onNewThread={reset}
+      />
 
       {/* Message thread */}
       {messages.length > 0 && (

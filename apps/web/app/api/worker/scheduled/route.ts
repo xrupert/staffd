@@ -9,22 +9,13 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { getAgent } from "@staffd/agents";
+import { getAgent, getDepartmentDefaultAgent } from "@staffd/agents";
+import { computeRetrievalP95 } from "../../_lib/vault";
+import { enqueue } from "../../_lib/vault/queue";
+import { recomputeActiveUserVoiceProfiles } from "../../_lib/vault/voice";
+import { pickModel, callGroq, computeCostUsd } from "../../_lib/llm-router";
 
 const anthropic = new Anthropic();
-
-const DEPT_SYSTEM_PROMPTS: Record<string, string> = {
-  marketing:  "You are The Marketer — STAFFD's marketing specialist. Produce sharp, specific marketing work. Deliver immediately, no preamble.",
-  sales:      "You are The Closer — STAFFD's sales specialist. Write outreach, follow-ups, and sales copy that converts. Deliver immediately.",
-  legal:      "You are The Counsel — STAFFD's legal drafting specialist. Draft documents in plain, professional language. Deliver immediately.",
-  hr:         "You are The People Lead — STAFFD's HR specialist. Handle hiring, onboarding, and team communications. Deliver immediately.",
-  finance:    "You are The CFO — STAFFD's finance specialist. Produce financial documents and communications. Deliver immediately.",
-  operations: "You are The Operator — STAFFD's operations specialist. Create SOPs, workflows, and process documentation. Deliver immediately.",
-  ceo:        "You are The CEO — STAFFD's strategic advisor. Give direct, opinionated strategic advice with clear next steps. Deliver immediately.",
-  "paid-media": "You are The Media Buyer — STAFFD's paid media specialist. Create ad strategy and campaign briefs. Deliver immediately.",
-  design:     "You are The Creative Director — STAFFD's design specialist. Provide design direction, briefs, and creative strategy. Deliver immediately.",
-  reputation: "You are The Reputation Manager — STAFFD's reputation specialist. Handle support replies, review responses, community engagement and feedback analysis. Deliver immediately.",
-};
 
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
@@ -41,9 +32,10 @@ async function getAdminToken(pbUrl: string): Promise<string> {
 }
 
 async function generateContent(task: string, department: string, agentId: string | null, vault: Record<string, unknown> | null): Promise<string> {
-  let systemPrompt = agentId
-    ? (getAgent(agentId)?.systemPrompt ?? DEPT_SYSTEM_PROMPTS[department] ?? "")
-    : (DEPT_SYSTEM_PROMPTS[department] ?? "");
+  // Single source of truth: packages/agents. Caller-supplied agent wins,
+  // otherwise fall back to the department's canonical default.
+  const resolvedAgent = (agentId ? getAgent(agentId) : null) ?? getDepartmentDefaultAgent(department);
+  let systemPrompt = resolvedAgent?.systemPrompt ?? "";
 
   if (vault) {
     const lines: string[] = [];
@@ -56,12 +48,30 @@ async function generateContent(task: string, department: string, agentId: string
     }
   }
 
+  // Phase 3 — same routing logic as /api/agent. Scheduled content tends to
+  // be social posts / captions / short replies, so short-form routing fires
+  // often here and the wedge is meaningful at cron volume.
+  const choice = pickModel({ department, agentId: agentId ?? undefined, task });
+  console.log(`[worker] model_choice provider=${choice.provider} model=${choice.model} dept=${department} reason="${choice.reason}"`);
+
+  if (choice.provider === "groq") {
+    const result = await callGroq(choice.model, systemPrompt, task, 8192);
+    const cost = computeCostUsd(choice.model, result.tokensIn, result.tokensOut);
+    console.log(`[worker] groq_cost model=${choice.model} in=${result.tokensIn} out=${result.tokensOut} cost_usd=${cost.toFixed(6)}`);
+    return result.text;
+  }
+
   const msg = await anthropic.messages.create({
-    model: "claude-sonnet-4-6",
+    model: choice.model,
     max_tokens: 8192,
     system: systemPrompt,
     messages: [{ role: "user", content: task }],
   });
+
+  const tokensIn = msg.usage?.input_tokens ?? 0;
+  const tokensOut = msg.usage?.output_tokens ?? 0;
+  const cost = computeCostUsd(choice.model, tokensIn, tokensOut);
+  console.log(`[worker] anthropic_cost model=${choice.model} in=${tokensIn} out=${tokensOut} cost_usd=${cost.toFixed(6)}`);
 
   const block = msg.content[0];
   return block?.type === "text" ? block.text : "";
@@ -140,7 +150,7 @@ export async function GET(req: Request) {
         if (!output.trim()) throw new Error("Empty output");
 
         // Save to documents collection
-        await fetch(`${pbUrl}/api/collections/documents/records`, {
+        const saveRes = await fetch(`${pbUrl}/api/collections/documents/records`, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -151,6 +161,17 @@ export async function GET(req: Request) {
             output,
           }),
         });
+
+        // V4b — enqueue for Vault ingestion. Fire-and-forget; failure here
+        // doesn't fail the scheduled job (backfill script will catch it).
+        if (saveRes.ok) {
+          try {
+            const created = (await saveRes.json()) as { id?: string };
+            if (created.id) void enqueue("document", created.id);
+          } catch {
+            /* parse failure is harmless — backfill picks it up */
+          }
+        }
 
         // Mark scheduled item as completed
         await fetch(`${pbUrl}/api/collections/scheduled_content/records/${item.id}`, {
@@ -176,7 +197,41 @@ export async function GET(req: Request) {
     const failed = results.filter((r) => r.status === "failed").length;
 
     console.log(`Worker: ${completed} completed, ${failed} failed`);
-    return Response.json({ ok: true, processed: items.length, completed, failed, results });
+
+    // V2 — daily p95 rollup of Vault retrieval latency. Logged so admin can
+    // surface hot-spots; we don't persist the rollup itself (the raw rows in
+    // `vault_retrieval_metrics` are the source of truth).
+    let retrievalP95: Awaited<ReturnType<typeof computeRetrievalP95>> | null = null;
+    try {
+      retrievalP95 = await computeRetrievalP95(1);
+      console.log(
+        `Worker: vault retrieval p95 — global ${retrievalP95.globalP95Ms} ms across ${retrievalP95.samples} samples, ${Object.keys(retrievalP95.byUser).length} active users`
+      );
+    } catch (err) {
+      console.warn("Worker: p95 rollup failed", err);
+    }
+
+    // Phase 2 / B3 cadence — nightly recompute of brand-voice profiles for
+    // any user who has produced a doc in the last 7 days.
+    let voiceProfileTally: Awaited<ReturnType<typeof recomputeActiveUserVoiceProfiles>> | null = null;
+    try {
+      voiceProfileTally = await recomputeActiveUserVoiceProfiles(7);
+      console.log(
+        `Worker: voice profile rollup — scanned=${voiceProfileTally.scanned} ok=${voiceProfileTally.ok} skipped=${voiceProfileTally.skipped} failed=${voiceProfileTally.failed}`
+      );
+    } catch (err) {
+      console.warn("Worker: voice profile rollup failed", err);
+    }
+
+    return Response.json({
+      ok: true,
+      processed: items.length,
+      completed,
+      failed,
+      results,
+      retrievalP95,
+      voiceProfileTally,
+    });
   } catch (err) {
     console.error("Worker error:", err);
     return Response.json({ error: "Worker failed", detail: String(err) }, { status: 500 });

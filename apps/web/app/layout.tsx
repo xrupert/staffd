@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
+import RegisterServiceWorker from "./components/RegisterServiceWorker";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -20,6 +21,18 @@ export const metadata: Metadata = {
     description: "Staff your business. 83 specialists. 10 departments. On call the moment you hire them.",
     siteName: "STAFFD",
   },
+  // Phase 7 — PWA manifest + iOS install hints. Apple ignores the manifest
+  // and uses these meta tags instead for "Add to Home Screen".
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "STAFFD",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#5B21E8",
 };
 
 export default function RootLayout({
@@ -43,6 +56,7 @@ export default function RootLayout({
         )}
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <RegisterServiceWorker />
         {children}
       </body>
     </html>

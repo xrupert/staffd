@@ -5,6 +5,11 @@ import { useEffect, useState } from "react";
 import pb from "../../../lib/pb";
 import SchedulingSettings from "../../components/SchedulingSettings";
 import ConnectedAccounts from "../../components/ConnectedAccounts";
+import VoiceProfilePanel from "../../components/VoiceProfilePanel";
+import PushNotificationsToggle from "../../components/PushNotificationsToggle";
+import IndustryPacksPanel from "../../components/IndustryPacksPanel";
+import AutopilotControlsPanel from "../../components/AutopilotControlsPanel";
+import BriefPreferencesPanel from "../../components/BriefPreferencesPanel";
 
 export default function SettingsPage() {
   const [name, setName] = useState("");
@@ -179,6 +184,21 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        {/* Autopilot controls (Phase 9) */}
+        <AutopilotControlsPanel />
+
+        {/* Morning Brief delivery preferences (Phase 26) */}
+        <BriefPreferencesPanel />
+
+        {/* Voice profile (Phase 2) */}
+        <VoiceProfilePanel />
+
+        {/* Push notifications (Phase 7) */}
+        <PushNotificationsToggle />
+
+        {/* Industry packs (Phase 8) */}
+        <IndustryPacksPanel />
 
         {/* Scheduling section */}
         <SchedulingSettings />

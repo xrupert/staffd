@@ -93,10 +93,27 @@ export async function GET(req: Request) {
       departments: Array.from(s.departments),
     }));
 
+    // V4a — dead-letter visibility for the ingestion queue.
+    let vaultQueue = { dead: 0, failed: 0, pending: 0 };
+    try {
+      const [deadRes, failedRes, pendingRes] = await Promise.all([
+        fetch(`${pbUrl}/api/collections/vault_ingest_queue/records?filter=${encodeURIComponent("status='dead'")}&perPage=1&fields=id`, { headers }),
+        fetch(`${pbUrl}/api/collections/vault_ingest_queue/records?filter=${encodeURIComponent("status='failed'")}&perPage=1&fields=id`, { headers }),
+        fetch(`${pbUrl}/api/collections/vault_ingest_queue/records?filter=${encodeURIComponent("status='pending'")}&perPage=1&fields=id`, { headers }),
+      ]);
+      const dead = deadRes.ok ? ((await deadRes.json()) as { totalItems?: number }).totalItems ?? 0 : 0;
+      const failed = failedRes.ok ? ((await failedRes.json()) as { totalItems?: number }).totalItems ?? 0 : 0;
+      const pending = pendingRes.ok ? ((await pendingRes.json()) as { totalItems?: number }).totalItems ?? 0 : 0;
+      vaultQueue = { dead, failed, pending };
+    } catch {
+      /* Collection may not exist yet pre-V4a setup — render zeros. */
+    }
+
     return Response.json({
       businesses,
       docStats,
       totalDocs: docs.length,
+      vaultQueue,
     });
   } catch (err) {
     console.error("Admin data error:", err);

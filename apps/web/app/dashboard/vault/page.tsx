@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import pb from "../../../lib/pb";
+import VaultInsightsPanel from "../../components/VaultInsightsPanel";
 
 const FOCUS_LABELS: Record<string, string> = {
   growth: "🚀 Top-Line Growth",
@@ -170,7 +171,10 @@ export default function VaultPage() {
           </div>
         </div>
 
-        <form onSubmit={(e) => void handleSave(e)}>
+        {/* Phase 5 — real-world outcomes feeding back into the Vault */}
+        <VaultInsightsPanel />
+
+        <form onSubmit={(e) => void handleSave(e)} className="mt-6">
 
           {/* Business info */}
           <div className="rounded-2xl p-7 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>

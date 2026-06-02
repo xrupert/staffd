@@ -2,10 +2,9 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
 import { exportToDocx } from "./DocExport";
+import DraftEditor from "./DraftEditor";
 
 export interface QuickAction {
   label: string;
@@ -51,6 +50,8 @@ export default function AgentPage({
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  // Phase 24 — track the saved doc id so DraftEditor can persist edits.
+  const [savedDocId, setSavedDocId] = useState<string | null>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,6 +97,9 @@ export default function AgentPage({
     setOutput("");
     setError("");
     setLoading(true);
+    // Phase 24 — a fresh run starts a new doc; clear the prior savedDocId so
+    // Save targets the new artifact, not the previous one.
+    setSavedDocId(null);
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -136,13 +140,23 @@ export default function AgentPage({
 
   async function saveDocument(prompt: string, output: string, userId: string) {
     try {
-      await pb.collection("documents").create({
+      const rec = await pb.collection("documents").create({
         user: userId,
         department,
         agent_name: agentName,
         prompt,
         output,
       });
+      // Phase 24 — surface the doc id so DraftEditor's Save targets it.
+      setSavedDocId(rec.id);
+      // V4b — fire-and-forget enqueue for Vault ingestion. Worker picks
+      // this up on the next minute's cron tick. Failure here is harmless;
+      // the backfill script will catch any misses.
+      void fetch("/api/vault/enqueue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId: rec.id, kind: "document", pbToken: pb.authStore.token }),
+      }).catch(() => {});
     } catch { /* documents collection may not be set up yet — silently skip */ }
   }
 
@@ -365,9 +379,19 @@ export default function AgentPage({
                   <span className="inline-block w-0.5 h-4 ml-0.5 animate-pulse" style={{ background: "#5B21E8", verticalAlign: "middle" }} />
                 </div>
               ) : (
-                <div className="agent-output">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
-                </div>
+                /* Phase 24 — Live Draft Editing in the agent-specific page. */
+                <DraftEditor
+                  content={output}
+                  documentId={savedDocId}
+                  onSaved={(saved) => setOutput(saved)}
+                  onRegenerate={(editedContent) => {
+                    const lastTask = task || "this draft";
+                    const followUp =
+                      `The user reviewed and edited your previous draft. Their edited version is below — keep what they kept, sharpen where you can, but stay true to their direction. Return only the improved final draft.\n\nORIGINAL TASK: ${lastTask}\n\nUSER-EDITED DRAFT:\n${editedContent}`;
+                    void run(followUp);
+                  }}
+                  regenerateDisabled={loading}
+                />
               )}
             </div>
           </div>

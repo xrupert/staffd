@@ -11,6 +11,7 @@
  */
 
 import Stripe from "stripe";
+import { addAgentTopupCredits } from "../../_lib/credits";
 
 // Returns 200 for all events even on processing errors —
 // otherwise Stripe will retry and we may double-process.
@@ -149,6 +150,129 @@ async function addDeptAddonForUser(
   });
 }
 
+/** Phase 8 — add an industry pack to the user's record. */
+async function addPackAddonForUser(
+  pbUrl: string,
+  adminToken: string,
+  userId: string,
+  packId: string,
+  stripeSubId: string
+) {
+  const headers = { Authorization: adminToken, "Content-Type": "application/json" };
+  const res = await fetch(
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    { headers: { Authorization: adminToken } }
+  );
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      industry_packs?: string[];
+      pack_addon_subs?: Record<string, string>;
+    }>;
+  };
+  const existing = data.items?.[0];
+  if (!existing?.id) return;
+
+  const currentPacks = Array.isArray(existing.industry_packs) ? existing.industry_packs : [];
+  const newPacks = currentPacks.includes(packId) ? currentPacks : [...currentPacks, packId];
+  const newAddonMap = { ...(existing.pack_addon_subs ?? {}), [packId]: stripeSubId };
+
+  await fetch(`${pbUrl}/api/collections/subscriptions/records/${existing.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      industry_packs: newPacks,
+      pack_addon_subs: newAddonMap,
+    }),
+  });
+}
+
+/** Phase 8 — remove an industry pack when its Stripe subscription is cancelled. */
+async function removePackAddonByStripeSubId(
+  pbUrl: string,
+  adminToken: string,
+  stripeCustomerId: string,
+  stripeSubId: string
+) {
+  const headers = { Authorization: adminToken, "Content-Type": "application/json" };
+  const res = await fetch(
+    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${stripeCustomerId}')&perPage=1`,
+    { headers: { Authorization: adminToken } }
+  );
+  const data = (await res.json()) as {
+    items?: Array<{
+      id: string;
+      industry_packs?: string[];
+      pack_addon_subs?: Record<string, string>;
+    }>;
+  };
+  const existing = data.items?.[0];
+  if (!existing?.id) return;
+
+  const addonMap = existing.pack_addon_subs ?? {};
+  const packToRemove = Object.entries(addonMap).find(([, id]) => id === stripeSubId)?.[0];
+  if (!packToRemove) return;
+
+  const newPacks = (existing.industry_packs ?? []).filter((p) => p !== packToRemove);
+  const newAddonMap = { ...addonMap };
+  delete newAddonMap[packToRemove];
+
+  await fetch(`${pbUrl}/api/collections/subscriptions/records/${existing.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({
+      industry_packs: newPacks,
+      pack_addon_subs: newAddonMap,
+    }),
+  });
+}
+
+/** Set / clear the CEO add-on subscription id on the user's record (Phase 4). */
+async function setCeoAddonForUser(
+  pbUrl: string,
+  adminToken: string,
+  userId: string,
+  stripeSubId: string | null
+) {
+  const headers = { Authorization: adminToken, "Content-Type": "application/json" };
+  const res = await fetch(
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    { headers: { Authorization: adminToken } }
+  );
+  const data = (await res.json()) as { items?: Array<{ id: string }> };
+  const existing = data.items?.[0];
+  if (!existing?.id) return;
+  await fetch(`${pbUrl}/api/collections/subscriptions/records/${existing.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ ceo_addon_sub: stripeSubId ?? "" }),
+  });
+}
+
+/** Clear the CEO add-on by Stripe sub id when the subscription is cancelled. */
+async function clearCeoAddonByStripeSubId(
+  pbUrl: string,
+  adminToken: string,
+  stripeCustomerId: string,
+  stripeSubId: string
+) {
+  const headers = { Authorization: adminToken, "Content-Type": "application/json" };
+  const res = await fetch(
+    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${stripeCustomerId}')&perPage=1`,
+    { headers: { Authorization: adminToken } }
+  );
+  const data = (await res.json()) as { items?: Array<{ id: string; ceo_addon_sub?: string }> };
+  const existing = data.items?.[0];
+  if (!existing?.id) return;
+  // Only clear if the cancelled sub matches what we recorded.
+  if (existing.ceo_addon_sub && existing.ceo_addon_sub !== stripeSubId) return;
+  await fetch(`${pbUrl}/api/collections/subscriptions/records/${existing.id}`, {
+    method: "PATCH",
+    headers,
+    body: JSON.stringify({ ceo_addon_sub: "" }),
+  });
+}
+
 /** Remove a department from the user's unlocked list when its add-on sub is cancelled. */
 async function removeDeptAddonByStripeSubId(
   pbUrl: string,
@@ -218,7 +342,6 @@ export async function POST(req: Request) {
 
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        if (session.mode !== "subscription") break;
 
         const userId = session.metadata?.staffd_user_id;
         const customerId = typeof session.customer === "string" ? session.customer : null;
@@ -226,12 +349,41 @@ export async function POST(req: Request) {
         const addonType  = session.metadata?.staffd_addon_type;
         const addonDept  = session.metadata?.staffd_addon_dept;
         const plan       = session.metadata?.staffd_plan;
+        const topupPack    = session.metadata?.staffd_topup_pack;
+        const topupCredits = Number.parseInt(session.metadata?.staffd_topup_credits ?? "0", 10);
 
-        if (!userId || !customerId) break;
+        if (!userId) break;
 
-        // Add-on checkout — unlock a department, track the sub_id, don't touch the plan
+        // Phase 4 — one-time credit top-up. mode === "payment" path.
+        if (session.mode === "payment" && topupPack && topupCredits > 0) {
+          await addAgentTopupCredits(pbUrl, userId, topupCredits);
+          console.log(`[stripe.webhook] topup credited user=${userId} pack=${topupPack} credits=${topupCredits}`);
+          break;
+        }
+
+        if (session.mode !== "subscription") break;
+        if (!customerId) break;
+
+        // Department add-on — unlock the dept, track sub_id, don't touch plan.
         if (addonType === "department" && addonDept && subId) {
           await addDeptAddonForUser(pbUrl, adminToken, userId, addonDept, subId);
+          break;
+        }
+
+        // Phase 4 — CEO add-on. Don't touch plan; set ceo_addon_sub instead.
+        if (addonType === "ceo" && subId) {
+          await setCeoAddonForUser(pbUrl, adminToken, userId, subId);
+          console.log(`[stripe.webhook] ceo addon activated user=${userId} sub=${subId}`);
+          break;
+        }
+
+        // Phase 8 — industry pack. Append pack id + sub mapping; plan untouched.
+        if (addonType === "industry_pack" && subId) {
+          const packId = session.metadata?.staffd_pack_id;
+          if (packId) {
+            await addPackAddonForUser(pbUrl, adminToken, userId, packId, subId);
+            console.log(`[stripe.webhook] industry pack activated user=${userId} pack=${packId} sub=${subId}`);
+          }
           break;
         }
 
@@ -252,6 +404,8 @@ export async function POST(req: Request) {
 
         // Skip — add-on subs don't change the plan
         if (sub.metadata?.staffd_addon_type === "department") break;
+        if (sub.metadata?.staffd_addon_type === "ceo") break;
+        if (sub.metadata?.staffd_addon_type === "industry_pack") break;
 
         const priceId = sub.items.data[0]?.price.id ?? "";
         const plan    = getPlanFromPriceId(priceId);
@@ -277,6 +431,20 @@ export async function POST(req: Request) {
         // Add-on cancellation — just remove the department, don't touch the plan
         if (sub.metadata?.staffd_addon_type === "department") {
           await removeDeptAddonByStripeSubId(pbUrl, adminToken, customerId, sub.id);
+          break;
+        }
+
+        // Phase 4 — CEO add-on cancellation. Clear ceo_addon_sub; plan untouched.
+        if (sub.metadata?.staffd_addon_type === "ceo") {
+          await clearCeoAddonByStripeSubId(pbUrl, adminToken, customerId, sub.id);
+          console.log(`[stripe.webhook] ceo addon cancelled customer=${customerId} sub=${sub.id}`);
+          break;
+        }
+
+        // Phase 8 — industry pack cancellation. Remove pack id + clear mapping.
+        if (sub.metadata?.staffd_addon_type === "industry_pack") {
+          await removePackAddonByStripeSubId(pbUrl, adminToken, customerId, sub.id);
+          console.log(`[stripe.webhook] industry pack cancelled customer=${customerId} sub=${sub.id}`);
           break;
         }
 

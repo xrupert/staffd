@@ -7,6 +7,11 @@ import CommandCenter from "../components/CommandCenter";
 import DepartmentPicker from "../components/DepartmentPicker";
 import AddDeptModal from "../components/AddDeptModal";
 import ClientSwitcher from "../components/ClientSwitcher";
+import CreditsWidget from "../components/CreditsWidget";
+import LowCreditsBanner from "../components/LowCreditsBanner";
+import TopupModal from "../components/TopupModal";
+import MorningBriefCard from "../components/MorningBriefCard";
+import InstallPWAModal from "../components/InstallPWAModal";
 
 const DEPARTMENTS = [
   { name: "Marketing", icon: "📣", tagline: "Content, campaigns & social", href: "/dashboard/marketing" },
@@ -40,6 +45,7 @@ export default function DashboardPage() {
   const [bookingSlug, setBookingSlug] = useState<string | null>(null);
   const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
   const [upcomingBookings, setUpcomingBookings] = useState<Array<{ id: string; attendee_name: string; start_time: string; duration: number }>>([]);
+  const [topupOpen, setTopupOpen] = useState(false);
 
   useEffect(() => {
     if (!pb.authStore.isValid) {
@@ -414,8 +420,25 @@ export default function DashboardPage() {
           </a>
         )}
 
+        {/* Phase 4 — low-credits warning + topup launcher */}
+        <LowCreditsBanner onTopUp={() => setTopupOpen(true)} />
+        <TopupModal open={topupOpen} onClose={() => setTopupOpen(false)} />
+
+        {/* Phase 6 — Morning Brief: the autonomous "what your staff did
+            overnight" surface. Renders nothing when there's no brief yet. */}
+        <MorningBriefCard />
+
+        {/* Phase 7 — PWA install prompt. Only renders when the browser
+            fires beforeinstallprompt; dismissible per session. */}
+        <InstallPWAModal />
+
         {/* Command Center chat */}
         <CommandCenter />
+
+        {/* Phase 4 — credit balance card */}
+        <div className="mb-8">
+          <CreditsWidget />
+        </div>
 
         {/* Utility row: Vault + CEO */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">

@@ -8,6 +8,9 @@ import pb from "../../lib/pb";
 import { exportToDocx } from "./DocExport";
 import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
+import HandoffPanel from "./HandoffPanel";
+import PackUpsellCard from "./PackUpsellCard";
+import DraftEditor from "./DraftEditor";
 import { DEPARTMENT_CATEGORIES, type DeptCategory } from "../lib/departmentCategories";
 
 // Departments that are always unlocked (starter pack)
@@ -381,6 +384,14 @@ export default function DepartmentRoom({
       });
       setSavedDocId(rec.id);
       setSavedAt(new Date());
+      // V4b — fire-and-forget enqueue for Vault ingestion. The worker
+      // summarizes + embeds on the next minute's cron tick. Failure here
+      // is harmless; the backfill script catches any misses.
+      void fetch("/api/vault/enqueue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId: rec.id, kind: "document", pbToken: pb.authStore.token }),
+      }).catch(() => {});
     } catch { /* proceed */ }
   }
 
@@ -459,6 +470,17 @@ export default function DepartmentRoom({
     await navigator.clipboard.writeText(url);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2500);
+    // V6 — record the "shared" pattern signal. Fire-and-forget; bumps the
+    // doc's retrieval weight so future LIVING MEMORY surfaces it earlier.
+    void fetch("/api/vault/patterns", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        documentId: savedDocId,
+        signal: "shared",
+        pbToken: pb.authStore.token,
+      }),
+    }).catch(() => {});
   }
 
   function selectAgent(agent: AgentMeta) {
@@ -858,6 +880,11 @@ export default function DepartmentRoom({
             </a>
           </div>
         </header>
+
+        {/* Phase 9 — contextual pack upsell. Silently absent unless the user's
+            industry signals a specific pack AND they don't already have it
+            active AND that pack has a specialist for this department. */}
+        <PackUpsellCard department={department} />
 
         {/* Resume banner — pick up where you left off */}
         {resumeBanner && !output && conversation.length === 0 && (
@@ -1486,9 +1513,23 @@ export default function DepartmentRoom({
                   />
                 </div>
               ) : (
-                <div className="agent-output">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
-                </div>
+                /* Phase 24 — Live Draft Editing. The editor renders the
+                   Markdown by default and toggles into a textarea for edits.
+                   Save persists via /api/documents/[id]/save-edit + force
+                   re-index. Regenerate constructs a "build on my edits"
+                   prompt and routes back through the existing run() pipeline. */
+                <DraftEditor
+                  content={output}
+                  documentId={savedDocId}
+                  onSaved={(saved) => setOutput(saved)}
+                  onRegenerate={(editedContent) => {
+                    const lastTask = task || "this draft";
+                    const followUp =
+                      `The user reviewed and edited your previous draft. Their edited version is below — keep what they kept, sharpen where you can, but stay true to their direction. Return only the improved final draft.\n\nORIGINAL TASK: ${lastTask}\n\nUSER-EDITED DRAFT:\n${editedContent}`;
+                    void run(followUp);
+                  }}
+                  regenerateDisabled={loading}
+                />
               )}
 
               {/* Generated image — appears below output for Design department */}
@@ -1692,6 +1733,19 @@ export default function DepartmentRoom({
               </div>
               <button onClick={() => setShowHandoff(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px" }}>×</button>
             </div>
+            {/* Phase 9 — AI-suggested handoffs via /api/handoff/suggest, above
+                the manual grid. Silently hides if the orchestrator has nothing
+                to recommend. */}
+            {savedDocId && (
+              <div className="px-5 pt-5">
+                <HandoffPanel
+                  documentId={savedDocId}
+                  sourceDepartment={department}
+                  sourceText={output}
+                />
+              </div>
+            )}
+
             <div className="p-5 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               {[
                 { id: "marketing",  icon: "📣", label: "Marketing" },

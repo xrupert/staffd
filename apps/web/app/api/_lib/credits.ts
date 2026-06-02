@@ -30,7 +30,9 @@ interface SubscriptionRecord {
   video_credits_used?: number;
   image_credits_topup?: number;
   video_credits_topup?: number;
-  credits_reset_at?: string; // ISO date — first day of current credit month
+  agent_credits_topup?: number;  // Phase 4 — generic credits purchased via top-up SKUs
+  ceo_addon_sub?: string;         // Phase 4 — set when CEO add-on subscription is active
+  credits_reset_at?: string;      // ISO date — first day of current credit month
 }
 
 interface CreditState {
@@ -40,6 +42,9 @@ interface CreditState {
   topupBalance: { image: number; video: number };
   monthlyRemaining: { image: number; video: number };
   totalRemaining: { image: number; video: number };
+  // Phase 4 surface
+  agentCreditsTopup: number;
+  ceoAddonActive: boolean;
 }
 
 function currentMonthIso(): string {
@@ -136,6 +141,8 @@ export async function getCreditState(
       topupBalance: { image: 0, video: 0 },
       monthlyRemaining: { ...monthlyAllowance },
       totalRemaining: { ...monthlyAllowance },
+      agentCreditsTopup: 0,
+      ceoAddonActive: false,
     };
   }
 
@@ -166,6 +173,8 @@ export async function getCreditState(
     topupBalance,
     monthlyRemaining,
     totalRemaining,
+    agentCreditsTopup: sub.agent_credits_topup ?? 0,
+    ceoAddonActive: !!sub.ceo_addon_sub,
   };
 }
 
@@ -261,4 +270,71 @@ export async function addTopupCredits(
     body: JSON.stringify(patch),
   });
   return res.ok;
+}
+
+/**
+ * Phase 4 — add generic agent credits to a user's balance after a top-up
+ * one-time payment succeeds. Same fail-safe shape as addTopupCredits;
+ * creates the subscription record if missing so a user who buys credits
+ * before settling a plan still gets credited.
+ */
+export async function addAgentTopupCredits(
+  pbUrl: string,
+  userId: string,
+  amount: number
+): Promise<boolean> {
+  if (amount <= 0) return true;
+  const adminToken = await getAdminToken(pbUrl);
+  let sub = await fetchSubscription(pbUrl, adminToken, userId);
+
+  if (!sub) {
+    const createRes = await fetch(`${pbUrl}/api/collections/subscriptions/records`, {
+      method: "POST",
+      headers: { Authorization: adminToken, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user: userId,
+        plan: "starter",
+        agent_credits_topup: amount,
+        credits_reset_at: currentMonthIso(),
+      }),
+    });
+    return createRes.ok;
+  }
+
+  const current = sub.agent_credits_topup ?? 0;
+  const res = await fetch(`${pbUrl}/api/collections/subscriptions/records/${sub.id}`, {
+    method: "PATCH",
+    headers: { Authorization: adminToken, "Content-Type": "application/json" },
+    body: JSON.stringify({ agent_credits_topup: current + amount }),
+  });
+  return res.ok;
+}
+
+/**
+ * Phase 4 — fire-and-forget decrement of an agent credit. Returns the new
+ * balance (or 0 if no credits present). NEVER blocks the agent call — the
+ * X2 daily rate limit is the hard gate. Phase 5 will introduce real plan
+ * allowances + hard-gate behaviour; for now this is a soft consumption
+ * counter that the dashboard widget reads.
+ */
+export async function spendAgentCredit(
+  pbUrl: string,
+  userId: string
+): Promise<number> {
+  try {
+    const adminToken = await getAdminToken(pbUrl);
+    const sub = await fetchSubscription(pbUrl, adminToken, userId);
+    if (!sub) return 0;
+    const current = sub.agent_credits_topup ?? 0;
+    if (current <= 0) return 0;
+    const next = current - 1;
+    await fetch(`${pbUrl}/api/collections/subscriptions/records/${sub.id}`, {
+      method: "PATCH",
+      headers: { Authorization: adminToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ agent_credits_topup: next }),
+    });
+    return next;
+  } catch {
+    return 0;
+  }
 }
