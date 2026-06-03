@@ -21,6 +21,30 @@ export type IndustryPack =
   | "agencies"
   | "consultants";
 
+/**
+ * Per Decision 23 — Capability-first architecture. The foundation for any
+ * agent-side feature: routes / handlers check `agent.capabilities?.includes(...)`
+ * before injecting capability-specific context blocks. Capability declarations
+ * land on specific agents in downstream PRs (Bundle 5 = OCR/vision; Bundle 9
+ * V2 = reads_*; Bundle 7 deferred = voice/transcript/scheduling/urgency).
+ *
+ * Per Standard #7 (Audit-Before-Extend) — new capability values beyond this
+ * enum require explicit Senior Architect approval.
+ */
+export type AgentCapability =
+  | "ocr"                    // Image/PDF text extraction via Claude Vision
+  | "vision"                 // Image content analysis
+  | "structured_extraction"  // Schema-aware data extraction
+  | "transcript_handling"    // Audio transcript processing (Bundle 7 future)
+  | "voice"                  // Voice synthesis/recognition (Bundle 7 future)
+  | "scheduling"             // Calendar event creation (Bundle 7 future)
+  | "urgency_classification" // Priority assessment
+  | "reads_crm"              // Twenty CRM READ access (Bundle 9 V2)
+  | "reads_email_campaigns"  // Listmonk READ access (Bundle 9 V2)
+  | "reads_support_history"  // Chatwoot READ access (Bundle 9 V2)
+  | "reads_signatures"       // Docuseal READ access (Bundle 9 V2)
+  | "reads_analytics";       // Plausible READ access (Bundle 9 V2 + Decision 47A)
+
 export interface AgentDef {
   /** Unique slug, e.g. "marketing-content-creator" */
   id: string;
@@ -55,6 +79,13 @@ export interface AgentDef {
    * falls back to the first pack agent in that dept when absent.
    */
   packDefault?: boolean;
+  /**
+   * Capability declarations (Decision 23 — capability-first architecture).
+   * Foundation for all downstream agent-side features. See `AgentCapability`
+   * for the locked enum + consumer mapping. Existing 138 agents leave this
+   * undefined; declarations are added in downstream PRs.
+   */
+  capabilities?: AgentCapability[];
 }
 
 export interface IndustryPackMeta {

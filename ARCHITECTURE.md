@@ -154,6 +154,47 @@ Every specialist lives in `packages/agents/src/departments/{dept}.ts` and follow
 
 ---
 
+## 4.5 Agent Capabilities
+
+The `AgentDef.capabilities` field declares what an agent can consume or produce beyond text generation. Capabilities are foundational for routing, context injection, and feature gating across STAFFD. Established by PR-Pre per Decision 23 (capability-first architecture).
+
+### Current capability values
+
+| Capability | Purpose | Consumed by |
+|---|---|---|
+| `ocr` | Image/PDF text extraction | Document Review pipeline (Bundle 5) |
+| `vision` | Image content analysis | Document Review pipeline (Bundle 5) |
+| `structured_extraction` | Schema-aware data extraction | Future structured query routing |
+| `transcript_handling` | Audio transcript processing | DEFERRED (Bundle 7 telephony) |
+| `voice` | Voice synthesis/recognition | DEFERRED (Bundle 7 telephony) |
+| `scheduling` | Calendar event creation | DEFERRED (Bundle 7 + Connected Sources) |
+| `urgency_classification` | Priority assessment | DEFERRED (Bundle 7 voicemail triage) |
+| `reads_crm` | Twenty CRM READ access | Bundle 9 V2 (Sales agents) |
+| `reads_email_campaigns` | Listmonk READ access | Bundle 9 V2 (Marketing agents) |
+| `reads_support_history` | Chatwoot READ access | Bundle 9 V2 (Reputation agents) |
+| `reads_signatures` | Docuseal READ access | Bundle 9 V2 (Legal/Sales agents) |
+| `reads_analytics` | Plausible READ access | Bundle 9 V2 + Decision 47A (Growth/CEO/Marketing) |
+
+### How capabilities are consumed
+
+Routes and helpers check `agent.capabilities?.includes(...)` before injecting capability-specific context blocks. This follows the **capability-first architecture (Decision 23)** — new agent-side features are gated on declared capabilities, not hardcoded in routes.
+
+PR-Pre ships the field as **optional** so all 138 existing agents continue to compile without modification. Declarations land in downstream PRs:
+- OCR / vision → PR-Doc-Review-A (Tranche 6)
+- CRM / email / support / signatures / analytics → PR-Bundle-9-A/B/C (Tranche 5)
+- Voice / transcript / scheduling / urgency → DEFERRED (Bundle 7)
+
+### Adding new capabilities
+
+1. Extend `AgentCapability` union type in `packages/agents/src/types.ts`
+2. Document purpose + consumer in the table above
+3. Add capability declaration to relevant agent definitions
+4. Implement consumer logic gated on `agent.capabilities?.includes(...)`
+
+Per **Standard #7 (Audit-Before-Extend)**, new capabilities beyond the locked enum require explicit Senior Architect approval — get a 1-page architecture brief signed off before extending the union.
+
+---
+
 ## 5. The Brain — Hermes Orchestrator Pattern (TO BUILD CORRECTLY)
 
 **This is the most important architectural gap right now.** The original build plan called for the Hermes pattern in `apps/api`. The skeleton exists. **The brain itself has not been built.** Every "smart" feature so far has been a one-off Claude call — Command Center routing, CEO briefing, almost-shipped handoff suggestions — each spinning up its own ad-hoc prompt with no central coordination.
