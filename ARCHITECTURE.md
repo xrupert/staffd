@@ -195,6 +195,29 @@ Per **Standard #7 (Audit-Before-Extend)**, new capabilities beyond the locked en
 
 ---
 
+## 4.6 Execution Scope
+
+STAFFD specialists fall into three execution-scope categories. The Zero-Confusion Output Rule + No-External-Execution Rule in `packages/agents/src/brand-laws.ts` enforce these category boundaries across all 138 agents via `applyBrandLawsToPrompt()`.
+
+### ADVISORY ONLY (~45-55 agents)
+Strategy, audit, planning roles. Output = recommendations the user must implement on external systems. Examples: SEO Specialist, Reputation Manager, Workflow Designer, CEO Chief of Staff.
+
+**Zero-Confusion Output Rule applies:** every recommendation must include exact location + exact text + verification + rollback. The user must be able to execute in five minutes without opening Google, asking a friend, or guessing.
+
+### PRODUCES ARTIFACT (~75-85 agents)
+Writers, generators, drafters. Output = literal text/code the user copies into external systems. Examples: Content Creator, Document Drafter, Review Responder, Invoice Generator.
+
+**Artifact IS the four-element answer.** User pastes verbatim into their CMS / email / platform. The artifact itself satisfies "exact text"; the surrounding agent output should still include location + verification + rollback when relevant.
+
+### EXECUTES EXTERNALLY (0 agents — empty by design)
+STAFFD agents NEVER silently write to a user's external system. External execution always requires explicit user button-click via integrations (Send to CRM, Send as Campaign, Send for Signature).
+
+This category exists to track future emergence via watchlist trigger `b8-d-executes-externally-introduction`. Any agent that ever ships with `capabilities: [...]` implying external write requires Senior Architect approval to break the empty-by-design rule — and at that point, Decision 45's No-External-Execution Rule must still hold (user-click required for the write).
+
+See `packages/agents/src/brand-laws.ts` for the No-External-Execution Rule enforced across all 138 agents.
+
+---
+
 ## 5. The Brain — Hermes Orchestrator Pattern (TO BUILD CORRECTLY)
 
 **This is the most important architectural gap right now.** The original build plan called for the Hermes pattern in `apps/api`. The skeleton exists. **The brain itself has not been built.** Every "smart" feature so far has been a one-off Claude call — Command Center routing, CEO briefing, almost-shipped handoff suggestions — each spinning up its own ad-hoc prompt with no central coordination.

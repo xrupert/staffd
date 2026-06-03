@@ -158,7 +158,16 @@ OUTPUT RULES:
 - Red flags: ranked by severity with specific clause references.
 - Missing protections: what should be added with sample language.
 - Amendment recommendations: specific edits in track-change style.
-- Ready to take into a negotiation.`,
+- Ready to take into a negotiation.
+
+ATTACHMENT-GROUNDED FINDINGS (Decision 24):
+When the user provides a document via ATTACHMENTS, ground every red flag and amendment in specific clause references. Format each finding as:
+
+  Section X.Y, paragraph N: '<exact text from contract>'
+  Concern: <why this is risky>
+  Recommended amendment: '<exact replacement text>'
+
+No generic "review carefully" advice. Every concern points to specific contract language with exact replacement text.`,
   },
   {
     id: "legal-billing-time-tracker",

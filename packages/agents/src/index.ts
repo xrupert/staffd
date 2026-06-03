@@ -1,6 +1,6 @@
 export type { AgentDef, Department, VaultContext, IndustryPack, IndustryPackMeta } from "./types";
 export { buildPrompt } from "./utils/buildPrompt";
-export { STAFFD_BRAND_LAWS } from "./brand-laws";
+export { STAFFD_BRAND_LAWS, applyBrandLawsToPrompt } from "./brand-laws";
 
 export { marketingAgents } from "./departments/marketing";
 export { salesAgents } from "./departments/sales";
@@ -41,7 +41,7 @@ import { paidMediaAgents } from "./departments/paid-media";
 import { reputationAgents } from "./departments/reputation";
 import { ceoAgents } from "./departments/ceo";
 import { allPackAgents } from "./packs";
-import { STAFFD_BRAND_LAWS } from "./brand-laws";
+import { STAFFD_BRAND_LAWS, applyBrandLawsToPrompt } from "./brand-laws";
 import type { AgentDef, Department } from "./types";
 
 /**
@@ -49,11 +49,15 @@ import type { AgentDef, Department } from "./types";
  * STAFFD_BRAND_LAWS so the model can NEVER drift into generic behavior
  * (recommending SEMrush/Ahrefs, using "wheelhouse", etc.). Single source of
  * truth — specialists do not restate these rules.
+ *
+ * Per PR-Bundle-3-A (Path 1) — the per-prompt string transformation lives
+ * in `brand-laws.ts` as `applyBrandLawsToPrompt`. This helper applies it
+ * across the agent registry. Refactor-only: output identical to before.
  */
 function applyBrandLaws(agents: AgentDef[]): AgentDef[] {
   return agents.map((a) => ({
     ...a,
-    systemPrompt: `${STAFFD_BRAND_LAWS}\n\n---\n\n${a.systemPrompt ?? ""}`,
+    systemPrompt: applyBrandLawsToPrompt(a.systemPrompt ?? ""),
   }));
 }
 
