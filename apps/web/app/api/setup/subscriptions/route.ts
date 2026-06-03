@@ -3,6 +3,8 @@
  * Called automatically from the dashboard on first load. Safe to re-run.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 const DESIRED_FIELDS = [
   { name: "user",                 type: "text",   required: true  },
   { name: "plan",                 type: "text",   required: false }, // starter|growth|pro|agency
@@ -91,7 +93,9 @@ export async function POST() {
       const missing = DESIRED_FIELDS.filter((f) => !existingFieldNames.has(f.name));
 
       if (missing.length === 0) {
-        return Response.json({ ok: true, created: false, patched: [] });
+        // Decision 69 — enforce row rules from the canonical registry.
+        const rules = await ensureCollectionRulesWithFreshToken("subscriptions");
+        return Response.json({ ok: true, created: false, patched: [], rules: rules.status });
       }
 
       const allFields = [...(colData.fields ?? []), ...missing];
@@ -104,7 +108,9 @@ export async function POST() {
         const detail = await patchRes.text();
         return Response.json({ error: "Failed to patch", detail }, { status: 500 });
       }
-      return Response.json({ ok: true, created: false, patched: missing.map((f) => f.name) });
+      // Decision 69 — enforce row rules from the canonical registry.
+      const rules = await ensureCollectionRulesWithFreshToken("subscriptions");
+      return Response.json({ ok: true, created: false, patched: missing.map((f) => f.name), rules: rules.status });
     }
 
     const createRes = await fetch(`${pbUrl}/api/collections`, {
@@ -118,7 +124,9 @@ export async function POST() {
       return Response.json({ error: "Failed to create collection", detail }, { status: 500 });
     }
 
-    return Response.json({ ok: true, created: true });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("subscriptions");
+    return Response.json({ ok: true, created: true, rules: rules.status });
   } catch (err) {
     console.error("Subscriptions setup error:", err);
     return Response.json({ error: "Setup failed" }, { status: 500 });

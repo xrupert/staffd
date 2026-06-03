@@ -20,6 +20,8 @@
  *   • (user, created)            — fastest path for "recent activity" admin views
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 const REQUIRED_FIELDS = [
   { name: "user",           type: "text",   required: true  },
   { name: "document",       type: "text",   required: true  },
@@ -104,7 +106,9 @@ export async function POST() {
   }
   try {
     const result = await ensureCollection(pbUrl.replace(/\/$/, ""));
-    return Response.json({ ok: true, ...result });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("document_versions");
+    return Response.json({ ok: true, ...result, rules: rules.status });
   } catch (err) {
     console.error("Document versions setup error:", err);
     const msg = err instanceof Error ? err.message : "Setup failed";

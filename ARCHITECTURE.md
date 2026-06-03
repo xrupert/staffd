@@ -252,6 +252,41 @@ See `docs/operator-runbooks/pb-row-rules.md` for step-by-step PB admin UI instru
 - After any PocketBase schema migration
 - Quarterly as routine practice
 - Whenever the daily cron flags drift
+- After any rule change, run `/api/admin/verify-row-rules` to confirm no drift
+
+### Rule Enforcement via Setup Routes (Decision 69)
+
+Per **Decision 69 — Security Floor Restoration via Code**, every user-scoped collection's setup route under `apps/web/app/api/setup/*` calls `ensureCollectionRulesWithFreshToken(collectionName)` after its schema work. This is the **primary** rule-enforcement mechanism.
+
+Canonical pattern for new collections:
+
+1. Define the collection schema in the setup route
+2. After schema work succeeds, call `ensureCollectionRulesWithFreshToken("collection_name")`
+3. The helper consults `apps/web/app/api/_lib/security/row-rules.ts` (single source of truth) and PATCHes the rules
+4. Idempotent — re-running on a correctly-configured collection is a no-op
+
+To add a new collection to the baseline:
+
+1. Add an entry to `EXPECTED_COLLECTIONS` in `_lib/security/row-rules.ts`
+2. Call `ensureCollectionRulesWithFreshToken("new_collection")` from its setup route
+3. The verifier, repair endpoint, daily cron, and dashboard all pick up the new entry automatically (single source of truth — Standard #2)
+
+### Repair Endpoint (safety net)
+
+When PB rules drift outside of code paths (e.g., manual edits, migration tools, recovery), `POST /api/admin/repair-row-rules` (super-admin only) bulk-PATCHes every flagged collection back to the expected pattern. Idempotent — collections already at the expected state report `already-correct` without a PB write.
+
+The security dashboard exposes a one-click "Run Security Repair" button when overall status is 🔴.
+
+See `docs/operator-runbooks/security-floor-restoration.md` for full operator instructions.
+
+### Templates G0 Fix (Decision 69 accelerated)
+
+The Bundle 6 G0 anomaly (templates collection without a setup route) is **partially fixed** by Decision 69:
+- `apps/web/app/api/setup/templates/route.ts` now exists and enforces row rules
+- Schema mirrors current production (id, user, name, department, content)
+- Tranche 7 PR-Templates-A extends this with the Model C schema (scope, variables, capabilities, tags, recency, pack/global)
+
+This pattern — accelerate the foundational fix (collection setup + rules) ahead of the feature work (full Model C schema) — keeps security on the floor without blocking the Tranche 1 closure.
 
 ### 19-collection baseline (Decision 68)
 

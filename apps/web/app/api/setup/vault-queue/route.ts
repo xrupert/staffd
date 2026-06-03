@@ -45,6 +45,8 @@ async function getAdminToken(pbUrl: string): Promise<string> {
   return token;
 }
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 async function ensureCollection(pbUrl: string) {
   const token = await getAdminToken(pbUrl);
   const headers = { Authorization: token, "Content-Type": "application/json" };
@@ -99,7 +101,9 @@ export async function POST() {
   }
   try {
     const result = await ensureCollection(pbUrl.replace(/\/$/, ""));
-    return Response.json({ ok: true, ...result });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("vault_ingest_queue");
+    return Response.json({ ok: true, ...result, rules: rules.status });
   } catch (err) {
     console.error("Vault queue setup error:", err);
     const msg = err instanceof Error ? err.message : "Setup failed";

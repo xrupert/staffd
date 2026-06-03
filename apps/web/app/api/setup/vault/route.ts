@@ -17,6 +17,8 @@
  * Safe to re-run.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 type FieldDef = { name: string; type: string; required?: boolean };
 
 const DOCUMENTS_AUGMENT: FieldDef[] = [
@@ -195,6 +197,15 @@ export async function POST() {
       "CREATE INDEX idx_vd_doc ON vault_decisions (document_id)",
     ]);
 
+    // Decision 69 — enforce row rules on every collection this setup touches.
+    const rules = {
+      documents: (await ensureCollectionRulesWithFreshToken("documents")).status,
+      vault_embeddings_index: (await ensureCollectionRulesWithFreshToken("vault_embeddings_index")).status,
+      vault_patterns: (await ensureCollectionRulesWithFreshToken("vault_patterns")).status,
+      vault_retrieval_metrics: (await ensureCollectionRulesWithFreshToken("vault_retrieval_metrics")).status,
+      vault_decisions: (await ensureCollectionRulesWithFreshToken("vault_decisions")).status,
+    };
+
     return Response.json({
       ok: true,
       documents,
@@ -202,6 +213,7 @@ export async function POST() {
       vault_patterns: patterns,
       vault_retrieval_metrics: metrics,
       vault_decisions: decisions,
+      rules,
     });
   } catch (err) {
     console.error("Vault setup error:", err);

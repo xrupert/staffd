@@ -9,6 +9,8 @@
  * settings page when a user opens scheduling for the first time.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 async function getAdminToken(pbUrl: string, email: string, password: string): Promise<string | null> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
     method: "POST",
@@ -112,6 +114,10 @@ export async function POST() {
   } catch (err) {
     results.businesses = { error: String(err) };
   }
+
+  // Decision 69 — enforce row rules on every collection this setup touches.
+  results.rules_bookings = (await ensureCollectionRulesWithFreshToken("bookings")).status;
+  results.rules_businesses = (await ensureCollectionRulesWithFreshToken("businesses")).status;
 
   return Response.json({ ok: true, results });
 }

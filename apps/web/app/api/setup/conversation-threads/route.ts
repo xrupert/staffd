@@ -9,6 +9,8 @@
  * Unique index on `thread_id` enforces one metadata row per thread.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 const REQUIRED_FIELDS = [
   { name: "user",      type: "text", required: true  },
   { name: "thread_id", type: "text", required: true  },

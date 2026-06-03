@@ -3,6 +3,8 @@
  * if it doesn't already exist. Called by the calendar page on first load.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 export async function POST() {
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
   const adminEmail = process.env.PB_ADMIN_EMAIL;
@@ -34,7 +36,9 @@ export async function POST() {
       { headers: { Authorization: token } }
     );
     if (checkRes.ok) {
-      return Response.json({ ok: true, created: false });
+      // Decision 69 — enforce row rules from the canonical registry.
+      const rules = await ensureCollectionRulesWithFreshToken("scheduled_content");
+      return Response.json({ ok: true, created: false, rules: rules.status });
     }
 
     // Create the collection
@@ -63,7 +67,9 @@ export async function POST() {
       return Response.json({ error: "Failed to create collection", detail: err }, { status: 500 });
     }
 
-    return Response.json({ ok: true, created: true });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("scheduled_content");
+    return Response.json({ ok: true, created: true, rules: rules.status });
   } catch (err) {
     console.error("Calendar setup error:", err);
     return Response.json({ error: "Setup failed" }, { status: 500 });

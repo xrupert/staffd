@@ -7,6 +7,8 @@
  * Safe to re-run — adds missing fields, never overwrites or deletes.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 const REQUIRED_FIELDS = [
   { name: "user",               type: "text",   required: false },
   { name: "intent",             type: "text",   required: true  }, // route|handoff|brief|synthesize
@@ -93,7 +95,9 @@ export async function POST() {
   }
   try {
     const result = await ensureCollection(pbUrl.replace(/\/$/, ""));
-    return Response.json({ ok: true, ...result });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("orchestrator_decisions");
+    return Response.json({ ok: true, ...result, rules: rules.status });
   } catch (err) {
     console.error("Orchestrator setup error:", err);
     const msg = err instanceof Error ? err.message : "Setup failed";

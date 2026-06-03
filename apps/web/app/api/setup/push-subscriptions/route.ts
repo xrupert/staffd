@@ -9,6 +9,8 @@
  * payloads end-to-end: `p256dh` (ECDH public key) + `auth` (auth secret).
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 const REQUIRED_FIELDS = [
   { name: "user",       type: "text", required: true  },
   { name: "endpoint",   type: "text", required: true  },
@@ -87,7 +89,9 @@ export async function POST() {
   }
   try {
     const result = await ensureCollection(pbUrl.replace(/\/$/, ""));
-    return Response.json({ ok: true, ...result });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("push_subscriptions");
+    return Response.json({ ok: true, ...result, rules: rules.status });
   } catch (err) {
     console.error("push_subscriptions setup error:", err);
     const msg = err instanceof Error ? err.message : "Setup failed";

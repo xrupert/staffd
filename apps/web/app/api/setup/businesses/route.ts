@@ -4,6 +4,8 @@
  * Fetches the current schema and adds any missing fields without touching existing ones.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 const REQUIRED_FIELDS = [
   { name: "user",            type: "text", required: true },
   { name: "business_name",   type: "text", required: false },
@@ -67,7 +69,9 @@ export async function POST() {
         const err = await createRes.text();
         return Response.json({ error: "Failed to create collection", detail: err }, { status: 500 });
       }
-      return Response.json({ ok: true, action: "created" });
+      // Decision 69 — enforce row rules from the canonical registry.
+      const rules = await ensureCollectionRulesWithFreshToken("businesses");
+      return Response.json({ ok: true, action: "created", rules: rules.status });
     }
 
     // Collection exists — find which fields are missing
@@ -82,7 +86,9 @@ export async function POST() {
     const missing = REQUIRED_FIELDS.filter((f) => !existing.has(f.name));
 
     if (missing.length === 0) {
-      return Response.json({ ok: true, action: "noop" });
+      // Decision 69 — enforce row rules from the canonical registry.
+      const rules = await ensureCollectionRulesWithFreshToken("businesses");
+      return Response.json({ ok: true, action: "noop", rules: rules.status });
     }
 
     // Patch collection to add missing fields (existing fields untouched)
@@ -102,7 +108,9 @@ export async function POST() {
       return Response.json({ error: "Failed to patch collection", detail: err }, { status: 500 });
     }
 
-    return Response.json({ ok: true, action: "patched", added: missing.map((f) => f.name) });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("businesses");
+    return Response.json({ ok: true, action: "patched", added: missing.map((f) => f.name), rules: rules.status });
   } catch (err) {
     console.error("Businesses setup error:", err);
     return Response.json({ error: "Setup failed" }, { status: 500 });

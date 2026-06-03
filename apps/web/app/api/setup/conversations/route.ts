@@ -10,6 +10,8 @@
  * that turn, `document_id` joins them.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 const REQUIRED_FIELDS = [
   { name: "user",        type: "text", required: true  },
   { name: "client",      type: "text", required: false }, // Agency: scope to a client
@@ -94,7 +96,9 @@ export async function POST() {
   }
   try {
     const result = await ensureCollection(pbUrl.replace(/\/$/, ""));
-    return Response.json({ ok: true, ...result });
+    // Decision 69 — enforce row rules from the canonical registry.
+    const rules = await ensureCollectionRulesWithFreshToken("conversations");
+    return Response.json({ ok: true, ...result, rules: rules.status });
   } catch (err) {
     console.error("Conversations setup error:", err);
     const msg = err instanceof Error ? err.message : "Setup failed";

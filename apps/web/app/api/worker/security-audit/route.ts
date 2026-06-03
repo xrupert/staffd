@@ -1,93 +1,24 @@
 /**
- * GET /api/worker/security-audit — Daily cron.
+ * GET /api/worker/security-audit — Daily cron (0 2 * * *).
  *
- * PR-Bundle-10-Security-Audit. Wraps /api/admin/verify-row-rules in a
- * cron-safe handler that fires once daily at 2 AM UTC (per vercel.json).
+ * Wraps the same verification logic as /api/admin/verify-row-rules but
+ * with cron-style auth (CRON_SECRET / WORKER_SECRET) and console logging
+ * for Vercel log capture.
  *
- * Auth: same dual-path as other workers — `Bearer ${CRON_SECRET}` (Vercel
- * cron-injected) OR `x-worker-secret: ${WORKER_SECRET}` (manual trigger
- * via curl).
+ * Per Decision 69 refactor — imports expected rules from the shared
+ * registry. No duplicate enum here.
  *
- * Behaviour:
- *   • Calls the verify-row-rules core logic in-process (no self-HTTP)
- *   • Logs structured findings to console for Vercel log capture
- *   • Returns 200 with the report regardless of gap count — gaps are
- *     findings, not handler errors
- *   • Future: write findings to super_admin_signals (ships with Tranche 6
- *     PR-Super-Admin-Intelligence-A) for trend tracking + admin alerts
- *
- * Cannot import the route handler directly (Next.js route modules export
- * an HTTP handler, not the inner logic). The simplest cron-safe shape is
- * to re-call the same endpoint with an admin-side service request, but
- * that doubles auth hops. Instead this worker duplicates the small
- * verification logic in-line so the cron is fully self-contained.
+ * Returns 200 on gaps (gaps are findings, not handler errors). When
+ * Tranche 6 PR-Super-Admin-Intelligence-A ships, this cron also writes
+ * to `super_admin_signals` + emails ADMIN_EMAIL on regression.
  */
 
-import { getAdminToken, pbUrl } from "../../_lib/pb";
-
-type RuleSet = {
-  list: string | null;
-  view: string | null;
-  create: string | null;
-  update: string | null;
-  delete: string | null;
-};
-
-const USER_OWNED: RuleSet = {
-  list: "user = @request.auth.id",
-  view: "user = @request.auth.id",
-  create: "user = @request.auth.id",
-  update: "user = @request.auth.id",
-  delete: "user = @request.auth.id",
-};
-
-const AGENCY_OWNED: RuleSet = {
-  ...USER_OWNED,
-  list: "agency_user = @request.auth.id",
-  view: "agency_user = @request.auth.id",
-  create: "agency_user = @request.auth.id",
-  update: "agency_user = @request.auth.id",
-  delete: "agency_user = @request.auth.id",
-};
-
-const DOCUMENT_VERSIONS_RELATIONAL: RuleSet = {
-  list: "document.user = @request.auth.id",
-  view: "document.user = @request.auth.id",
-  create: "document.user = @request.auth.id",
-  update: "document.user = @request.auth.id",
-  delete: "document.user = @request.auth.id",
-};
-
-const USERS_SYSTEM: RuleSet = {
-  list: null,
-  view: "id = @request.auth.id",
-  create: null,
-  update: "id = @request.auth.id",
-  delete: "id = @request.auth.id",
-};
-
-const EXPECTED: Array<{ name: string; expected: RuleSet }> = [
-  { name: "subscriptions", expected: USER_OWNED },
-  { name: "businesses", expected: USER_OWNED },
-  { name: "documents", expected: USER_OWNED },
-  { name: "vault_briefs", expected: USER_OWNED },
-  { name: "vault_decisions", expected: USER_OWNED },
-  { name: "vault_patterns", expected: USER_OWNED },
-  { name: "vault_retrieval_metrics", expected: USER_OWNED },
-  { name: "vault_voice_profile", expected: USER_OWNED },
-  { name: "vault_embeddings_index", expected: USER_OWNED },
-  { name: "vault_ingest_queue", expected: USER_OWNED },
-  { name: "conversations", expected: USER_OWNED },
-  { name: "conversation_threads", expected: USER_OWNED },
-  { name: "push_subscriptions", expected: USER_OWNED },
-  { name: "scheduled_content", expected: USER_OWNED },
-  { name: "bookings", expected: USER_OWNED },
-  { name: "orchestrator_decisions", expected: USER_OWNED },
-  { name: "clients", expected: AGENCY_OWNED },
-  { name: "document_versions", expected: DOCUMENT_VERSIONS_RELATIONAL },
-  { name: "users", expected: USERS_SYSTEM },
-  { name: "templates", expected: USER_OWNED },
-];
+import { getAdminToken } from "../../_lib/pb";
+import {
+  EXPECTED_COLLECTIONS,
+  compareRules,
+  fetchCollectionRules,
+} from "../../_lib/security/row-rules";
 
 function authOk(req: Request): boolean {
   const cron = process.env.CRON_SECRET ?? "";
@@ -97,43 +28,6 @@ function authOk(req: Request): boolean {
   if (cron && authHeader === `Bearer ${cron}`) return true;
   if (worker && workerHeader === worker) return true;
   return false;
-}
-
-async function fetchRules(token: string, name: string): Promise<RuleSet | null> {
-  try {
-    const url = pbUrl();
-    const res = await fetch(`${url}/api/collections/${encodeURIComponent(name)}`, {
-      headers: { Authorization: token },
-    });
-    if (!res.ok) return null;
-    const col = (await res.json()) as {
-      listRule?: string | null;
-      viewRule?: string | null;
-      createRule?: string | null;
-      updateRule?: string | null;
-      deleteRule?: string | null;
-    };
-    return {
-      list: col.listRule ?? null,
-      view: col.viewRule ?? null,
-      create: col.createRule ?? null,
-      update: col.updateRule ?? null,
-      delete: col.deleteRule ?? null,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function compareRules(expected: RuleSet, actual: RuleSet): string[] {
-  const gaps: string[] = [];
-  const fields: (keyof RuleSet)[] = ["list", "view", "create", "update", "delete"];
-  const norm = (s: string | null) => (s ?? "").replace(/\s+/g, "").trim();
-  for (const f of fields) {
-    if (norm(expected[f]) === norm(actual[f])) continue;
-    gaps.push(`${f}: expected=${expected[f]} | actual=${actual[f]}`);
-  }
-  return gaps;
 }
 
 export async function GET(req: Request): Promise<Response> {
@@ -153,15 +47,15 @@ export async function GET(req: Request): Promise<Response> {
   let redCount = 0;
   let totalGaps = 0;
 
-  for (const entry of EXPECTED) {
-    const actual = await fetchRules(adminToken, entry.name);
-    if (!actual) {
+  for (const entry of EXPECTED_COLLECTIONS) {
+    const current = await fetchCollectionRules(adminToken, entry.name);
+    if (!current) {
       findings.push({ name: entry.name, status: "🔴", gaps: ["collection_not_found"] });
       redCount++;
       totalGaps++;
       continue;
     }
-    const gaps = compareRules(entry.expected, actual);
+    const gaps = compareRules(entry.rules, current.rules);
     if (gaps.length === 0) {
       findings.push({ name: entry.name, status: "✅", gaps: [] });
     } else {
@@ -180,8 +74,6 @@ export async function GET(req: Request): Promise<Response> {
   };
 
   if (redCount > 0) {
-    // Surface clearly in Vercel logs. Tranche 6 PR-Super-Admin-Intelligence-A
-    // will route this into super_admin_signals + email ADMIN_EMAIL.
     console.error(
       `[security-audit] 🔴 ${redCount} collection(s) failed verification — ${totalGaps} gaps`,
       { summary, flagged: findings.filter((f) => f.status === "🔴") },

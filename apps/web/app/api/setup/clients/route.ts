@@ -11,6 +11,8 @@
  * Idempotent — safe to call multiple times.
  */
 
+import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
 async function getAdminToken(pbUrl: string, email: string, password: string): Promise<string | null> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
     method: "POST",
@@ -120,6 +122,12 @@ export async function POST() {
   results.scheduled_content = await patchAddFields(pbUrl, token, "scheduled_content", [
     { name: "client", type: "text", required: false },
   ]);
+
+  // Decision 69 — enforce row rules on every collection this setup touches.
+  results.rules_clients = (await ensureCollectionRulesWithFreshToken("clients")).status;
+  results.rules_documents = (await ensureCollectionRulesWithFreshToken("documents")).status;
+  results.rules_bookings = (await ensureCollectionRulesWithFreshToken("bookings")).status;
+  results.rules_scheduled_content = (await ensureCollectionRulesWithFreshToken("scheduled_content")).status;
 
   return Response.json({ ok: true, results });
 }

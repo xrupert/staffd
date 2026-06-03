@@ -83,6 +83,8 @@ export default function SecurityAuditPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [repairing, setRepairing] = useState(false);
+  const [repairMessage, setRepairMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!pb.authStore.isValid) {
@@ -123,6 +125,36 @@ export default function SecurityAuditPage() {
     });
   }
 
+  // Decision 69 — single-click repair. Calls the bulk-repair endpoint then
+  // re-fetches the status table. ~30-60 sec depending on collection count.
+  async function runRepair() {
+    if (repairing) return;
+    setRepairing(true);
+    setRepairMessage(null);
+    try {
+      const token = pb.authStore.token;
+      const res = await fetch(`/api/admin/repair-row-rules?pbToken=${encodeURIComponent(token)}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRepairMessage(`Repair failed: ${data.error ?? `error_${res.status}`}`);
+      } else {
+        setRepairMessage(
+          `${data.overall_status} — ${data.total_repaired} repaired · ` +
+          `${data.total_already_correct} already correct · ` +
+          `${data.total_skipped} skipped (system-managed) · ` +
+          `${data.total_failed} failed`,
+        );
+      }
+    } catch {
+      setRepairMessage("Repair failed: network error");
+    } finally {
+      setRepairing(false);
+      await load(); // refresh status after repair
+    }
+  }
+
   return (
     <main className="min-h-screen" style={{ background: "#09090F" }}>
       <div
@@ -155,14 +187,32 @@ export default function SecurityAuditPage() {
               Live PocketBase row-rule verification across the 19-collection baseline + templates. Read-only — fixes happen in PB admin UI per runbook.
             </p>
           </div>
-          <button
-            onClick={() => void load()}
-            disabled={loading}
-            className="text-xs font-medium px-3 py-2 rounded-lg"
-            style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E8", opacity: loading ? 0.5 : 1 }}
-          >
-            {loading ? "Refreshing…" : "Refresh Status"}
-          </button>
+          <div className="flex items-center gap-2">
+            {report && report.overall_status === "🔴" && (
+              <button
+                onClick={() => void runRepair()}
+                disabled={repairing || loading}
+                className="text-xs font-semibold px-3 py-2 rounded-lg"
+                style={{
+                  background: "#5B21E8",
+                  color: "#fff",
+                  border: "1px solid #5B21E8",
+                  opacity: repairing || loading ? 0.5 : 1,
+                }}
+                title="Bulk-PATCH all collections to the expected row-rule pattern. Idempotent."
+              >
+                {repairing ? "Repairing…" : "Run Security Repair"}
+              </button>
+            )}
+            <button
+              onClick={() => void load()}
+              disabled={loading || repairing}
+              className="text-xs font-medium px-3 py-2 rounded-lg"
+              style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E8", opacity: loading || repairing ? 0.5 : 1 }}
+            >
+              {loading ? "Refreshing…" : "Refresh Status"}
+            </button>
+          </div>
         </div>
 
         {error === "not_authorized" && (
@@ -205,6 +255,20 @@ export default function SecurityAuditPage() {
                 </p>
               </div>
             </section>
+
+            {/* Repair result message (transient) */}
+            {repairMessage && (
+              <div
+                className="rounded-xl px-4 py-3 text-sm"
+                style={{
+                  background: repairMessage.includes("failed") ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
+                  border: `1px solid ${repairMessage.includes("failed") ? "rgba(239,68,68,0.25)" : "rgba(34,197,94,0.25)"}`,
+                  color: repairMessage.includes("failed") ? "#EF4444" : "#22C55E",
+                }}
+              >
+                {repairMessage}
+              </div>
+            )}
 
             {/* Operator runbook link */}
             <div className="text-xs" style={{ color: "#5A5A70" }}>
