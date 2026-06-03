@@ -218,6 +218,56 @@ See `packages/agents/src/brand-laws.ts` for the No-External-Execution Rule enfor
 
 ---
 
+## 4.7 Multi-Tenant Security Verification
+
+STAFFD enforces multi-tenant isolation at the PocketBase row-rule level. Every user-scoped collection has row rules requiring `user = @request.auth.id` (or the equivalent relational pattern for collections like `document_versions`).
+
+### Why row rules matter
+
+Without correct row rules, a malicious user could:
+- Read any other user's documents via direct PB API call
+- Modify another user's records
+- Delete another user's data
+
+Row rules are the **security floor**. Application-layer auth (e.g., `/api/clients` Agency-tier gate) provides defense-in-depth, not replacement for row rules.
+
+### Automated verification
+
+Three surfaces enforce this:
+
+1. **Diagnostic route** — `GET /api/admin/verify-row-rules` (super-admin only)
+   Programmatically validates all user-scoped collection rules against expected patterns. Returns ✅ / 🔴 / ℹ️ status per collection.
+2. **Security dashboard** — `/dashboard/admin/security` (super-admin only)
+   Live status display, click-to-expand gap details, refresh button. Operator-facing.
+3. **Daily cron** — `/api/worker/security-audit`
+   Runs at 2 AM UTC daily, detects drift, logs structured findings. When `super_admin_signals` ships (Tranche 6), this will also alert via email.
+
+### Operator runbook
+
+See `docs/operator-runbooks/pb-row-rules.md` for step-by-step PB admin UI instructions to fix detected gaps.
+
+### When to re-verify
+
+- After any new collection ships (Setup Route Discipline + this verification combine)
+- After any PocketBase schema migration
+- Quarterly as routine practice
+- Whenever the daily cron flags drift
+
+### 19-collection baseline (Decision 68)
+
+| Pattern | Collections | Count |
+|---|---|---|
+| `user = @request.auth.id` | subscriptions, businesses, documents, vault_briefs, vault_decisions, vault_patterns, vault_retrieval_metrics, vault_voice_profile, vault_embeddings_index, vault_ingest_queue, conversations, conversation_threads, push_subscriptions, scheduled_content, bookings, orchestrator_decisions, **templates** (Bundle 6 G0) | 17 |
+| `agency_user = @request.auth.id` | clients | 1 |
+| `document.user = @request.auth.id` (relational) | document_versions | 1 |
+| PB system defaults | users | 1 |
+
+Total inclusive: 20 entries (19 verified + templates with Bundle 6 G0 anomaly).
+
+The verifier reports `ℹ️ unexpected_collection` for any PB collection not in this baseline — surfacing schema drift before it becomes a security gap.
+
+---
+
 ## 5. The Brain — Hermes Orchestrator Pattern (TO BUILD CORRECTLY)
 
 **This is the most important architectural gap right now.** The original build plan called for the Hermes pattern in `apps/api`. The skeleton exists. **The brain itself has not been built.** Every "smart" feature so far has been a one-off Claude call — Command Center routing, CEO briefing, almost-shipped handoff suggestions — each spinning up its own ad-hoc prompt with no central coordination.

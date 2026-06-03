@@ -18,6 +18,10 @@
     {
       "path": "/api/worker/brief-push-dispatcher",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/worker/security-audit",
+      "schedule": "0 2 * * *"
     }
   ]
 }
