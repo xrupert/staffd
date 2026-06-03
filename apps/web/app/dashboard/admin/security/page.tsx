@@ -148,6 +148,11 @@ export default function SecurityAuditPage() {
   const [orphanReasons, setOrphanReasons] = useState<Record<string, string>>({});
   const [decisionPending, setDecisionPending] = useState<string | null>(null);
   const [decisionMessage, setDecisionMessage] = useState<string | null>(null);
+  // Decision 73 — migration / drop state
+  const [migratePending, setMigratePending] = useState<string | null>(null);
+  const [dropPending, setDropPending] = useState<string | null>(null);
+  const [opMessage, setOpMessage] = useState<string | null>(null);
+  const [opResult, setOpResult] = useState<Record<string, unknown> | null>(null);
 
   const load = useCallback(async () => {
     if (!pb.authStore.isValid) {
@@ -216,6 +221,87 @@ export default function SecurityAuditPage() {
       void loadOrphans();
     }
   }, [report, orphanReport, orphanLoading, loadOrphans]);
+
+  // Decision 73 — migrate orphan data to canonical (idempotent + confirm-gated)
+  async function migrateOrphan(source: string, canonical: string) {
+    if (migratePending) return;
+    setMigratePending(source);
+    setOpMessage(null);
+    setOpResult(null);
+    try {
+      const token = pb.authStore.token;
+      const res = await fetch(
+        `/api/admin/migrate-orphans-execute?pbToken=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source, canonical, confirm: `MIGRATE-${source}` }),
+        },
+      );
+      const data = await res.json();
+      setOpResult(data);
+      if (!res.ok) {
+        setOpMessage(`Migration failed: ${data.error ?? `error_${res.status}`}`);
+      } else {
+        const c = data.counts ?? {};
+        setOpMessage(
+          `Migrated ${source} → ${canonical}: ${c.migrated ?? 0} new, ` +
+            `${c.already_migrated ?? 0} already-migrated, ${c.failed ?? 0} failed ` +
+            `(IDs preserved: ${data.ids_preserved ? "yes" : "NO"})`,
+        );
+      }
+      await loadOrphans();
+    } catch {
+      setOpMessage("Migration failed: network error");
+    } finally {
+      setMigratePending(null);
+    }
+  }
+
+  // Decision 73 — drop orphan collection (confirm-gated; safety-checked server-side)
+  async function dropOrphan(collectionName: string) {
+    if (dropPending) return;
+    const confirmedClick = window.confirm(
+      `DROP ${collectionName}?\n\nThis permanently deletes the collection from PocketBase. ` +
+        `Server-side safety: row_count must be 0 OR every source id verified in canonical. ` +
+        `\n\nThis action is irreversible.`,
+    );
+    if (!confirmedClick) return;
+    setDropPending(collectionName);
+    setOpMessage(null);
+    setOpResult(null);
+    try {
+      const token = pb.authStore.token;
+      const target = collectionName === "Documents" ? "documents" : collectionName === "Templates" ? "templates" : undefined;
+      const body: Record<string, unknown> = {
+        collection_name: collectionName,
+        confirm: `DROP-${collectionName}`,
+      };
+      if (target) body.verified_migrated_to = target;
+      const res = await fetch(
+        `/api/admin/drop-orphan-collection?pbToken=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const data = await res.json();
+      setOpResult(data);
+      if (!res.ok) {
+        setOpMessage(`Drop refused: ${data.error ?? `error_${res.status}`} — ${data.detail ?? ""}`);
+      } else {
+        setOpMessage(
+          `Dropped ${collectionName} (${data.rows_dropped ?? 0} rows). ${data.safety_reason ?? ""}`,
+        );
+      }
+      await Promise.all([load(), loadOrphans()]);
+    } catch {
+      setOpMessage("Drop failed: network error");
+    } finally {
+      setDropPending(null);
+    }
+  }
 
   async function recordDecision(collectionName: string, decision: OrphanRecommendation) {
     if (decisionPending) return;
@@ -536,6 +622,33 @@ export default function SecurityAuditPage() {
                   </div>
                 )}
 
+                {opMessage && (
+                  <div
+                    className="rounded-xl px-4 py-3 text-sm mb-4"
+                    style={{
+                      background: opMessage.startsWith("Drop refused") || opMessage.includes("failed")
+                        ? "rgba(239,68,68,0.08)"
+                        : "rgba(14,165,233,0.08)",
+                      border: `1px solid ${opMessage.startsWith("Drop refused") || opMessage.includes("failed") ? "rgba(239,68,68,0.25)" : "rgba(14,165,233,0.25)"}`,
+                      color: opMessage.startsWith("Drop refused") || opMessage.includes("failed")
+                        ? "#EF4444"
+                        : "#0EA5E9",
+                    }}
+                  >
+                    <div>{opMessage}</div>
+                    {opResult && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-xs" style={{ color: "#7070A0" }}>
+                          View raw response
+                        </summary>
+                        <pre className="text-xs mt-2 p-2 rounded" style={{ background: "#09090F", color: "#9090A8", overflow: "auto", maxHeight: "300px" }}>
+                          {JSON.stringify(opResult, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                )}
+
                 {decisionMessage && (
                   <div
                     className="rounded-xl px-4 py-3 text-sm mb-4"
@@ -634,8 +747,12 @@ export default function SecurityAuditPage() {
                           }}
                         />
 
+                        {/* Decision 73 — button highlights the RECORDED decision, not the
+                            recommendation. The recommendation badge above is the static
+                            "STAFFD recommends" label; the button reflects what's persisted. */}
                         <div className="flex flex-wrap gap-2">
                           {(Object.keys(DECISION_LABELS) as OrphanRecommendation[]).map((d) => {
+                            const isSelected = d === existing?.decision;
                             const isRecommended = d === o.recommendation;
                             const isPending = decisionPending === `${o.name}:${d}`;
                             return (
@@ -643,20 +760,92 @@ export default function SecurityAuditPage() {
                                 key={d}
                                 onClick={() => void recordDecision(o.name, d)}
                                 disabled={!!decisionPending}
-                                title={DECISION_DESCRIPTIONS[d]}
-                                className="text-xs font-medium px-3 py-2 rounded"
+                                title={DECISION_DESCRIPTIONS[d] + (isRecommended ? " · STAFFD recommends this" : "")}
+                                className="text-xs font-medium px-3 py-2 rounded flex items-center gap-2"
                                 style={{
-                                  background: isRecommended ? "#5B21E8" : "#1A1A24",
-                                  color: isRecommended ? "#fff" : "#D0D0E8",
-                                  border: `1px solid ${isRecommended ? "#5B21E8" : "#2A2A38"}`,
+                                  background: isSelected ? "#5B21E8" : "#1A1A24",
+                                  color: isSelected ? "#fff" : "#D0D0E8",
+                                  border: `1px solid ${isSelected ? "#5B21E8" : isRecommended ? "#A07BFF" : "#2A2A38"}`,
                                   opacity: decisionPending ? 0.5 : 1,
                                 }}
                               >
                                 {isPending ? "Recording…" : DECISION_LABELS[d]}
+                                {isRecommended && !isSelected && (
+                                  <span style={{ fontSize: "10px", color: "#A07BFF" }}>★</span>
+                                )}
+                                {isSelected && (
+                                  <span style={{ fontSize: "10px" }}>✓</span>
+                                )}
                               </button>
                             );
                           })}
                         </div>
+
+                        {/* Decision 73 — Migrate + Drop action buttons (only for source orphans) */}
+                        {o.exists && o.canonical_equivalent && (
+                          <div
+                            className="flex flex-wrap gap-2 mt-3 pt-3"
+                            style={{ borderTop: "1px solid #2A2A38" }}
+                          >
+                            {(o.row_count ?? 0) > 0 && (
+                              <button
+                                onClick={() => void migrateOrphan(o.name, o.canonical_equivalent!)}
+                                disabled={!!migratePending || !!dropPending}
+                                title={`Migrate ${o.row_count} row(s) from ${o.name} to ${o.canonical_equivalent} (IDs preserved; idempotent)`}
+                                className="text-xs font-semibold px-3 py-2 rounded"
+                                style={{
+                                  background: "#0EA5E9",
+                                  color: "#fff",
+                                  border: "1px solid #0EA5E9",
+                                  opacity: migratePending || dropPending ? 0.5 : 1,
+                                }}
+                              >
+                                {migratePending === o.name
+                                  ? "Migrating…"
+                                  : `Migrate to ${o.canonical_equivalent} (${o.row_count})`}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => void dropOrphan(o.name)}
+                              disabled={!!migratePending || !!dropPending}
+                              title={
+                                (o.row_count ?? 0) === 0
+                                  ? `Drop ${o.name} (empty — safe)`
+                                  : `Drop ${o.name} (server verifies all rows migrated to ${o.canonical_equivalent} first)`
+                              }
+                              className="text-xs font-semibold px-3 py-2 rounded"
+                              style={{
+                                background: "#DC2626",
+                                color: "#fff",
+                                border: "1px solid #DC2626",
+                                opacity: migratePending || dropPending ? 0.5 : 1,
+                              }}
+                            >
+                              {dropPending === o.name ? "Dropping…" : `Drop ${o.name}`}
+                            </button>
+                          </div>
+                        )}
+                        {/* For vault_queue style (no canonical) — drop button only when empty */}
+                        {o.exists && !o.canonical_equivalent && (o.row_count ?? 0) === 0 && (
+                          <div
+                            className="flex flex-wrap gap-2 mt-3 pt-3"
+                            style={{ borderTop: "1px solid #2A2A38" }}
+                          >
+                            <button
+                              onClick={() => void dropOrphan(o.name)}
+                              disabled={!!dropPending}
+                              className="text-xs font-semibold px-3 py-2 rounded"
+                              style={{
+                                background: "#DC2626",
+                                color: "#fff",
+                                border: "1px solid #DC2626",
+                                opacity: dropPending ? 0.5 : 1,
+                              }}
+                            >
+                              {dropPending === o.name ? "Dropping…" : `Drop ${o.name} (empty)`}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

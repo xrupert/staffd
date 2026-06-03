@@ -89,14 +89,62 @@ You can record any decision regardless of what STAFFD recommends. The recommende
 1. Add `{ name: "FooBar", canonical: "foo_bar" }` to the array
 2. Ship a tiny PR; the panel auto-includes it the next time the verifier surfaces it as `ℹ️`
 
-## Read-only guarantee
+## Read-only guarantee (investigation surfaces)
 
-Every endpoint in this workflow is strictly read-only against orphan collection data:
-- `GET /api/admin/orphan-details` — reads collection metadata + row counts only (no PATCH/DELETE)
+The investigation surfaces are strictly read-only:
+- `GET /api/admin/orphan-details` — reads collection metadata + row counts only
 - `POST /api/admin/orphan-decisions` — writes to `orphan_decisions` ONLY (records the decision; does not touch the orphan)
 - `GET /api/admin/orphan-decisions` — lists prior decisions
+- `POST /api/admin/migrate-orphans-preflight` — schema diff + sample rows + can_migrate verdict; **NO data movement**
 
-Drops happen in a separate Senior-Architect-authorized PR that explicitly calls the PB delete-collection endpoint.
+## Destructive operations (Decision 73 — gated)
+
+Two endpoints perform destructive PB operations. Both are super-admin-gated AND require explicit literal confirm tokens in the request body. Both enforce programmatic safety checks server-side — operator clicks alone are not sufficient.
+
+### Migrate orphan data to canonical
+
+`POST /api/admin/migrate-orphans-execute`
+
+```json
+{
+  "source": "Documents",
+  "canonical": "documents",
+  "confirm": "MIGRATE-Documents",
+  "dry_run": false
+}
+```
+
+**Contract:**
+- Iterates every row in source
+- Strips PB-managed fields (`collectionId`, `collectionName`, `expand`)
+- POSTs to canonical with the **same id preserved** (so any external URLs/references stay valid)
+- Idempotent: if canonical already has that id, reports `already_migrated` and skips
+- `dry_run: true` reports intended actions without writing
+- **Does NOT delete source rows** — that's a separate step
+
+**Dashboard:** "Migrate to {canonical} ({row_count})" button per orphan card.
+
+### Drop orphan collection
+
+`POST /api/admin/drop-orphan-collection`
+
+```json
+{
+  "collection_name": "Documents",
+  "confirm": "DROP-Documents",
+  "verified_migrated_to": "documents"
+}
+```
+
+**Allow-list:** Only `vault_queue`, `Documents`, `Templates` can be dropped via this endpoint. The endpoint refuses any other collection name with `400 collection_not_in_allowlist`.
+
+**Programmatic safety gate (cannot be overridden from client):**
+- If `row_count == 0` → allowed
+- If `row_count > 0` → requires `verified_migrated_to` AND every source id must exist in that canonical collection. If any source id is missing → returns `409 migration_incomplete` with the missing ids; **drop refused**.
+
+**Dashboard:** "Drop {name}" button per orphan; native browser `confirm()` dialog as final friction. Server-side safety check still authoritative.
+
+**Logged:** every successful drop emits a `console.log` line with `dropped_by` (operator email), collection id, row count, safety reason.
 
 ## Related runbooks
 

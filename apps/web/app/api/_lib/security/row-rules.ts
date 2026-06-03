@@ -144,6 +144,13 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   },
   // Bundle 6 G0 anomaly — setup route ships in PR-Tranche-1-Post-Security-Hardening
   { name: "templates", rules: USER_OWNED_RULES },
+  // STAFFD operator collection — orphan-decision audit log (Decision 73)
+  {
+    name: "orphan_decisions",
+    rules: ADMIN_ONLY_RULES,
+    systemManaged: true,
+    note: "STAFFD admin collection for orphan investigation decisions per Decision 71/73 — admin-only via API route gate AND rule tier (defense in depth)",
+  },
 ];
 
 /** Quick lookup helper. */

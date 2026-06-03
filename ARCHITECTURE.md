@@ -313,6 +313,23 @@ Pre-build verification for `PR-Tranche-1-Security-Cleanup` surfaced that three c
 
 The `users` entry retains `systemManaged: true` (Decision 68) — the repair endpoint never modifies PB's auth-collection rules autonomously. The verifier reports `✅` when PB matches; any mismatch must be fixed manually in PB admin UI per the runbook.
 
+### Decision 73 — Orphan Data Migration + Drop (two-phase)
+
+For orphan collections that hold real production data (e.g., capital-letter `Documents` and `Templates` from early schema drift), Decision 73 lands a two-phase migration workflow:
+
+**Phase 1 — Migration (idempotent, ID-preserving):**
+- `POST /api/admin/migrate-orphans-preflight` (read-only) — schema diff per source/canonical pair, row counts, sample rows, `can_migrate` verdict + block reasons
+- `POST /api/admin/migrate-orphans-execute` — iterates source rows, creates in canonical with **same id preserved** (so external URLs/references stay valid). Idempotent — re-running on already-migrated rows returns `already_migrated`. Requires `confirm: "MIGRATE-<source>"` literal token. Supports `dry_run: true`.
+
+**Phase 2 — Drop (gated):**
+- `POST /api/admin/drop-orphan-collection` — drops the source collection. Allow-list: `vault_queue` (Decision 72a), `Documents`, `Templates` only. Programmatic safety gate: `row_count == 0` OR every source id verified to exist in `verified_migrated_to` canonical (else returns `409 migration_incomplete`). Requires `confirm: "DROP-<name>"` literal token. Logged with operator email + safety reason.
+
+**Operator-Task Minimization honored**: dashboard exposes "Migrate to {canonical}" + "Drop {name}" buttons per orphan card. No PB admin UI work required for the standard path.
+
+**Investigation Panel UI fix (Decision 73):** Decision-button highlight now reflects the **recorded decision** (from `orphan_decisions` PB collection), not the recommendation. Recommendation appears as a `★` badge on the recommended button when not selected, plus a static label in the purple panel above. Resolves the prior UX bug where the recommendation looked like the persisted decision.
+
+**`orphan_decisions` added to EXPECTED_COLLECTIONS** as `systemManaged: true` with `ADMIN_ONLY_RULES`. Verifier reports ✅ once the setup route runs; repair never modifies it autonomously. This resolves what would have been a future ℹ️ entry.
+
 ### Decision 71 — Orphan Investigation Panel
 
 For collections that show as `ℹ️ unexpected_collection` (case-variant orphans from prior schema drift, like `Documents` vs canonical `documents`), the security dashboard now includes an **Investigation Panel** with per-orphan investigation data and a "record-decision" workflow:
