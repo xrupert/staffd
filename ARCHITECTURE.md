@@ -239,6 +239,48 @@ These tools are used by the developer building STAFFD. They do not run at user-r
 
 ---
 
+## 6.5 Test Infrastructure
+
+STAFFD uses **Vitest** as the workspace-aware test runner. Installed
+as a workspace dev-dependency at the root + per-package, so each
+workspace can be tested in isolation or all together via Turbo.
+
+### Conventions
+
+- **File naming**: `*.test.ts` / `*.test.tsx` / `*.spec.ts` / `*.spec.tsx`
+- **Directory pattern**: tests live either co-located with source under
+  `src/**/*.test.ts` (packages/agents) or under `app/**/*.test.ts` +
+  `__tests__/**/*.test.ts` (apps/web)
+- **Environment**: `node` for `packages/agents`; `happy-dom` for
+  `apps/web` (lighter than jsdom; supports React component tests in
+  future tranches)
+
+### Running tests
+
+| Command | Effect |
+|---|---|
+| `pnpm test` (from repo root) | Runs all workspaces' test scripts through Turbo |
+| `pnpm test:watch` | Watch mode across all workspaces |
+| `pnpm --filter @staffd/agents test` | Single-package run |
+| `pnpm --filter web test` | Single-package run |
+
+### Standard #5 — Test Coverage Requirement
+
+Every PR ships with at least one automated test that fails before the
+change and passes after. This Test Infrastructure section is the
+foundation that makes Standard #5 enforceable across all subsequent
+implementation PRs (Tranche 1 onwards).
+
+### Configuration files
+
+| Path | Purpose |
+|---|---|
+| `vitest.config.ts` (root) | Workspace orchestration via `defineWorkspace` for direct `vitest` invocation. Normal flow goes through Turbo. |
+| `packages/agents/vitest.config.ts` | Node-environment config; discovers tests under `src/` |
+| `apps/web/vitest.config.ts` | happy-dom environment config; discovers tests under `app/` + `__tests__/` |
+
+---
+
 ## 7. Repository Structure
 
 ```
