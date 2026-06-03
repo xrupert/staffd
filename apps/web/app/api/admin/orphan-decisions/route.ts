@@ -16,6 +16,8 @@
  */
 
 import { adminHeaders, getAdminToken, pbUrl } from "../../_lib/pb";
+import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
+import { logSuperAdminAccess } from "../../_lib/auth/super-admin-logging";
 
 const VALID_DECISIONS = new Set([
   "drop_safe",
@@ -24,36 +26,20 @@ const VALID_DECISIONS = new Set([
   "keep_with_setup_route",
 ]);
 
-async function whoAmI(pbToken: string): Promise<{ id: string; email: string } | null> {
+/**
+ * Thin wrapper around requireSuperAdmin that adapts to the result-object
+ * pattern this file's GET/POST handlers were originally built against.
+ * Decision 74 — refactored to delegate to the shared helper for the actual
+ * gate logic; signature preserved for minimum churn.
+ */
+async function gateSuperAdmin(req: Request): Promise<{ ok: true; userId: string; email: string } | { ok: false; res: Response }> {
   try {
-    const url = pbUrl();
-    const res = await fetch(`${url}/api/collections/users/auth-refresh`, {
-      method: "POST",
-      headers: { Authorization: pbToken },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { record?: { id?: string; email?: string } };
-    if (!data.record?.id || !data.record?.email) return null;
-    return { id: data.record.id, email: data.record.email };
-  } catch {
-    return null;
+    const me = await requireSuperAdmin(req);
+    void logSuperAdminAccess(me, "api_call", "/api/admin/orphan-decisions", { request: req });
+    return { ok: true, userId: me.id, email: me.email };
+  } catch (err) {
+    return { ok: false, res: toAuthErrorResponse(err) };
   }
-}
-
-async function gateSuperAdmin(req: Request): Promise<{ ok: true; userId: string } | { ok: false; res: Response }> {
-  const url = new URL(req.url);
-  const pbToken = url.searchParams.get("pbToken") ?? req.headers.get("authorization") ?? "";
-  if (!pbToken) return { ok: false, res: Response.json({ error: "missing_auth" }, { status: 401 }) };
-  const me = await whoAmI(pbToken);
-  if (!me) return { ok: false, res: Response.json({ error: "unauthorized" }, { status: 401 }) };
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  if (!adminEmail) {
-    return { ok: false, res: Response.json({ error: "admin_not_configured" }, { status: 503 }) };
-  }
-  if (me.email.trim().toLowerCase() !== adminEmail) {
-    return { ok: false, res: Response.json({ error: "forbidden" }, { status: 403 }) };
-  }
-  return { ok: true, userId: me.id };
 }
 
 export async function GET(req: Request): Promise<Response> {

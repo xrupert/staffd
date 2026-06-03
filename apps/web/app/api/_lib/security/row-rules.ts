@@ -151,6 +151,19 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
     systemManaged: true,
     note: "STAFFD admin collection for orphan investigation decisions per Decision 71/73 — admin-only via API route gate AND rule tier (defense in depth)",
   },
+  // Super-admin audit + usage logs (Decision 74)
+  {
+    name: "super_admin_audit_log",
+    rules: ADMIN_ONLY_RULES,
+    systemManaged: true,
+    note: "Decision 74 — every super-admin bypass, dashboard access, and admin route call is logged here. Admin-only at API tier AND rule tier.",
+  },
+  {
+    name: "super_admin_usage_log",
+    rules: ADMIN_ONLY_RULES,
+    systemManaged: true,
+    note: "Decision 74 — premium operations triggered by super-admin (image gen, agent calls, etc.) that would have cost a normal user credits.",
+  },
 ];
 
 /** Quick lookup helper. */

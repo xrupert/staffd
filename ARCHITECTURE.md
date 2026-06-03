@@ -313,6 +313,55 @@ Pre-build verification for `PR-Tranche-1-Security-Cleanup` surfaced that three c
 
 The `users` entry retains `systemManaged: true` (Decision 68) — the repair endpoint never modifies PB's auth-collection rules autonomously. The verifier reports `✅` when PB matches; any mismatch must be fixed manually in PB admin UI per the runbook.
 
+### Decision 74 — Super-Admin Architecture (simplified)
+
+**Identity model.** A user is super-admin iff `user.email === process.env.ADMIN_EMAIL` (single-admin Option α). Currently `chris.rupert@cybridagency.com`. Multi-admin infrastructure deferred to backlog (Option γ).
+
+**Single canonical helper.** `apps/web/app/api/_lib/auth/super-admin.ts`:
+- `isSuperAdmin(user)` — synchronous check given resolved identity
+- `requireSuperAdmin(req)` — gate every super-admin API route; throws `SuperAdminAuthError` mapped to `toAuthErrorResponse()` (Web Request/Response, not NextRequest — matches codebase convention)
+- `trySuperAdminFromToken(pbToken)` — non-throwing variant for billing/permission bypass at sites where we have the user's PB JWT (e.g., agent route)
+- `trySuperAdminByUserId(userId)` — non-throwing variant for sites where we only have `userId` (e.g., muapi route); fetches user record via admin token
+
+**Three operational layers:**
+
+1. **Permissions — DEFERRED.** No `canAccessPack`/`canAccessAgent`/`canUseFeature` functions currently exist in the codebase (pack access is implicit data display, agent access is implicit dept activation). When the first such function is built in Tranche 2+, **WRAP** with `isSuperAdmin()` short-circuit + `logSuperAdminAccess()`. **This is non-negotiable.**
+
+2. **Admin surfaces — ENFORCED.** `apps/web/app/dashboard/admin/layout.tsx` performs client-side super-admin gate (PB auth + ADMIN_EMAIL match + server-side verification via `/api/admin/log-page-view`). Renders shared admin chrome (nav + breadcrumbs) on success; 403 + redirect on failure. Every page navigation logged to `super_admin_audit_log`. 8 admin routes also gated server-side via `requireSuperAdmin`.
+
+3. **Billing — APPLIED.** Two real call sites bypassed:
+   - `/api/integrations/muapi/route.ts` (image/video generation via `spendCredits`) — uses `trySuperAdminByUserId`
+   - `/api/agent/route.ts` (agent credit via `spendAgentCredit`) — uses `trySuperAdminFromToken`
+
+   Both log a `super_admin_usage_log` entry instead of charging credits. **Comped users (jrw-solutions 100× allowance) pattern preserved** — super-admin is a distinct tier above comp.
+
+**Mandatory audit logging.** `apps/web/app/api/_lib/auth/super-admin-logging.ts`:
+- `logSuperAdminAccess(user, actionType, resource, opts)` — writes to `super_admin_audit_log` (every admin route call, dashboard view, future permission bypass). Captures IP + user-agent from request when provided. **Non-blocking** — logging failure never blocks primary operation.
+- `logSuperAdminUsage(user, operationType, opts)` — writes to `super_admin_usage_log`. Non-blocking. Cost estimation fields **DEFERRED** — operation log itself is the visibility surface for now; add cost columns when real data exists to estimate against.
+
+Both helpers `sanitize()` parameter objects, redacting common secret keys (password, token, secret, apikey, authorization, pbtoken) recursively before persisting.
+
+**Auth tier distinctions (NOT super-admin overlay):**
+- `/api/worker/security-audit` uses `CRON_SECRET` (automated worker) — distinct tier; **not** refactored.
+- `/api/admin/data` uses `ADMIN_IP` env gate (IP allow-list) — distinct tier; **not** refactored.
+
+These are deliberate auth-tier separations: super-admin = human user; cron secret = automated worker; ADMIN_IP = network-tier admin.
+
+**Future application pattern.** When adding ANY new permission check or billing call site in future tranches:
+```ts
+const admin = await trySuperAdminFromToken(pbToken); // or ByUserId
+if (admin) {
+  await logSuperAdminUsage(admin, "new_operation_type", { ... });
+} else {
+  await normalBillingOrPermissionCheck();
+}
+```
+This is non-negotiable. Partial bypass breaks the operator's ability to use the product end-to-end without billing themselves.
+
+**Log viewer UI — DEFERRED.** View `super_admin_audit_log` + `super_admin_usage_log` collections in PocketBase admin UI (links surfaced from `/dashboard/admin` index page). Dedicated viewer pages added in a future PR when sufficient log volume makes them useful.
+
+**Multi-admin extension path (Option γ — DEFERRED).** Replace single `ADMIN_EMAIL` env var with a PB `super_admins` collection (rows: email + granted_at + granted_by). `isSuperAdmin()` and the `trySuperAdmin*` variants update to consult that collection. No call site changes; the abstraction layer absorbs the model change. Document in this section when implemented.
+
 ### Decision 73 — Orphan Data Migration + Drop (two-phase)
 
 For orphan collections that hold real production data (e.g., capital-letter `Documents` and `Templates` from early schema drift), Decision 73 lands a two-phase migration workflow:

@@ -159,8 +159,12 @@ describe("GET /api/admin/verify-row-rules", () => {
           deleteRule: "id = @request.auth.id",
         };
       }
-      if (name === "orphan_decisions") {
-        // Decision 73 — ADMIN_ONLY pattern (all-null), systemManaged
+      if (
+        name === "orphan_decisions" ||
+        name === "super_admin_audit_log" ||
+        name === "super_admin_usage_log"
+      ) {
+        // Decision 73 / 74 — ADMIN_ONLY pattern (all-null), systemManaged
         return {
           listRule: null,
           viewRule: null,
@@ -213,6 +217,7 @@ describe("GET /api/admin/verify-row-rules", () => {
               { name: "bookings" }, { name: "orchestrator_decisions" },
               { name: "clients" }, { name: "document_versions" },
               { name: "users" }, { name: "templates" }, { name: "orphan_decisions" },
+              { name: "super_admin_audit_log" }, { name: "super_admin_usage_log" },
             ],
           }),
         };
@@ -234,7 +239,7 @@ describe("GET /api/admin/verify-row-rules", () => {
     const body = await res.json();
     expect(body.overall_status).toBe("✅");
     expect(body.gap_count).toBe(0);
-    expect(body.collections_checked).toBe(21);
+    expect(body.collections_checked).toBe(23);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

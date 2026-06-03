@@ -20,13 +20,14 @@
  *   5. Dashboard refreshes; verify all ✅
  */
 
-import { pbUrl } from "../../_lib/pb";
 import {
   EXPECTED_COLLECTIONS,
   ensureCollectionRulesWithFreshToken,
   type EnsureResult,
   type RuleSet,
 } from "../../_lib/security/row-rules";
+import { requireSuperAdmin, toAuthErrorResponse, type SuperAdminUser } from "../../_lib/auth/super-admin";
+import { logSuperAdminAccess } from "../../_lib/auth/super-admin-logging";
 
 type RepairStatus =
   | "✅ already-correct"
@@ -52,22 +53,6 @@ type RepairReport = {
   total_skipped: number;
   total_failed: number;
 };
-
-async function whoAmI(pbToken: string): Promise<{ id: string; email: string } | null> {
-  try {
-    const url = pbUrl();
-    const res = await fetch(`${url}/api/collections/users/auth-refresh`, {
-      method: "POST",
-      headers: { Authorization: pbToken },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { record?: { id?: string; email?: string } };
-    if (!data.record?.id || !data.record?.email) return null;
-    return { id: data.record.id, email: data.record.email };
-  } catch {
-    return null;
-  }
-}
 
 function mapResultToReport(name: string, result: EnsureResult): CollectionRepair {
   switch (result.status) {
@@ -115,20 +100,13 @@ function mapResultToReport(name: string, result: EnsureResult): CollectionRepair
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const pbToken = url.searchParams.get("pbToken") ?? req.headers.get("authorization") ?? "";
-  if (!pbToken) return Response.json({ error: "missing_auth" }, { status: 401 });
-
-  const me = await whoAmI(pbToken);
-  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
-
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  if (!adminEmail) {
-    return Response.json({ error: "admin_not_configured" }, { status: 503 });
+  let me: SuperAdminUser;
+  try {
+    me = await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
   }
-  if (me.email.trim().toLowerCase() !== adminEmail) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
+  void logSuperAdminAccess(me, "api_call", "/api/admin/repair-row-rules", { request: req });
 
   const repairs: CollectionRepair[] = [];
   for (const entry of EXPECTED_COLLECTIONS) {

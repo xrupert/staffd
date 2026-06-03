@@ -17,6 +17,8 @@
  */
 
 import { getAdminToken, pbUrl } from "../../_lib/pb";
+import { requireSuperAdmin, toAuthErrorResponse, type SuperAdminUser } from "../../_lib/auth/super-admin";
+import { logSuperAdminAccess } from "../../_lib/auth/super-admin-logging";
 
 type MigrationPair = { source: string; canonical: string };
 
@@ -49,22 +51,6 @@ type PairReport = {
   can_migrate: boolean;
   block_reasons: string[];
 };
-
-async function whoAmI(pbToken: string): Promise<{ id: string; email: string } | null> {
-  try {
-    const url = pbUrl();
-    const res = await fetch(`${url}/api/collections/users/auth-refresh`, {
-      method: "POST",
-      headers: { Authorization: pbToken },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { record?: { id?: string; email?: string } };
-    if (!data.record?.id || !data.record?.email) return null;
-    return { id: data.record.id, email: data.record.email };
-  } catch {
-    return null;
-  }
-}
 
 async function fetchCollection(token: string, name: string): Promise<PbCollection | null> {
   try {
@@ -162,16 +148,13 @@ function diffFields(sourceFields: PbField[], canonicalFields: PbField[]): FieldD
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const pbToken = url.searchParams.get("pbToken") ?? req.headers.get("authorization") ?? "";
-  if (!pbToken) return Response.json({ error: "missing_auth" }, { status: 401 });
-  const me = await whoAmI(pbToken);
-  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  if (!adminEmail) return Response.json({ error: "admin_not_configured" }, { status: 503 });
-  if (me.email.trim().toLowerCase() !== adminEmail) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
+  let me: SuperAdminUser;
+  try {
+    me = await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
   }
+  void logSuperAdminAccess(me, "api_call", "/api/admin/migrate-orphans-preflight", { request: req });
 
   let adminToken: string;
   try {

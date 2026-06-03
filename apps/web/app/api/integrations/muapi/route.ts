@@ -12,6 +12,8 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { spendCredits, getCreditState } from "../../_lib/credits";
+import { trySuperAdminByUserId } from "../../_lib/auth/super-admin";
+import { logSuperAdminUsage } from "../../_lib/auth/super-admin-logging";
 
 const anthropic = new Anthropic();
 
@@ -216,9 +218,15 @@ export async function POST(req: Request) {
     if (kind !== "image" && kind !== "video") return Response.json({ error: "kind must be 'image' or 'video'" }, { status: 400 });
     if (!prompt?.trim())   return Response.json({ error: "prompt is required" }, { status: 400 });
 
-    // Pre-flight credit check — fast reject before we hit Muapi
-    const preState = await getCreditState(pbUrl, userId);
-    if (preState.totalRemaining[kind] < 1) {
+    // Decision 74 — super-admin bypass. If caller is super-admin: skip the
+    // credit pre-flight gate entirely (they have no quota). The actual
+    // bypass + logging happens at the spend site below.
+    const superAdmin = await trySuperAdminByUserId(userId);
+
+    // Pre-flight credit check — fast reject before we hit Muapi.
+    // Super-admin skips this gate.
+    const preState = superAdmin ? null : await getCreditState(pbUrl, userId);
+    if (preState && preState.totalRemaining[kind] < 1) {
       return Response.json(
         {
           error: "out_of_credits",
@@ -269,17 +277,31 @@ export async function POST(req: Request) {
       return Response.json({ error: "Generation timed out", predictionId }, { status: 504 });
     }
 
-    // Charge credit only on success
-    const spend = await spendCredits(pbUrl, userId, kind, 1);
-    if (!spend.ok) {
-      // Edge case — credits ran out between pre-check and now. Still return
-      // the result since we already produced it, but flag the issue.
-      return Response.json({
-        success: true,
-        url: resultUrl,
-        model: modelEndpoint,
-        creditWarning: "Credit charge failed — please contact support.",
+    // Decision 74 — super-admin bypass at billing tier. Log usage instead
+    // of charging credits. Comped users (jrw-solutions) still hit
+    // spendCredits normally (they have 100× allowance) — super-admin is a
+    // distinct tier above comp.
+    let remainingCredits: number | "unlimited" = "unlimited";
+    if (superAdmin) {
+      void logSuperAdminUsage(superAdmin, "muapi_generation", {
+        operation_detail: `${kind} via ${modelEndpoint}`,
+        parameters: { kind, prompt_chars: prompt.length, aspectRatio: ratio, model },
       });
+    } else {
+      // Charge credit only on success
+      const spend = await spendCredits(pbUrl, userId, kind, 1);
+      if (!spend.ok) {
+        // Edge case — credits ran out between pre-check and now. Still
+        // return the result since we already produced it, but flag the
+        // issue.
+        return Response.json({
+          success: true,
+          url: resultUrl,
+          model: modelEndpoint,
+          creditWarning: "Credit charge failed — please contact support.",
+        });
+      }
+      remainingCredits = spend.remaining;
     }
 
     return Response.json({
@@ -287,7 +309,7 @@ export async function POST(req: Request) {
       url: resultUrl,
       model: modelEndpoint,
       promptUsed: focusedPrompt,
-      remaining: spend.remaining,
+      remaining: remainingCredits,
     });
   } catch (err) {
     console.error("Muapi route error:", err);

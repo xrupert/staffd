@@ -66,8 +66,16 @@ describe("GET /api/admin/orphan-details", () => {
   it("returns drop_safe for empty orphans with existing canonical", async () => {
     fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => {
       const u = typeof input === "string" ? input : input.toString();
-      // Count only writes to /api/collections data (exclude auth-refresh POST).
-      if (init?.method && init.method !== "GET" && !u.includes("auth-refresh")) writeCalls++;
+      // Count only writes to orphan-collection data (exclude auth-refresh +
+      // super_admin_audit_log logging side-effect from requireSuperAdmin path).
+      if (
+        init?.method &&
+        init.method !== "GET" &&
+        !u.includes("auth-refresh") &&
+        !u.includes("super_admin_audit_log")
+      ) {
+        writeCalls++;
+      }
       if (u.includes("/api/collections/users/auth-refresh")) {
         return { ok: true, status: 200, json: async () => ({ record: { id: "u1", email: ADMIN_EMAIL } }) };
       }

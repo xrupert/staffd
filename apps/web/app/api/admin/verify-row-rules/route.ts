@@ -12,7 +12,7 @@
  * /api/admin/vault-metrics canonical pattern.
  */
 
-import { getAdminToken, pbUrl } from "../../_lib/pb";
+import { getAdminToken } from "../../_lib/pb";
 import {
   EXPECTED_COLLECTIONS,
   type ExpectedEntry,
@@ -21,6 +21,8 @@ import {
   fetchCollectionRules,
   listAllCollectionNames,
 } from "../../_lib/security/row-rules";
+import { requireSuperAdmin, toAuthErrorResponse, type SuperAdminUser } from "../../_lib/auth/super-admin";
+import { logSuperAdminAccess } from "../../_lib/auth/super-admin-logging";
 
 type CollectionStatus = "✅" | "🔴" | "ℹ️";
 
@@ -41,37 +43,14 @@ type VerifyReport = {
   collections_checked: number;
 };
 
-async function whoAmI(pbToken: string): Promise<{ id: string; email: string } | null> {
-  try {
-    const url = pbUrl();
-    const res = await fetch(`${url}/api/collections/users/auth-refresh`, {
-      method: "POST",
-      headers: { Authorization: pbToken },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { record?: { id?: string; email?: string } };
-    if (!data.record?.id || !data.record?.email) return null;
-    return { id: data.record.id, email: data.record.email };
-  } catch {
-    return null;
-  }
-}
-
 export async function GET(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const pbToken = url.searchParams.get("pbToken") ?? req.headers.get("authorization") ?? "";
-  if (!pbToken) return Response.json({ error: "missing_auth" }, { status: 401 });
-
-  const me = await whoAmI(pbToken);
-  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
-
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  if (!adminEmail) {
-    return Response.json({ error: "admin_not_configured" }, { status: 503 });
+  let me: SuperAdminUser;
+  try {
+    me = await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
   }
-  if (me.email.trim().toLowerCase() !== adminEmail) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
-  }
+  void logSuperAdminAccess(me, "api_call", "/api/admin/verify-row-rules", { request: req });
 
   let adminToken: string;
   try {

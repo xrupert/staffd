@@ -24,6 +24,8 @@
  */
 
 import { getAdminToken, pbUrl } from "../../_lib/pb";
+import { requireSuperAdmin, toAuthErrorResponse, type SuperAdminUser } from "../../_lib/auth/super-admin";
+import { logSuperAdminAccess } from "../../_lib/auth/super-admin-logging";
 
 const ALLOWED_TO_DROP = new Set(["vault_queue", "Documents", "Templates"]);
 
@@ -32,21 +34,6 @@ const MIGRATION_TARGETS: Record<string, string> = {
   Documents: "documents",
   Templates: "templates",
 };
-
-async function whoAmI(pbToken: string): Promise<{ id: string; email: string } | null> {
-  try {
-    const res = await fetch(`${pbUrl()}/api/collections/users/auth-refresh`, {
-      method: "POST",
-      headers: { Authorization: pbToken },
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { record?: { id?: string; email?: string } };
-    if (!data.record?.id || !data.record?.email) return null;
-    return { id: data.record.id, email: data.record.email };
-  } catch {
-    return null;
-  }
-}
 
 async function fetchAllRowIds(token: string, collection: string): Promise<string[]> {
   const ids: string[] = [];
@@ -87,16 +74,13 @@ async function fetchCollectionId(token: string, name: string): Promise<string | 
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const pbToken = url.searchParams.get("pbToken") ?? req.headers.get("authorization") ?? "";
-  if (!pbToken) return Response.json({ error: "missing_auth" }, { status: 401 });
-  const me = await whoAmI(pbToken);
-  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
-  if (!adminEmail) return Response.json({ error: "admin_not_configured" }, { status: 503 });
-  if (me.email.trim().toLowerCase() !== adminEmail) {
-    return Response.json({ error: "forbidden" }, { status: 403 });
+  let me: SuperAdminUser;
+  try {
+    me = await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
   }
+  void logSuperAdminAccess(me, "api_call", "/api/admin/drop-orphan-collection", { request: req });
 
   let body: { collection_name?: string; confirm?: string; verified_migrated_to?: string };
   try {

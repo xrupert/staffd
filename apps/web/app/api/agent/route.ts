@@ -10,6 +10,8 @@ import { runOrchestrator } from "../_lib/orchestrator";
 import { getVoiceBlock } from "../_lib/vault/voice";
 import { pickModel, callGroq, computeCostUsd } from "../_lib/llm-router";
 import { spendAgentCredit } from "../_lib/credits";
+import { trySuperAdminFromToken } from "../_lib/auth/super-admin";
+import { logSuperAdminUsage } from "../_lib/auth/super-admin-logging";
 import { ensureConversationThreadRow } from "../_lib/conversations";
 
 const anthropic = new Anthropic();
@@ -288,9 +290,26 @@ export async function POST(req: Request) {
     // Phase 4 — soft agent-credit deduction. Fire-and-forget; does not block
     // the generation. The X2 daily rate limit (50/day) is the hard gate.
     // Phase 5 will introduce monthly allowances + harder gating.
+    //
+    // Decision 74 — super-admin bypass. If the caller is super-admin, log
+    // the operation to super_admin_usage_log instead of deducting a credit.
+    // Comped users (jrw-solutions 100× allowance) still hit spendAgentCredit
+    // normally — super-admin is a distinct tier above comp.
     if (userId) {
       const pbUrlVal = process.env.NEXT_PUBLIC_POCKETBASE_URL;
-      if (pbUrlVal) void spendAgentCredit(pbUrlVal, userId);
+      if (pbUrlVal) {
+        void (async () => {
+          const admin = await trySuperAdminFromToken(pbToken);
+          if (admin) {
+            await logSuperAdminUsage(admin, "agent_credit_spend", {
+              operation_detail: `${department}/${agentId ?? "default"}`,
+              parameters: { task_chars: task.length, threadId },
+            });
+          } else {
+            await spendAgentCredit(pbUrlVal, userId);
+          }
+        })();
+      }
     }
 
     const encoder = new TextEncoder();
