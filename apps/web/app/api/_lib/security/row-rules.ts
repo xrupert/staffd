@@ -44,7 +44,31 @@ export const AGENCY_OWNED_RULES: RuleSet = {
   delete: "agency_user = @request.auth.id",
 };
 
-export const DOCUMENT_VERSIONS_RULES: RuleSet = {
+/**
+ * Pattern reserved for backend-only collections that have no `user` field —
+ * workers operate them via admin token; non-admin users have no path to read
+ * or write directly. All five rules `null` = PB admin-only.
+ *
+ * Used by `vault_ingest_queue` (Decision 71): the ingestion worker queue
+ * has no `user` field by design (`source_id` points to user-scoped artifacts;
+ * worker enforces scoping at job-dispatch time, not at row-read time).
+ */
+export const ADMIN_ONLY_RULES: RuleSet = {
+  list: null,
+  view: null,
+  create: null,
+  update: null,
+  delete: null,
+};
+
+/**
+ * @deprecated Per Decision 71 — `document.user = @request.auth.id` relational
+ * rule requires `document` to be a PB relation-type field. STAFFD's
+ * `document_versions.document` is a plain text id (intentional — PR-27
+ * denormalized `user` for this exact reason). Use `USER_OWNED_RULES` instead.
+ * Kept for documentation; not in EXPECTED_COLLECTIONS.
+ */
+export const DOCUMENT_VERSIONS_RELATIONAL_LEGACY: RuleSet = {
   list: "document.user = @request.auth.id",
   view: "document.user = @request.auth.id",
   create: "document.user = @request.auth.id",
@@ -52,10 +76,18 @@ export const DOCUMENT_VERSIONS_RULES: RuleSet = {
   delete: "document.user = @request.auth.id",
 };
 
-export const USERS_SYSTEM_RULES: RuleSet = {
-  list: null,
+/**
+ * PocketBase auth-collection (`users`) default pattern. Self-listing is PB's
+ * out-of-the-box behavior for auth collections. Decision 71 codebase grep
+ * confirmed zero callsites depend on a `null` list rule — every non-admin
+ * users-collection access is `auth-refresh` (system endpoint) or
+ * `records/{userId}` GET. Admin paths use admin token (bypasses rules
+ * regardless).
+ */
+export const USERS_AUTH_RULES: RuleSet = {
+  list: "id = @request.auth.id",
   view: "id = @request.auth.id",
-  create: null,
+  create: "", // PB system default: empty string for auth-collection signup endpoint
   update: "id = @request.auth.id",
   delete: "id = @request.auth.id",
 };
@@ -85,7 +117,11 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   { name: "vault_retrieval_metrics", rules: USER_OWNED_RULES },
   { name: "vault_voice_profile", rules: USER_OWNED_RULES },
   { name: "vault_embeddings_index", rules: USER_OWNED_RULES },
-  { name: "vault_ingest_queue", rules: USER_OWNED_RULES },
+  {
+    name: "vault_ingest_queue",
+    rules: ADMIN_ONLY_RULES,
+    note: "backend-only collection; workers use admin token; no user field by design (Decision 71)",
+  },
   { name: "conversations", rules: USER_OWNED_RULES },
   { name: "conversation_threads", rules: USER_OWNED_RULES },
   { name: "push_subscriptions", rules: USER_OWNED_RULES },
@@ -94,10 +130,19 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   { name: "orchestrator_decisions", rules: USER_OWNED_RULES },
   // Special-pattern (2)
   { name: "clients", rules: AGENCY_OWNED_RULES },
-  { name: "document_versions", rules: DOCUMENT_VERSIONS_RULES },
+  {
+    name: "document_versions",
+    rules: USER_OWNED_RULES,
+    note: "denormalized user field per PR-27 design enables standard pattern (Decision 71)",
+  },
   // System-managed (1) — verify only; repair skips
-  { name: "users", rules: USERS_SYSTEM_RULES, systemManaged: true },
-  // Bundle 6 G0 anomaly — setup route lands in this same PR
+  {
+    name: "users",
+    rules: USERS_AUTH_RULES,
+    systemManaged: true,
+    note: "auth collection — PB self-listing default; zero codebase dependency on null list rule (Decision 71)",
+  },
+  // Bundle 6 G0 anomaly — setup route ships in PR-Tranche-1-Post-Security-Hardening
   { name: "templates", rules: USER_OWNED_RULES },
 ];
 

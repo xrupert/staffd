@@ -50,7 +50,7 @@ Apply to each of:
 | 7 | `vault_retrieval_metrics` | V2 retrieval cost telemetry |
 | 8 | `vault_voice_profile` | Phase 2 brand voice fingerprint |
 | 9 | `vault_embeddings_index` | V2 per-user Qdrant point manifest |
-| 10 | `vault_ingest_queue` | V4 ingestion worker queue |
+| 10 | ~~`vault_ingest_queue`~~ | **Moved to ADMIN_ONLY pattern — see below (Decision 71)** |
 | 11 | `conversations` | V5 conversation persistence |
 | 12 | `conversation_threads` | PR 25 Thread Picker metadata |
 | 13 | `push_subscriptions` | Phase 7 web push tokens |
@@ -58,7 +58,7 @@ Apply to each of:
 | 15 | `bookings` | Booking page submissions |
 | 16 | `orchestrator_decisions` | Phase 3 model-routing telemetry |
 
-### Special-pattern collections — 2 entries
+### Special-pattern collections — 3 entries
 
 #### 17. `clients` (Agency tier)
 
@@ -70,31 +70,45 @@ agency_user = @request.auth.id
 
 Only Agency-tier users (and comped accounts) ever see this collection. The `agency_user` field replaces `user` to make the agency-vs-client distinction explicit in the schema.
 
-#### 18. `document_versions` (PR 27 history)
+#### 18. `document_versions` (PR 27 history) — Decision 71
 
-All five rules (relational pattern — gates by the parent document's owner):
+All five rules (uses the **denormalized `user` field**, NOT relational):
 
 ```
-document.user = @request.auth.id
+user = @request.auth.id
 ```
 
-This pattern asserts that the **parent `documents` row's** owner must match the authenticated user — ensuring you can only see version history for documents you own.
+> **Decision 71 update:** Earlier versions of this runbook called for `document.user = @request.auth.id`. That relational pattern requires `document` to be a PB relation-type field, but `document_versions.document` is a plain text id. PR-27 deliberately denormalized `user` at insert-time precisely so this standard pattern works without relation traversal. Use `user = @request.auth.id`.
+
+#### 19. `vault_ingest_queue` (backend infrastructure) — Decision 71
+
+All five rules:
+
+```
+(null — empty / admin-only)
+```
+
+> **Decision 71 update:** `vault_ingest_queue` is a backend infrastructure collection with **no `user` field by design**. The vault ingestion worker uses the PB admin token (bypasses all rules) to dispatch jobs across all users. Users never have a reason to query this queue directly. All rules `null` = admin-only access.
+>
+> Earlier versions of this runbook listed `vault_ingest_queue` under the user-owned 16. That was incorrect — the `user` field never existed in this schema; the rule could never have worked.
 
 ### System-managed collection — 1 entry
 
-#### 19. `users` (PocketBase default)
+#### 20. `users` (PocketBase auth collection) — Decision 71
 
 Mixed rules:
 
 | Rule | Expected value |
 |---|---|
-| List | `null` (PB default — admin-only) |
+| List | `id = @request.auth.id` (PB auth-collection self-listing default) |
 | View | `id = @request.auth.id` |
-| Create | `null` (signup goes through PB's `auth-create` endpoint) |
+| Create | `""` (empty string — signup goes through PB's `auth-create` endpoint) |
 | Update | `id = @request.auth.id` |
 | Delete | `id = @request.auth.id` |
 
-`null` means "no API access — admin only." For `users`, that's the correct default for List and Create.
+> **Decision 71 update:** Earlier versions called for `List: null` (admin-only). Codebase grep confirmed zero callsites depend on a `null` list rule — `users` is only ever accessed via `auth-refresh` or single-record GET-by-id; admin paths use the admin token (bypasses rules regardless). PB's default for auth collections is self-listing (`id = @request.auth.id`), which is safer (operator can find their own account in the PB UI) and matches PB's out-of-the-box state.
+>
+> `systemManaged: true` — the repair endpoint never modifies `users` autonomously. If PB returns something other than the expected pattern, fix it manually in PB admin UI.
 
 ### Bundle 6 G0 anomaly
 

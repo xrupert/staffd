@@ -40,6 +40,61 @@ type VerifyReport = {
   collections_checked: number;
 };
 
+// Decision 71 — Orphan Investigation Panel.
+type OrphanRecommendation =
+  | "drop_safe"
+  | "drop_after_migration"
+  | "investigate_active_usage"
+  | "keep_with_setup_route";
+
+type OrphanDetail = {
+  name: string;
+  exists: boolean;
+  collection_id?: string;
+  collection_type?: string;
+  field_count?: number;
+  fields?: Array<{ name: string; type: string; required: boolean }>;
+  row_count?: number;
+  last_modified?: string;
+  created_at?: string;
+  current_rules?: RuleSet;
+  canonical_equivalent: string | null;
+  canonical_field_count?: number;
+  schema_overlap_with_canonical?: number;
+  recommendation: OrphanRecommendation;
+  recommendation_reason: string;
+};
+
+type OrphanReport = {
+  timestamp: string;
+  collections: OrphanDetail[];
+  note: string;
+};
+
+type RecordedDecision = {
+  id: string;
+  collection_name: string;
+  decision: OrphanRecommendation;
+  reason?: string;
+  decided_by: string;
+  status: string;
+  created: string;
+};
+
+const DECISION_LABELS: Record<OrphanRecommendation, string> = {
+  drop_safe: "Mark Drop-Safe",
+  drop_after_migration: "Mark Drop-After-Migration",
+  investigate_active_usage: "Mark for Investigation",
+  keep_with_setup_route: "Mark Keep + Add Setup Route",
+};
+
+const DECISION_DESCRIPTIONS: Record<OrphanRecommendation, string> = {
+  drop_safe: "Empty + canonical exists. Senior Architect can approve drop.",
+  drop_after_migration: "Has rows; canonical exists. Requires data migration first.",
+  investigate_active_usage: "Unclear. Investigate code references before any action.",
+  keep_with_setup_route: "Active collection that should be in the baseline.",
+};
+
 const cardStyle: React.CSSProperties = {
   background: "#111118",
   border: "1px solid #2A2A38",
@@ -85,6 +140,14 @@ export default function SecurityAuditPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [repairing, setRepairing] = useState(false);
   const [repairMessage, setRepairMessage] = useState<string | null>(null);
+  // Decision 71 — Orphan Investigation Panel state
+  const [orphanReport, setOrphanReport] = useState<OrphanReport | null>(null);
+  const [orphanLoading, setOrphanLoading] = useState(false);
+  const [orphanError, setOrphanError] = useState<string | null>(null);
+  const [recordedDecisions, setRecordedDecisions] = useState<RecordedDecision[]>([]);
+  const [orphanReasons, setOrphanReasons] = useState<Record<string, string>>({});
+  const [decisionPending, setDecisionPending] = useState<string | null>(null);
+  const [decisionMessage, setDecisionMessage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!pb.authStore.isValid) {
@@ -115,6 +178,79 @@ export default function SecurityAuditPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Decision 71 — load orphan investigation data + recorded decisions
+  const loadOrphans = useCallback(async () => {
+    if (!pb.authStore.isValid) return;
+    setOrphanLoading(true);
+    setOrphanError(null);
+    try {
+      const token = pb.authStore.token;
+      const [detailsRes, decisionsRes] = await Promise.all([
+        fetch(`/api/admin/orphan-details?pbToken=${encodeURIComponent(token)}`),
+        fetch(`/api/admin/orphan-decisions?pbToken=${encodeURIComponent(token)}`),
+      ]);
+      if (!detailsRes.ok) {
+        const data = await detailsRes.json().catch(() => ({}));
+        setOrphanError(data.error ?? `error_${detailsRes.status}`);
+      } else {
+        const data = (await detailsRes.json()) as OrphanReport;
+        setOrphanReport(data);
+      }
+      if (decisionsRes.ok) {
+        const data = (await decisionsRes.json()) as { decisions: RecordedDecision[] };
+        setRecordedDecisions(data.decisions ?? []);
+      }
+    } catch {
+      setOrphanError("network_error");
+    } finally {
+      setOrphanLoading(false);
+    }
+  }, []);
+
+  // Auto-load orphans whenever the main report includes ℹ️ entries
+  useEffect(() => {
+    if (!report) return;
+    const hasOrphans = report.collections.some((c) => c.status === "ℹ️");
+    if (hasOrphans && !orphanReport && !orphanLoading) {
+      void loadOrphans();
+    }
+  }, [report, orphanReport, orphanLoading, loadOrphans]);
+
+  async function recordDecision(collectionName: string, decision: OrphanRecommendation) {
+    if (decisionPending) return;
+    setDecisionPending(`${collectionName}:${decision}`);
+    setDecisionMessage(null);
+    try {
+      const token = pb.authStore.token;
+      const res = await fetch(`/api/admin/orphan-decisions?pbToken=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collection_name: collectionName,
+          decision,
+          reason: orphanReasons[collectionName] ?? "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "collection_not_created") {
+          setDecisionMessage(
+            "orphan_decisions collection not yet created. Run POST /api/setup/orphan-decisions first.",
+          );
+        } else {
+          setDecisionMessage(`Failed: ${data.error ?? `error_${res.status}`}`);
+        }
+      } else {
+        setDecisionMessage(`Recorded: ${collectionName} → ${decision}`);
+        await loadOrphans(); // refresh decisions list
+      }
+    } catch {
+      setDecisionMessage("Failed: network error");
+    } finally {
+      setDecisionPending(null);
+    }
+  }
 
   function toggleExpand(name: string) {
     setExpanded((prev) => {
@@ -358,6 +494,186 @@ export default function SecurityAuditPage() {
                 </tbody>
               </table>
             </section>
+
+            {/* Decision 71 — Orphan Investigation Panel */}
+            {report.collections.some((c) => c.status === "ℹ️") && (
+              <section style={cardStyle}>
+                <div className="flex items-end justify-between mb-4 flex-wrap gap-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#A07BFF" }}>
+                      Unexpected Collections — Investigation Panel
+                    </p>
+                    <p className="text-xs" style={{ color: "#7070A0" }}>
+                      Collections found in PB but not in the expected baseline. Record a decision per collection;
+                      Senior Architect authorizes any drop via follow-up PR. No autonomous deletions.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => void loadOrphans()}
+                    disabled={orphanLoading}
+                    className="text-xs font-medium px-3 py-2 rounded-lg"
+                    style={{
+                      background: "#1A1A24",
+                      border: "1px solid #2A2A38",
+                      color: "#D0D0E8",
+                      opacity: orphanLoading ? 0.5 : 1,
+                    }}
+                  >
+                    {orphanLoading ? "Loading…" : "Refresh Investigation"}
+                  </button>
+                </div>
+
+                {orphanError && (
+                  <div
+                    className="rounded-xl px-4 py-3 text-sm mb-4"
+                    style={{
+                      background: "rgba(239,68,68,0.08)",
+                      border: "1px solid rgba(239,68,68,0.25)",
+                      color: "#EF4444",
+                    }}
+                  >
+                    Could not load investigation data: {orphanError}
+                  </div>
+                )}
+
+                {decisionMessage && (
+                  <div
+                    className="rounded-xl px-4 py-3 text-sm mb-4"
+                    style={{
+                      background: decisionMessage.startsWith("Failed") ? "rgba(239,68,68,0.08)" : "rgba(34,197,94,0.08)",
+                      border: `1px solid ${decisionMessage.startsWith("Failed") ? "rgba(239,68,68,0.25)" : "rgba(34,197,94,0.25)"}`,
+                      color: decisionMessage.startsWith("Failed") ? "#EF4444" : "#22C55E",
+                    }}
+                  >
+                    {decisionMessage}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-4">
+                  {orphanReport?.collections.map((o) => {
+                    const existing = recordedDecisions.find((d) => d.collection_name === o.name);
+                    return (
+                      <div
+                        key={o.name}
+                        className="rounded-xl p-4"
+                        style={{
+                          background: "#09090F",
+                          border: "1px solid #2A2A38",
+                        }}
+                      >
+                        <div className="flex items-start justify-between mb-2 flex-wrap gap-2">
+                          <div>
+                            <p style={{ fontFamily: "monospace", fontSize: "14px", color: "#F0F0F8", fontWeight: 600 }}>
+                              {o.name}
+                            </p>
+                            <p className="text-xs mt-1" style={{ color: "#7070A0" }}>
+                              {o.exists
+                                ? `${o.row_count ?? 0} row(s) · ${o.field_count ?? 0} field(s)${o.last_modified ? ` · last modified ${new Date(o.last_modified).toLocaleString()}` : ""}`
+                                : "Does not exist in PB"}
+                            </p>
+                          </div>
+                          {existing && (
+                            <span
+                              className="text-xs px-2 py-1 rounded"
+                              style={{
+                                background: "rgba(160,123,255,0.10)",
+                                color: "#A07BFF",
+                                border: "1px solid rgba(160,123,255,0.25)",
+                              }}
+                            >
+                              Recorded: {existing.decision} · {existing.status}
+                            </span>
+                          )}
+                        </div>
+
+                        {o.canonical_equivalent && (
+                          <p className="text-xs mb-2" style={{ color: "#9090A8" }}>
+                            Canonical equivalent: <code style={{ color: "#A07BFF" }}>{o.canonical_equivalent}</code>
+                            {typeof o.schema_overlap_with_canonical === "number" &&
+                              ` · ${Math.round(o.schema_overlap_with_canonical * 100)}% field overlap`}
+                          </p>
+                        )}
+
+                        <div
+                          className="text-xs p-3 rounded mb-3"
+                          style={{
+                            background: "rgba(91,33,232,0.08)",
+                            border: "1px solid rgba(91,33,232,0.25)",
+                            color: "#D0D0E8",
+                          }}
+                        >
+                          <span style={{ color: "#A07BFF", fontWeight: 600 }}>
+                            Recommendation: {o.recommendation}
+                          </span>
+                          <p className="mt-1" style={{ color: "#9090A8" }}>{o.recommendation_reason}</p>
+                        </div>
+
+                        {o.fields && o.fields.length > 0 && (
+                          <details className="mb-3">
+                            <summary className="text-xs cursor-pointer" style={{ color: "#7070A0" }}>
+                              View schema ({o.fields.length} fields)
+                            </summary>
+                            <pre className="text-xs mt-2 p-2 rounded" style={{ background: "#0D0D14", color: "#9090A8", overflow: "auto" }}>
+                              {o.fields.map((f) => `  ${f.name}: ${f.type}${f.required ? " (required)" : ""}`).join("\n")}
+                            </pre>
+                          </details>
+                        )}
+
+                        <input
+                          type="text"
+                          placeholder="Optional reason / notes…"
+                          value={orphanReasons[o.name] ?? ""}
+                          onChange={(e) =>
+                            setOrphanReasons((prev) => ({ ...prev, [o.name]: e.target.value }))
+                          }
+                          className="w-full text-xs px-3 py-2 rounded mb-2"
+                          style={{
+                            background: "#1A1A24",
+                            border: "1px solid #2A2A38",
+                            color: "#D0D0E8",
+                          }}
+                        />
+
+                        <div className="flex flex-wrap gap-2">
+                          {(Object.keys(DECISION_LABELS) as OrphanRecommendation[]).map((d) => {
+                            const isRecommended = d === o.recommendation;
+                            const isPending = decisionPending === `${o.name}:${d}`;
+                            return (
+                              <button
+                                key={d}
+                                onClick={() => void recordDecision(o.name, d)}
+                                disabled={!!decisionPending}
+                                title={DECISION_DESCRIPTIONS[d]}
+                                className="text-xs font-medium px-3 py-2 rounded"
+                                style={{
+                                  background: isRecommended ? "#5B21E8" : "#1A1A24",
+                                  color: isRecommended ? "#fff" : "#D0D0E8",
+                                  border: `1px solid ${isRecommended ? "#5B21E8" : "#2A2A38"}`,
+                                  opacity: decisionPending ? 0.5 : 1,
+                                }}
+                              >
+                                {isPending ? "Recording…" : DECISION_LABELS[d]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {orphanReport && orphanReport.collections.length === 0 && (
+                    <p className="text-xs" style={{ color: "#7070A0" }}>
+                      No unexpected collections detected.
+                    </p>
+                  )}
+                </div>
+
+                {orphanReport && (
+                  <p className="text-xs mt-4" style={{ color: "#3A3A55" }}>
+                    {orphanReport.note}
+                  </p>
+                )}
+              </section>
+            )}
 
             <p className="text-xs text-right" style={{ color: "#3A3A55" }}>
               {report.collections_checked} collections checked

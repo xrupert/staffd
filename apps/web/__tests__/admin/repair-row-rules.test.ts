@@ -164,12 +164,20 @@ describe("POST /api/admin/repair-row-rules", () => {
               status: 200,
               json: async () => ({
                 id: `id_${name}`,
-                listRule: null,
+                listRule: "id = @request.auth.id",
                 viewRule: "id = @request.auth.id",
-                createRule: null,
+                createRule: "",
                 updateRule: "id = @request.auth.id",
                 deleteRule: "id = @request.auth.id",
               }),
+            };
+          }
+          if (name === "vault_ingest_queue") {
+            // Decision 71 — ADMIN_ONLY pattern: all null
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({ id: `id_${name}`, ...WIDE_OPEN_PB }),
             };
           }
           if (name === "clients") {
@@ -187,17 +195,11 @@ describe("POST /api/admin/repair-row-rules", () => {
             };
           }
           if (name === "document_versions") {
+            // Decision 71 — uses USER_OWNED pattern (denormalized user field)
             return {
               ok: true,
               status: 200,
-              json: async () => ({
-                id: `id_${name}`,
-                listRule: "document.user = @request.auth.id",
-                viewRule: "document.user = @request.auth.id",
-                createRule: "document.user = @request.auth.id",
-                updateRule: "document.user = @request.auth.id",
-                deleteRule: "document.user = @request.auth.id",
-              }),
+              json: async () => ({ id: `id_${name}`, ...USER_OWNED_PB }),
             };
           }
           return {
@@ -239,9 +241,9 @@ describe("POST /api/admin/repair-row-rules", () => {
               status: 200,
               json: async () => ({
                 id: `id_${name}`,
-                listRule: null,
+                listRule: "id = @request.auth.id",
                 viewRule: "id = @request.auth.id",
-                createRule: null,
+                createRule: "",
                 updateRule: "id = @request.auth.id",
                 deleteRule: "id = @request.auth.id",
               }),

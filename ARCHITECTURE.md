@@ -288,18 +288,40 @@ The Bundle 6 G0 anomaly (templates collection without a setup route) is **partia
 
 This pattern — accelerate the foundational fix (collection setup + rules) ahead of the feature work (full Model C schema) — keeps security on the floor without blocking the Tranche 1 closure.
 
-### 19-collection baseline (Decision 68)
+### 19-collection baseline (Decision 68 + Decision 71 refinements)
 
 | Pattern | Collections | Count |
 |---|---|---|
-| `user = @request.auth.id` | subscriptions, businesses, documents, vault_briefs, vault_decisions, vault_patterns, vault_retrieval_metrics, vault_voice_profile, vault_embeddings_index, vault_ingest_queue, conversations, conversation_threads, push_subscriptions, scheduled_content, bookings, orchestrator_decisions, **templates** (Bundle 6 G0) | 17 |
-| `agency_user = @request.auth.id` | clients | 1 |
-| `document.user = @request.auth.id` (relational) | document_versions | 1 |
-| PB system defaults | users | 1 |
+| `user = @request.auth.id` (USER_OWNED_RULES) | subscriptions, businesses, documents, vault_briefs, vault_decisions, vault_patterns, vault_retrieval_metrics, vault_voice_profile, vault_embeddings_index, conversations, conversation_threads, push_subscriptions, scheduled_content, bookings, orchestrator_decisions, **document_versions** (Decision 71), **templates** (Bundle 6 G0) | 17 |
+| `agency_user = @request.auth.id` (AGENCY_OWNED_RULES) | clients | 1 |
+| All-null admin-only (ADMIN_ONLY_RULES) — Decision 71 | vault_ingest_queue | 1 |
+| PB auth-collection self-listing (USERS_AUTH_RULES) — Decision 71 | users | 1 |
 
 Total inclusive: 20 entries (19 verified + templates with Bundle 6 G0 anomaly).
 
 The verifier reports `ℹ️ unexpected_collection` for any PB collection not in this baseline — surfacing schema drift before it becomes a security gap.
+
+### Decision 71 — Three Cleanup Resolutions
+
+Pre-build verification for `PR-Tranche-1-Security-Cleanup` surfaced that three collections in the baseline had **incorrect expected patterns** grounded in misunderstandings of the actual PB schema:
+
+1. **`vault_ingest_queue` → ADMIN_ONLY_RULES.** Schema has no `user` field by design; this is a backend-only queue collection that the vault ingestion worker operates via admin token. Users have no path to query it directly. Expected pattern is now all-null (admin-only).
+
+2. **`document_versions` → USER_OWNED_RULES.** Schema has a denormalized `user` text field (deliberate PR-27 design for fast user-scoped queries). The previously expected `document.user = @request.auth.id` relational pattern was unworkable — `document` is a text field, not a PB relation, so PB cannot traverse it. The standard pattern works because `user` was already denormalized.
+
+3. **`users.list = "id = @request.auth.id"` (was `null`).** Codebase grep confirmed zero callsites depend on a `null` list rule — `users` is only ever accessed via `auth-refresh` or single-record GET-by-id; admin paths use the admin token (which bypasses rules regardless). PB's default for auth collections is self-listing — the verifier was wrongly expecting `null`.
+
+The `users` entry retains `systemManaged: true` (Decision 68) — the repair endpoint never modifies PB's auth-collection rules autonomously. The verifier reports `✅` when PB matches; any mismatch must be fixed manually in PB admin UI per the runbook.
+
+### Decision 71 — Orphan Investigation Panel
+
+For collections that show as `ℹ️ unexpected_collection` (case-variant orphans from prior schema drift, like `Documents` vs canonical `documents`), the security dashboard now includes an **Investigation Panel** with per-orphan investigation data and a "record-decision" workflow:
+
+- `GET /api/admin/orphan-details` — read-only investigation: row count, last-modified, schema preview, canonical-equivalent comparison, structured recommendation
+- `POST /api/admin/orphan-decisions` — records operator decision (`drop_safe` | `drop_after_migration` | `investigate_active_usage` | `keep_with_setup_route`) to `orphan_decisions` PB collection
+- Setup route: `apps/web/app/api/setup/orphan-decisions/route.ts` (idempotent)
+
+**No autonomous deletion.** Recorded decisions are advisory; Senior Architect authorizes a separate follow-up PR for any approved drops. See `docs/operator-runbooks/orphan-collection-resolution.md`.
 
 ---
 

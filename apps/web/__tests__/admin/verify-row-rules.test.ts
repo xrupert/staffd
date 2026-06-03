@@ -136,19 +136,25 @@ describe("GET /api/admin/verify-row-rules", () => {
         };
       }
       if (name === "document_versions") {
+        // Decision 71 — uses USER_OWNED_RULES (denormalized user field)
+        return USER_OWNED_RULES;
+      }
+      if (name === "vault_ingest_queue") {
+        // Decision 71 — ADMIN_ONLY (no user field in schema)
         return {
-          listRule: "document.user = @request.auth.id",
-          viewRule: "document.user = @request.auth.id",
-          createRule: "document.user = @request.auth.id",
-          updateRule: "document.user = @request.auth.id",
-          deleteRule: "document.user = @request.auth.id",
+          listRule: null,
+          viewRule: null,
+          createRule: null,
+          updateRule: null,
+          deleteRule: null,
         };
       }
       if (name === "users") {
+        // Decision 71 — PB auth-collection self-listing default
         return {
-          listRule: null,
+          listRule: "id = @request.auth.id",
           viewRule: "id = @request.auth.id",
-          createRule: null,
+          createRule: "",
           updateRule: "id = @request.auth.id",
           deleteRule: "id = @request.auth.id",
         };
