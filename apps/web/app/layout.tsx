@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
 import RegisterServiceWorker from "./components/RegisterServiceWorker";
+import { resolvePlausibleDomain } from "../lib/env";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -41,7 +42,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const plausibleUrl = process.env.NEXT_PUBLIC_PLAUSIBLE_URL;
-  const plausibleDomain = process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN ?? "urstaffd.com";
+  // PR-Tranche-1.6 — resolves empty-string env to default (W8-class fix).
+  const plausibleDomain = resolvePlausibleDomain();
 
   return (
     <html lang="en" className="dark">

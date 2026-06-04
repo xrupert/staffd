@@ -13,7 +13,11 @@
  * Returns the platform post URL on success.
  */
 
-const MUAPI_URL = (process.env.MUAPI_URL ?? "https://api.muapi.ai").replace(/\/$/, "");
+// PR-Tranche-1.6 — Decision: URL env vars resolve via centralized helper.
+// See apps/web/lib/env.ts. Empty-string env values are caught (the W8 footgun)
+// and missing-scheme values throw at module load.
+import { MUAPI_BASE_URL } from "../../../../../lib/env";
+const MUAPI_URL = MUAPI_BASE_URL;
 const MUAPI_KEY = process.env.MUAPI_API_KEY ?? "";
 
 type Platform = "tiktok" | "youtube" | "instagram";

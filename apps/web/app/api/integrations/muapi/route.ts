@@ -17,7 +17,11 @@ import { logSuperAdminUsage } from "../../_lib/auth/super-admin-logging";
 
 const anthropic = new Anthropic();
 
-const MUAPI_URL = (process.env.MUAPI_URL ?? "https://api.muapi.ai").replace(/\/$/, "");
+// PR-Tranche-1.6 — Decision: URL env vars resolve via centralized helper.
+// MUAPI_BASE_URL is eagerly resolved at module load; misconfigured deploys
+// crash on first import rather than silently producing relative URLs.
+import { MUAPI_BASE_URL } from "../../../../lib/env";
+const MUAPI_URL = MUAPI_BASE_URL;
 const MUAPI_KEY = process.env.MUAPI_API_KEY ?? "";
 
 /**

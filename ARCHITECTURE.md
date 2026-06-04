@@ -960,6 +960,33 @@ When the user is on the Agency plan and has switched to acting as a client via `
 
 ## 15. Environment Variables Manifest
 
+### URL env var discipline (PR-Tranche-1.6 — Decision)
+
+**The W8 footgun:** `process.env.X ?? "default"` does NOT fall back when the operator sets the env var to an empty string in Vercel. `??` only catches `null`/`undefined`. The empty string is then concatenated into a fetch URL, producing a relative path that crashes `fetch()` with "Failed to parse URL" (undici). This was the root cause of muapi image/video generation being 100% non-functional in production from commit `c7eed37` until PR-Tranche-1.6.
+
+**Resolution:** All URL-shaped env vars resolve through `apps/web/lib/env.ts` (client-bundle-safe). Four resolvers, all sharing the same contract:
+
+| Resolver | Env var | Default | Throws on missing scheme? |
+|---|---|---|---|
+| `resolveMuapiBase()` | `MUAPI_URL` | `https://api.muapi.ai` | ✓ |
+| `resolveAppUrl(originHeader)` | `NEXT_PUBLIC_APP_URL` | `https://urstaffd.com` | ✓ |
+| `resolvePocketbasePublicUrl()` | `NEXT_PUBLIC_POCKETBASE_URL` | `http://127.0.0.1:8090` | ✓ |
+| `resolvePlausibleDomain()` | `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` | `urstaffd.com` | ✗ (bare hostname) |
+
+**Contract for all 4:**
+1. `undefined` env value → default
+2. `""` empty string → default (W8 footgun caught)
+3. whitespace-only → default
+4. Missing scheme → THROW at module load (`resolvePlausibleDomain` excepted)
+5. Trailing slash → stripped
+6. `http://` accepted alongside `https://`
+
+`MUAPI_BASE_URL` is exported as an eagerly-resolved constant — importing it triggers `resolveMuapiBase()` at module load, so misconfigured deploys crash on first import rather than silently producing relative URLs at fetch time.
+
+**Rule for future tranches:** Any new URL env var MUST go through a resolver in `apps/web/lib/env.ts`. Inline `process.env.X ?? "https://..."` is banned. See `docs/operator-runbooks/env-var-discipline.md`.
+
+### Manifest
+
 Every env var the platform reads, what it does, where it's used:
 
 ```
@@ -980,6 +1007,8 @@ STRIPE_WEBHOOK_SECRET        Verifies inbound webhook signatures
 # ─── Muapi (image + video + social publishing) ────────────────────────────
 MUAPI_API_KEY                Bearer token for all Muapi calls
 MUAPI_URL                    Optional — defaults to https://api.muapi.ai
+                             (resolved via lib/env.ts:resolveMuapiBase — empty
+                              string falls back to default; missing scheme throws)
 
 # ─── Listmonk ─────────────────────────────────────────────────────────────
 LISTMONK_URL                 Self-hosted Railway URL

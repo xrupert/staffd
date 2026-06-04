@@ -8,6 +8,7 @@
  */
 
 import Stripe from "stripe";
+import { resolveAppUrl } from "../../../../lib/env";
 
 function getPrices(): Record<string, string> {
   try {
@@ -85,7 +86,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const origin = req.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://urstaffd.com";
+  // PR-Tranche-1.6 — resolveAppUrl handles empty-string env (W8 clone fix).
+  const origin = resolveAppUrl(req.headers.get("origin"));
   const stripe = new Stripe(secretKey);
 
   try {
