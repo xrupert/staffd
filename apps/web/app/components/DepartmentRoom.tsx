@@ -11,6 +11,7 @@ import UpgradeModal from "./UpgradeModal";
 import HandoffPanel from "./HandoffPanel";
 import PackUpsellCard from "./PackUpsellCard";
 import { PUBLISH_ENABLED, PUBLISH_DISABLED_NOTE } from "../../lib/feature-flags";
+import PatternBadgeList from "./PatternBadge";
 import PackActiveBadge from "./PackActiveBadge";
 import DraftEditor from "./DraftEditor";
 import { DEPARTMENT_CATEGORIES, type DeptCategory } from "../lib/departmentCategories";
@@ -1305,6 +1306,10 @@ export default function DepartmentRoom({
               </div>
               {output && !loading && (
                 <div className="flex items-center gap-3 flex-wrap">
+                  {/* PR-Tranche-2 Item 3 — visible intelligence: top patterns
+                      the engine has noticed about this user's work. Silent
+                      fail-safe when there are no patterns yet. */}
+                  <PatternBadgeList limit={3} />
                   {/* Saved indicator — the document persisted, here's where */}
                   {savedAt && (
                     <a

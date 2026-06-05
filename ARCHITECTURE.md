@@ -1208,7 +1208,15 @@ WORKER_SECRET                Manual worker trigger via x-worker-secret header
 - ✅ **Central orchestrator built and consolidating 4 ad-hoc Claude calls** behind `apps/web/app/api/_lib/orchestrator/` (1,814 LOC, 10 files). See §5 for full file structure, per-intent policies, and the 4 intent handlers. Hard rule §B1 prohibits direct Anthropic imports under `handlers/**`.
 - ⚠ **Living Vault — pending re-classification per W21.** Discovery PR-Tranche-1.8 ACTION 2 indicates the vault library is built (12 files, 3,934 LOC; Qdrant + embeddings + ingest pipeline + retrieve + patterns all present). Final classification of "DONE vs PARTIAL vs polish required" lives in `docs/architecture/memory-foundation-discovery.md`. Until W21 closes, treat the historical "missing" framing as outdated; do not re-build what already exists.
 
-### ❌ MISSING / BROKEN (in priority order)
+### ✅ PR-Tranche-2 — Compliance + Polish + Intelligence (DONE)
+
+Shipped together; full evidence in commit body. NO production code change to the brain or memory layers.
+
+- ✅ **GDPR data export / deletion** (Decision 56 — legal compliance). `POST /api/account/export-data` emits a sanitized JSON archive of every row the user owns across PB; `POST /api/account/delete` cascades hard delete across all owned collections, cancels Stripe subscription, deletes PB user record. Super-admin self-delete refused (would orphan production). UI surface in `/dashboard/settings` — "Privacy & data" section with email-type-to-confirm pattern.
+- ✅ **Smart aspect-ratio auto-selection** (Decision 8 — UX). `resolveAspectRatio(kind, explicit, prompt)` exported from `apps/web/app/api/integrations/muapi/route.ts`. Detects vertical-video platforms (TikTok / Reels / Shorts), landscape (YouTube long-form / hero banner), Pinterest/poster (2:3), Instagram feed (1:1), cinematic (21:9), magazine (4:5). Explicit operator-supplied valid ratio always wins.
+- ✅ **Pattern UI badges** (visible intelligence). `apps/web/app/components/PatternBadge.tsx` — small chip + weight bar + tooltip per W14 ("keep visually quiet"). Reads from new `GET /api/vault/patterns/list` endpoint that aggregates the user's vault_patterns by signal and returns top-3 weighted. Rendered in DepartmentRoom output panel; silent fail-safe when no patterns yet.
+
+### ❌ MISSING / BROKEN (in priority order — post-PR-Tranche-2)
 
 **Revenue and product gaps:**
 

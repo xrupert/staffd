@@ -109,7 +109,67 @@ Output ONLY the dense enriched prompt. Nothing else.`;
   }
 }
 
-const VALID_RATIOS = new Set(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"]);
+const VALID_RATIOS = new Set(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9", "4:5", "2:3"]);
+
+/**
+ * Smart aspect-ratio auto-selection (PR-T2 / Decision 8).
+ *
+ * The user shouldn't need to know "what aspect ratio do I pick for TikTok."
+ * The application does. Called from the POST handler when the client either
+ * omits aspectRatio OR sends a value we want to override based on prompt
+ * content (operator-supplied explicit ratios always win — but the empty/
+ * default case gets the smart pick instead of always defaulting to 1:1).
+ *
+ * Heuristic order (first match wins):
+ *   1. Vertical platforms — TikTok / Reels / Shorts / Stories       → 9:16
+ *   2. Landscape video / YouTube long-form / hero banner / blog hdr → 16:9
+ *   3. Pinterest / poster / flyer / portrait                        → 2:3
+ *   4. Instagram feed / square / album cover                        → 1:1
+ *   5. Cinema / film still / ultrawide                              → 21:9
+ *   6. Editorial / magazine layout                                  → 4:5
+ *   7. Default — 1:1 for images, 16:9 for videos
+ */
+export function resolveAspectRatio(
+  kind: "image" | "video",
+  explicitRatio: string | undefined,
+  prompt: string,
+): string {
+  // Operator-supplied valid ratio always wins
+  if (explicitRatio && VALID_RATIOS.has(explicitRatio)) return explicitRatio;
+
+  const p = (prompt ?? "").toLowerCase();
+
+  // 1. Vertical / 9:16 platforms
+  // Note: bare "story" is intentionally NOT a trigger ("brand story" etc.
+  // are common non-platform phrases). Require platform-prefixed "stories"
+  // or "fb/ig story" to capture the platform intent.
+  if (/\b(tiktok|tik\s*tok|instagram\s*reel|reels?|instagram\s*stor(?:y|ies)|fb\s*stor(?:y|ies)|stories|youtube\s*shorts?|vertical|portrait\s*video|9:16)\b/.test(p)) {
+    return "9:16";
+  }
+  // 2. Landscape video / wide hero
+  if (/\b(youtube|landscape\s*video|hero\s*banner|hero\s*image|blog\s*header|website\s*header|16:9|widescreen|thumbnail)\b/.test(p)) {
+    return "16:9";
+  }
+  // 3. Pinterest / poster / flyer / 2:3 portrait
+  if (/\b(pinterest|pin|poster|flyer|book\s*cover|portrait\s*photo|2:3)\b/.test(p)) {
+    return "2:3";
+  }
+  // 4. Instagram feed / square / album
+  if (/\b(instagram\s*post|instagram\s*feed|square|album|profile\s*pic|avatar|1:1)\b/.test(p)) {
+    return "1:1";
+  }
+  // 5. Cinema / ultrawide
+  if (/\b(cinema|cinematic\s*aspect|film\s*still|ultrawide|panoramic|21:9)\b/.test(p)) {
+    return "21:9";
+  }
+  // 6. Editorial / magazine
+  if (/\b(magazine|editorial\s*layout|portrait\s*layout|4:5)\b/.test(p)) {
+    return "4:5";
+  }
+
+  // 7. Default per medium
+  return kind === "video" ? "16:9" : "1:1";
+}
 
 /**
  * Smart image model routing — pick the best Muapi endpoint for the prompt.
@@ -264,7 +324,7 @@ export async function POST(req: Request) {
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });
 
   try {
-    const { userId, kind, prompt, aspectRatio = "1:1", model } = (await req.json()) as {
+    const { userId, kind, prompt, aspectRatio, model } = (await req.json()) as {
       userId: string;
       kind: "image" | "video";
       prompt: string;
@@ -297,7 +357,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const ratio = VALID_RATIOS.has(aspectRatio) ? aspectRatio : "1:1";
+    // PR-T2 / Decision 8 — smart aspect-ratio auto-selection. The user
+    // shouldn't need to know what ratio fits TikTok vs YouTube. Explicit
+    // operator-supplied value (when valid) still wins.
+    const ratio = resolveAspectRatio(kind, aspectRatio, prompt);
 
     // Enrich the input into a Layer-2 dense prompt (the 3-Layer Briefing Flow
     // boundary step). Specialists may produce strategic briefs, layout specs,

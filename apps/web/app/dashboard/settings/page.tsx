@@ -268,6 +268,15 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {/* Privacy & data (GDPR — PR-Tranche-2) */}
+        <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
+          <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Privacy &amp; data</h2>
+          <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>
+            Download everything STAFFD stores about you, or permanently delete your account. Both honor your GDPR / CCPA rights.
+          </p>
+          <PrivacyControls />
+        </section>
+
         {/* Danger zone */}
         <section className="rounded-2xl p-6" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
           <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Sign out</h2>
@@ -282,5 +291,146 @@ export default function SettingsPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+/**
+ * PR-Tranche-2 Item 1 — GDPR data export + account deletion controls.
+ *
+ * Download My Data → POST /api/account/export-data, triggers JSON download.
+ * Delete Account   → confirm dialog with email-type-to-confirm pattern;
+ *                    POST /api/account/delete; on success, log out + redirect.
+ */
+function PrivacyControls(): React.JSX.Element {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadMsg, setDownloadMsg] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [deleting, setDeleting] = useState(false);
+  const [deleteMsg, setDeleteMsg] = useState<string | null>(null);
+
+  const userEmail = (pb.authStore.record?.email as string) ?? "";
+
+  async function downloadData() {
+    if (downloading) return;
+    setDownloading(true);
+    setDownloadMsg(null);
+    try {
+      const token = pb.authStore.token;
+      const res = await fetch(`/api/account/export-data?pbToken=${encodeURIComponent(token)}`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setDownloadMsg(`Export failed: ${(data as { error?: string }).error ?? `error_${res.status}`}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `staffd-data-export-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setDownloadMsg("Your archive is downloading.");
+    } catch {
+      setDownloadMsg("Export failed: network error.");
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  async function deleteAccount() {
+    if (deleting) return;
+    setDeleting(true);
+    setDeleteMsg(null);
+    try {
+      const token = pb.authStore.token;
+      const res = await fetch(`/api/account/delete?pbToken=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirm_email: confirmEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const err = (data as { error?: string; message?: string });
+        setDeleteMsg(err.message ?? `Delete failed: ${err.error ?? `error_${res.status}`}`);
+        return;
+      }
+      // Success — log out + redirect
+      pb.authStore.clear();
+      window.location.href = "/?account_deleted=1";
+    } catch {
+      setDeleteMsg("Delete failed: network error.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => void downloadData()}
+          disabled={downloading}
+          className="px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+          style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E8", opacity: downloading ? 0.5 : 1 }}
+        >
+          {downloading ? "Preparing…" : "Download my data"}
+        </button>
+        {downloadMsg && <span className="text-xs" style={{ color: "#A07BFF" }}>{downloadMsg}</span>}
+      </div>
+
+      {!deleteOpen ? (
+        <button
+          onClick={() => setDeleteOpen(true)}
+          className="px-4 py-2 rounded-xl text-xs font-semibold transition-colors self-start"
+          style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#EF4444" }}
+        >
+          Delete my account
+        </button>
+      ) : (
+        <div className="rounded-xl p-4" style={{ background: "rgba(239,68,68,0.04)", border: "1px solid rgba(239,68,68,0.2)" }}>
+          <p className="text-sm font-semibold mb-2" style={{ color: "#EF4444" }}>This permanently erases your account.</p>
+          <p className="text-xs mb-3" style={{ color: "#D0D0E8" }}>
+            Type <code style={{ color: "#A07BFF" }}>{userEmail}</code> to confirm. Your active subscription will be cancelled and every document, conversation, brief, and vault row owned by you will be deleted. This cannot be undone.
+          </p>
+          <input
+            type="email"
+            value={confirmEmail}
+            onChange={(e) => setConfirmEmail(e.target.value)}
+            placeholder={userEmail}
+            className="w-full text-xs px-3 py-2 rounded mb-3"
+            style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E8" }}
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void deleteAccount()}
+              disabled={deleting || confirmEmail.trim().toLowerCase() !== userEmail.trim().toLowerCase()}
+              className="px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
+              style={{
+                background: "#EF4444",
+                color: "#fff",
+                border: "1px solid #EF4444",
+                opacity: (deleting || confirmEmail.trim().toLowerCase() !== userEmail.trim().toLowerCase()) ? 0.5 : 1,
+              }}
+            >
+              {deleting ? "Deleting…" : "Permanently delete"}
+            </button>
+            <button
+              onClick={() => { setDeleteOpen(false); setConfirmEmail(""); setDeleteMsg(null); }}
+              disabled={deleting}
+              className="text-xs"
+              style={{ color: "#7070A0", background: "none", border: "none", cursor: "pointer" }}
+            >
+              Cancel
+            </button>
+          </div>
+          {deleteMsg && <p className="text-xs mt-2" style={{ color: "#EF4444" }}>{deleteMsg}</p>}
+        </div>
+      )}
+    </div>
   );
 }
