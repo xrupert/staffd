@@ -8,6 +8,13 @@
  *
  * Requires MUAPI_API_KEY env var. Optional MUAPI_URL (defaults to
  * https://api.muapi.ai).
+ *
+ * PR-Tranche-1.7 (W16 vendor reconnect) — Muapi reworked their API.
+ * Changes vs. legacy:
+ *   - Auth header: `x-api-key: <key>` (was `Authorization: Bearer <key>`)
+ *   - Request body: FLAT JSON (was `{ input: { ... } }` envelope)
+ *   - Model catalog: see routeImageModel / routeVideoModel below
+ *   - Output URL: try `outputs[0]` → `url` → `output.url` in that order
  */
 
 import Anthropic from "@anthropic-ai/sdk";
@@ -77,7 +84,7 @@ WHAT TO INCLUDE — ALL AXES, SPECIFIC TO THE SOURCE:
 
 WHAT YOU MUST NEVER DO:
 - Never strip detail to "make it shorter."
-- Never mention Midjourney, DALL-E, Stable Diffusion, Flux, Kling, or any platform name.
+- Never mention any external platform or model name.
 - Never include negative prompts or aspect ratio flags (--ar 16:9 etc.).
 - Never write "Here's the prompt" or any preamble.
 - Never use markdown, bullet lists, or section headers — produce continuous prose suitable to send to an image model.
@@ -104,63 +111,113 @@ Output ONLY the dense enriched prompt. Nothing else.`;
 
 const VALID_RATIOS = new Set(["1:1", "16:9", "9:16", "4:3", "3:4", "21:9"]);
 
-/** Smart model routing — pick the best model for the prompt's content. */
+/**
+ * Smart image model routing — pick the best Muapi endpoint for the prompt.
+ *
+ * Catalog snapshot: 2026-06-04 from Muapi reference (Open-Generative-AI
+ * models.js). Refresh via docs/operator-runbooks/muapi-vendor-drift.md when
+ * generation starts returning 4xx.
+ *
+ * Premium-only per Decision 3 — no *-fast-*, no *-lite-* variants.
+ *
+ *   1. ideogram-v3-t2i           — best for legible text-in-image (quoted
+ *                                  strings, headlines, lettering, logo
+ *                                  lockups, typography callouts)
+ *   2. midjourney-v7-text-to-image — cinematic/editorial/magazine aesthetic
+ *   3. flux-dev-image            — default premium photoreal + illustration
+ */
 function routeImageModel(prompt: string, requested?: string): string {
   if (requested) return requested;
   const p = prompt.toLowerCase();
 
-  // ANY readable text in the image → Ideogram (best at rendering legible words)
-  // Detects: text in quotes, "reading", "saying", "overlay text", "typography",
-  // "poster", "banner", "headline", "title", "caption", "label", etc.
-  const hasQuotedText = /"[^"]{2,}"|'[^']{3,}'/.test(prompt); // text in quotes
-  const textKeywords = /\b(text|words|quote|saying|reading|overlay|headline|title text|caption text|sign that says|label|propaganda poster|banner|typography|sub.?head)\b/.test(p);
+  // Heavy text-in-image — text in quotes OR lettering/typography vocabulary
+  const hasQuotedText = /"[^"]{2,}"|'[^']{3,}'/.test(prompt);
+  const textKeywords = /\b(text|words|quote|saying|reading|overlay|headline|title text|caption text|sign that says|label|propaganda poster|banner|typography|sub.?head|lettering|logo lockup)\b/.test(p);
   if (hasQuotedText || textKeywords) {
-    return "ideogram-v3";
+    return "ideogram-v3-t2i";
   }
 
-  // Logos, brand marks, UI mockups → Recraft (best for clean typography and vector-style)
-  if (/\b(logo|brand mark|wordmark|app icon|ui mockup|interface|app screen|wireframe)\b/.test(p)) {
-    return "recraft-v3";
+  // Cinematic / editorial / magazine — Midjourney aesthetic
+  if (/\b(cinematic|editorial|magazine|fashion shoot|film still|moody|atmospheric|noir)\b/.test(p)) {
+    return "midjourney-v7-text-to-image";
   }
 
-  // Default — Flux Pro handles most photoreal + illustration excellently
-  return "flux-pro-1.1";
+  // Default premium photoreal + illustration
+  return "flux-dev-image";
 }
 
+/**
+ * Smart video model routing — premium-only catalog.
+ *
+ * Catalog snapshot: 2026-06-04 from Muapi reference. Decision 3 (premium-only)
+ * applies: no *-fast-* variants.
+ *
+ *   1. veo3-text-to-video                — default premium cinematic
+ *   2. openai-sora-2-pro-text-to-video   — explicit Sora preference / "best"
+ *   3. runway-text-to-video              — named backup per Decision 3
+ *                                          ("graceful degradation")
+ */
 function routeVideoModel(prompt: string, requested?: string): string {
   if (requested) return requested;
-  // Cinematic / dramatic / photoreal → Kling Pro
   const p = prompt.toLowerCase();
-  if (/\b(cinematic|dramatic|slow motion|epic|hollywood|trailer)\b/.test(p)) {
-    return "kling-pro";
+
+  // Explicit Sora preference or "best"/"premium"/"highest quality"
+  if (/\b(sora|best quality|premium quality|highest quality|highest fidelity)\b/.test(p)) {
+    return "openai-sora-2-pro-text-to-video";
   }
-  // Default — Hunyuan handles general motion well at a lower cost
-  return "hunyuan-video";
+
+  // Default premium cinematic
+  return "veo3-text-to-video";
 }
 
 interface PredictionResult {
   id?: string;
   request_id?: string;
   status?: string;
-  output?: string | string[];
-  result?: { url?: string; urls?: string[] };
+  // PR-Tranche-1.7 — Muapi response output URL lives at one of three
+  // locations; extract via tryExtractOutputUrl below.
+  outputs?: string[];
+  output?: string | string[] | { url?: string };
   url?: string;
+  result?: { url?: string; urls?: string[] };
   error?: string;
+  detail?: string;
+}
+
+/**
+ * Output URL extraction — try outputs[0] → url → output.url in that order.
+ * Falls through legacy shapes (output[0] string array, result.url) for
+ * resilience while Muapi finalizes their response schema.
+ */
+function tryExtractOutputUrl(data: PredictionResult): string | null {
+  if (Array.isArray(data.outputs) && data.outputs[0]) return data.outputs[0];
+  if (typeof data.url === "string" && data.url) return data.url;
+  if (data.output && typeof data.output === "object" && !Array.isArray(data.output) && data.output.url) {
+    return data.output.url;
+  }
+  // Legacy fallbacks
+  if (typeof data.output === "string") return data.output;
+  if (Array.isArray(data.output) && data.output[0]) return data.output[0];
+  if (data.result?.url) return data.result.url;
+  if (data.result?.urls?.[0]) return data.result.urls[0];
+  return null;
 }
 
 async function submitPrediction(
   modelEndpoint: string,
-  input: Record<string, unknown>
+  body: Record<string, unknown>,
 ): Promise<PredictionResult> {
   const url = `${MUAPI_URL}/api/v1/${modelEndpoint}`;
   console.log("[muapi] submitting", { url, model: modelEndpoint });
   const res = await fetch(url, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${MUAPI_KEY}`,
+      // PR-Tranche-1.7 — Muapi uses x-api-key (not Authorization: Bearer)
+      "x-api-key": MUAPI_KEY,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ input }),
+    // PR-Tranche-1.7 — Flat body. NO { input: {...} } wrapper.
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const detail = await res.text();
@@ -174,21 +231,18 @@ async function pollResult(predictionId: string, maxAttempts = 30): Promise<strin
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     const res = await fetch(`${MUAPI_URL}/api/v1/predictions/${predictionId}/result`, {
-      headers: { Authorization: `Bearer ${MUAPI_KEY}` },
+      headers: { "x-api-key": MUAPI_KEY },
     });
     if (!res.ok) continue;
     const data = (await res.json()) as PredictionResult;
+    const status = (data.status ?? "").toLowerCase();
 
-    if (data.status === "succeeded" || data.status === "completed") {
-      // Output shape varies — handle multiple common formats
-      if (typeof data.output === "string") return data.output;
-      if (Array.isArray(data.output) && data.output[0]) return data.output[0];
-      if (data.result?.url) return data.result.url;
-      if (data.result?.urls?.[0]) return data.result.urls[0];
-      if (data.url) return data.url;
+    if (status === "completed" || status === "succeeded" || status === "success") {
+      const out = tryExtractOutputUrl(data);
+      if (out) return out;
     }
-    if (data.status === "failed") {
-      throw new Error(data.error ?? "Generation failed");
+    if (status === "failed" || status === "error") {
+      throw new Error(data.error ?? data.detail ?? "Generation failed");
     }
   }
   return null;
@@ -255,27 +309,28 @@ export async function POST(req: Request) {
       ? routeImageModel(focusedPrompt, model)
       : routeVideoModel(focusedPrompt, model);
 
-    const input: Record<string, unknown> = {
+    // PR-Tranche-1.7 — flat body. Fields at root, no { input: {...} } wrapper.
+    const body: Record<string, unknown> = {
       prompt: focusedPrompt,
       aspect_ratio: ratio,
     };
     if (kind === "video") {
-      input.duration = 5;
-      input.resolution = "1080p";
+      body.duration = 5;
+      body.resolution = "1080p";
     } else {
-      input.output_format = "png";
-      input.output_quality = 95;
+      body.output_format = "png";
+      body.output_quality = 95;
     }
 
-    const submission = await submitPrediction(modelEndpoint, input);
+    const submission = await submitPrediction(modelEndpoint, body);
     const predictionId = submission.id ?? submission.request_id;
 
-    // Some Muapi models return synchronously on submit
-    let resultUrl: string | null = null;
-    if (typeof submission.output === "string") resultUrl = submission.output;
-    else if (Array.isArray(submission.output)) resultUrl = submission.output[0] ?? null;
-    else if (submission.result?.url) resultUrl = submission.result.url;
-    else if (predictionId) resultUrl = await pollResult(predictionId);
+    // Some Muapi models return synchronously on submit. Try to extract a URL
+    // from the submission response first; only poll if we didn't get one.
+    let resultUrl: string | null = tryExtractOutputUrl(submission);
+    if (!resultUrl && predictionId) {
+      resultUrl = await pollResult(predictionId);
+    }
 
     if (!resultUrl) {
       return Response.json({ error: "Generation timed out", predictionId }, { status: 504 });
@@ -321,3 +376,11 @@ export async function POST(req: Request) {
     return Response.json({ error: "Generation failed", detail: msg }, { status: 502 });
   }
 }
+
+// Exported for tests in apps/web/__tests__/integrations/muapi-route.test.ts
+export const __test = {
+  routeImageModel,
+  routeVideoModel,
+  tryExtractOutputUrl,
+  submitPrediction,
+};

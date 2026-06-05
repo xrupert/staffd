@@ -10,6 +10,7 @@ import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
 import HandoffPanel from "./HandoffPanel";
 import PackUpsellCard from "./PackUpsellCard";
+import { PUBLISH_ENABLED, PUBLISH_DISABLED_NOTE } from "../../lib/feature-flags";
 import PackActiveBadge from "./PackActiveBadge";
 import DraftEditor from "./DraftEditor";
 import { DEPARTMENT_CATEGORIES, type DeptCategory } from "../lib/departmentCategories";
@@ -1586,14 +1587,17 @@ export default function DepartmentRoom({
                     </p>
                     {imageUrl && (
                       <div className="flex items-center gap-3 flex-wrap">
-                        <button
-                          onClick={() => void publishMedia("instagram", imageUrl)}
-                          className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
-                          title="Publish to Instagram"
-                        >
-                          📷 Instagram
-                        </button>
+                        {/* PR-Tranche-1.7 (W17) — publish disabled pending Muapi platform-publish layer */}
+                        {PUBLISH_ENABLED && (
+                          <button
+                            onClick={() => void publishMedia("instagram", imageUrl)}
+                            className="text-xs transition-colors hover:text-white"
+                            style={{ color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
+                            title="Publish to Instagram"
+                          >
+                            📷 Instagram
+                          </button>
+                        )}
                         <button
                           onClick={() => void downloadImage()}
                           className="text-xs transition-colors hover:text-white"
@@ -1611,6 +1615,15 @@ export default function DepartmentRoom({
                       </div>
                     )}
                   </div>
+                  {/* PR-Tranche-1.7 (W17) — brand-voiced note replacing publish UI */}
+                  {imageUrl && !PUBLISH_ENABLED && (
+                    <p
+                      className="text-xs px-5 py-2"
+                      style={{ color: "#7070A0", borderBottom: "1px solid #1E1E2A", background: "#0A0A12" }}
+                    >
+                      {PUBLISH_DISABLED_NOTE}
+                    </p>
+                  )}
                   {imageLoading && (
                     <div className="flex items-center justify-center" style={{ padding: "48px 20px" }}>
                       <div className="flex flex-col items-center gap-3">
@@ -1647,30 +1660,35 @@ export default function DepartmentRoom({
                     </p>
                     {videoUrl && (
                       <div className="flex items-center gap-3 flex-wrap">
-                        <button
-                          onClick={() => void publishMedia("tiktok", videoUrl)}
-                          className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#000000", background: "rgba(255,255,255,0.1)", padding: "2px 8px", borderRadius: "6px", border: "1px solid #2A2A38", cursor: "pointer" }}
-                          title="Publish to TikTok"
-                        >
-                          🎵 TikTok
-                        </button>
-                        <button
-                          onClick={() => void publishMedia("youtube", videoUrl)}
-                          className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#FF0000", background: "none", border: "none", cursor: "pointer" }}
-                          title="Publish to YouTube"
-                        >
-                          ▶️ YouTube
-                        </button>
-                        <button
-                          onClick={() => void publishMedia("instagram", videoUrl)}
-                          className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
-                          title="Publish to Instagram"
-                        >
-                          📷 Instagram
-                        </button>
+                        {/* PR-Tranche-1.7 (W17) — publish disabled pending Muapi platform-publish layer */}
+                        {PUBLISH_ENABLED && (
+                          <>
+                            <button
+                              onClick={() => void publishMedia("tiktok", videoUrl)}
+                              className="text-xs transition-colors hover:text-white"
+                              style={{ color: "#000000", background: "rgba(255,255,255,0.1)", padding: "2px 8px", borderRadius: "6px", border: "1px solid #2A2A38", cursor: "pointer" }}
+                              title="Publish to TikTok"
+                            >
+                              🎵 TikTok
+                            </button>
+                            <button
+                              onClick={() => void publishMedia("youtube", videoUrl)}
+                              className="text-xs transition-colors hover:text-white"
+                              style={{ color: "#FF0000", background: "none", border: "none", cursor: "pointer" }}
+                              title="Publish to YouTube"
+                            >
+                              ▶️ YouTube
+                            </button>
+                            <button
+                              onClick={() => void publishMedia("instagram", videoUrl)}
+                              className="text-xs transition-colors hover:text-white"
+                              style={{ color: "#E4405F", background: "none", border: "none", cursor: "pointer" }}
+                              title="Publish to Instagram"
+                            >
+                              📷 Instagram
+                            </button>
+                          </>
+                        )}
                         <button
                           onClick={() => void downloadVideo()}
                           className="text-xs transition-colors hover:text-white"
@@ -1688,6 +1706,15 @@ export default function DepartmentRoom({
                       </div>
                     )}
                   </div>
+                  {/* PR-Tranche-1.7 (W17) — brand-voiced note replacing publish UI */}
+                  {videoUrl && !PUBLISH_ENABLED && (
+                    <p
+                      className="text-xs px-5 py-2"
+                      style={{ color: "#7070A0", borderBottom: "1px solid #1E1E2A", background: "#0A0A12" }}
+                    >
+                      {PUBLISH_DISABLED_NOTE}
+                    </p>
+                  )}
                   {videoLoading && (
                     <div className="flex items-center justify-center" style={{ padding: "60px 20px" }}>
                       <div className="flex flex-col items-center gap-3">

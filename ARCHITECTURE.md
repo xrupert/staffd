@@ -761,12 +761,19 @@ LAYER 2 — The Image Prompt Engineer
   This is the part that produces extraordinary output. Quality lives here.
 
 LAYER 3 — Smart Model Routing (server-side, silent)
-  The dense prompt is read for content and routed to the best Muapi model:
-    - Has quoted text or text-related keywords → ideogram-v3
-    - Logos / brand marks / UI mockups → recraft-v3
-    - Cinematic / dramatic video → kling-pro
-    - Default image → flux-pro-1.1
-    - Default video → hunyuan-video
+  The dense prompt is read for content and routed to the best Muapi model.
+  Premium-only catalog (Decision 3); no *-fast-* or *-lite-* variants.
+    IMAGE:
+      - Heavy text-in-image (quoted text, lettering, headlines, logo
+        lockups) → ideogram-v3-t2i
+      - Cinematic / editorial / magazine-style → midjourney-v7-text-to-image
+      - Default premium photoreal / illustration → flux-dev-image
+    VIDEO:
+      - Explicit Sora / "best" / "highest quality" → openai-sora-2-pro-text-to-video
+      - Default premium cinematic → veo3-text-to-video
+      - Named backup (Decision 3 graceful degradation) → runway-text-to-video
+  Catalog snapshot: 2026-06-04 from Muapi reference. Refresh via
+  docs/operator-runbooks/muapi-vendor-drift.md when generation fails.
   Studio Mode (Pro+) lets power users override.
 ```
 
@@ -810,25 +817,9 @@ Today the Generate Image / Generate Video buttons appear only in the Design depa
 
 ## 11. Social Publishing
 
-| Platform | Muapi endpoint | Button location |
-|---|---|---|
-| TikTok | `tiktok-publish` | Design dept video output |
-| YouTube | `youtube-publish` | Design dept video output |
-| Instagram | `instagram-publish` | Design dept image + video output |
+Direct social publishing is being routed through Muapi's platform-publish layer when it ships. Tracking under W17. Specialist outputs include the media + per-platform tuned caption for immediate manual posting.
 
-### Flow
-
-1. User connects accounts via `/dashboard/settings` → Connected Accounts → opens Muapi's OAuth flow (Muapi handles the handshake)
-2. Returns to STAFFD. Connection stored on Muapi side, accessible via API key.
-3. Generate image or video.
-4. Click Platform button → `/api/integrations/muapi/publish`.
-5. STAFFD passes the media URL + caption to Muapi's publish endpoint.
-6. Muapi posts to the user's connected account.
-7. Returns the live post URL.
-
-### Why this is the wedge
-
-No competitor offers AI generation + social publishing in a single flow without manual download / upload / app-switching. This is the **Porsche moment** referenced in the locked plan.
+`/api/integrations/muapi/publish` currently returns HTTP 410 with a brand-voiced payload directing the operator to download + copy + post manually. UI publish buttons are gated on `PUBLISH_ENABLED` (`apps/web/lib/feature-flags.ts`) — flip to `true` when the reconnect PR ships.
 
 ---
 
@@ -1187,7 +1178,7 @@ This is the running record of locked product/architecture decisions. Anyone read
 
 1. **CEO is included in Pro and Agency by default. Also available as a $49/mo add-on for Starter and Growth users.** The add-on sits intentionally close to the gap to Pro — Growth ($79) + CEO add-on ($49) = $128/mo, only $21 less than Pro at $149/mo which includes CEO **plus** two additional full departments. Starter ($39) + CEO add-on ($49) = $88/mo similarly invites stepping up. The system surfaces this math at the moment of add-on purchase as a soft upsell to Pro. Anyone paying for CEO is a hot upgrade prospect.
 2. **Annual interval is the default-selected toggle.** Pricing page lands with Annual highlighted with the "2 months free" badge. Monthly is the alternative the user can toggle to. **The headline price always shows the round monthly subscription number** ($39, $79, $149, $450). When Annual is selected, a "Billed annually at $X — save $Y" callout appears underneath. Never show the effective per-month price as the headline — it produces confusing decimals like $32.50 that break trust.
-3. **All video is HD. All images use premium models. No tier-based quality split.** Porsche, not Volkswagen. STAFFD selects the best available Muapi model for the task type. Primary model selection is documented per use case (text-in-image → Ideogram V3, cinematic video → Kling Pro, photoreal hero image → Flux Pro 1.1, etc.) with named backups for graceful degradation. Best tools, every time. The user does not pick or see model names; the system routes silently.
+3. **All video is HD. All images use premium models. No tier-based quality split.** Porsche, not Volkswagen. STAFFD selects the best available Muapi model for the task type. Primary model selection is documented per use case with named backups for graceful degradation. Best tools, every time. The user does not pick or see model names; the system routes silently. **Model slugs refreshed 2026-06-04 per Muapi catalog. See routeImageModel/routeVideoModel for current set** (image: ideogram-v3-t2i, midjourney-v7-text-to-image, flux-dev-image; video: openai-sora-2-pro-text-to-video, veo3-text-to-video, runway-text-to-video).
 4. **Default-to-action specialists.** Agents produce work on first response when vault provides enough context. Only ask one focused question when truly ambiguous.
 5. **No competitor name leakage.** Never mention Midjourney, DALL-E, Stable Diffusion, etc. in user-facing copy or specialist outputs.
 6. **STAFFD generates directly via Muapi.** Specialists don't tell users to paste into other tools. The Image Prompt Engineer's prompt goes straight to our generator.
