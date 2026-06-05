@@ -1,5 +1,7 @@
 # Brain Foundation Discovery — PR-T2.0
 
+> **Senior Architect acknowledgment (PR-Tranche-1.8).** Decisions 75 and 76 are revoked. This Discovery report's central finding — that the orchestrator is built and shipping, not waiting to be built — was accepted. New Decisions 77, 78, and 79 supersede the 75/76 cycle and are documented in ARCHITECTURE.md §18. PR-T2.1 (Skeleton) is correspondingly down-scoped and absorbed into PR-Tranche-1.8 (ARCH Alignment); no separate Skeleton PR ships.
+
 **Purpose.** Map the territory before PR-T2.1 (Skeleton) is specced. NO code shipped. Output is this document, committed to preserve discovery context for the next PR's pre-build verification.
 
 **Major finding up front (read this first).** ARCH §5 and Decision 75/76's premise — *"the brain itself has not been built"* — is **stale**. The orchestrator skeleton + LLM wrapper + 4 intent handlers (route / handoff / brief / synthesize) + the 3 cutover routes are **already shipped** in `apps/web/app/api/_lib/orchestrator/` (1,814 LOC across 10 files). The work labelled B1-B5 in the project's PR history corresponds to these shipments. PR-T2.1's scope is materially smaller than the Decision 75/76 framing assumes. Sections 1-7 below detail the gap.

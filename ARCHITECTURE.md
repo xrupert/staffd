@@ -391,50 +391,111 @@ For collections that show as `ℹ️ unexpected_collection` (case-variant orphan
 
 ---
 
-## 5. The Brain — Hermes Orchestrator Pattern (TO BUILD CORRECTLY)
+## 5. The Brain — In-App Orchestrator (BUILT)
 
-**This is the most important architectural gap right now.** The original build plan called for the Hermes pattern in `apps/api`. The skeleton exists. **The brain itself has not been built.** Every "smart" feature so far has been a one-off Claude call — Command Center routing, CEO briefing, almost-shipped handoff suggestions — each spinning up its own ad-hoc prompt with no central coordination.
+> **PR-Tranche-1.8 ARCH-Alignment.** Earlier versions of this section described the orchestrator as "TO BUILD CORRECTLY." That was stale. Discovery PR-T2.0 (commit `a46c515`) confirmed the orchestrator is built and shipping. The reframe below documents what actually exists.
 
-### What it should be
+The central orchestrator lives in-app at **`apps/web/app/api/_lib/orchestrator/`** (1,814 LOC across 10 files). It is the single coordinator for every "smart" request that needs LLM intelligence to coordinate departments. The `apps/api` split was reviewed and deferred indefinitely (Decision 77).
 
-A **single orchestrator service** that:
-
-1. Receives all "smart" requests (routing decisions, cross-functional handoffs, briefings, anything that needs LLM intelligence to coordinate departments).
-2. Loads the `ceo-agents-orchestrator` system prompt from `packages/agents` as its operating instructions.
-3. Has full read access to the user's unlocked departments, recent work, vault, active client (Agency mode), and credit state.
-4. Returns structured routing decisions: which specialist, which task, with what context.
-5. Logs every decision so we can audit and improve over time.
-
-### The interface
+### File structure
 
 ```
-POST /api/orchestrator
-Body: {
-  userId,
-  pbToken,
-  intent: "route" | "handoff" | "brief" | "synthesize",
-  context: { ... },
-}
-Returns: {
-  decision: { department, agentId, task, rationale },
-  followUps?: Array<{ department, label, task }>,
-  notes?: string,
-}
+apps/web/app/api/_lib/orchestrator/
+├── index.ts (82)          runOrchestrator() entry + dispatch + audit log
+├── llm.ts (250)           THE single Anthropic SDK callsite — owns retries,
+│                          deadlines, soft-token budget, backoff, abort
+├── logger.ts (36)         fire-and-forget orchestrator_decisions row
+├── policies.ts (97)       per-intent max_tokens, deadline, retries,
+│                          vault topK + token cap, model selection
+├── types.ts (94)          OrchestratorIntent / Request / Response /
+│                          Decision shape contracts
+├── fallbacks.ts (114)     deterministic degraded outputs per intent
+└── handlers/
+    ├── route.ts (232)     intent="route" — Command Center routing
+    ├── brief.ts (248)     intent="brief" — CEO weekly brief
+    ├── handoff.ts (153)   intent="handoff" — cross-functional next steps
+    └── synthesize.ts (225) intent="synthesize" — CEO multi-dept synth
 ```
 
-### Locations of intelligence today (to be consolidated)
+**Hard rule enforced by spec §B1:** no file under `handlers/**` may import `@anthropic-ai/sdk`. Every handler goes through `callLLM()` in `llm.ts`, which owns all retry / deadline / budget logic.
 
-| Current ad-hoc endpoint | What it does | Where it should route |
+### Per-intent policy table (from `policies.ts`)
+
+| Intent | max_tokens | Deadline | Retries | Vault topK | Vault token cap |
+|---|---|---|---|---|---|
+| `route` | 512 | 4 s | 0 | 3 | 1 000 |
+| `handoff` | 1024 | 6 s | 0 | 5 | 2 500 |
+| `brief` | 4096 | 25 s | 1 | 10 | 6 000 |
+| `synthesize` | 4096 | 30 s | 1 | 10 | 6 000 |
+
+Soft input-token budget: 12 000 across all intents. Conversation message caps: 6 turns for `route`, 20 turns for `brief` + `synthesize`. Wall-clock budget check: if elapsed > 1.5× per-attempt deadline, abort with `llm_budget_exceeded`.
+
+### The 4 intent handlers
+
+| Intent | System prompt source | What it does | Returns |
+|---|---|---|---|
+| `route` | `ceo-agents-orchestrator` agent + runtime roster protocol | Picks the unlocked department + specific specialist for a Command Center message. Roster-augmented to prevent the SEMrush-bug class (Hotfix A1). | `{department, agentId, task, rationale, lockedAlternative}` |
+| `brief` | `ceo-chief-of-staff` agent + 30-day activity rollup | Synthesizes the user's last-30-day work into a CEO weekly brief. Inline activity rollup (B3 enrichment); voice profile + recent decisions injected via vault. | Structured weekly brief text |
+| `handoff` | Coordinator system prompt | Suggests 2-3 cross-functional next steps for a generated document. Locked departments returned with `locked:true` for upsell triggers. | `{followUps: [...]}` |
+| `synthesize` | `ceo-chief-of-staff` agent + multi-dept context | CEO-mode multi-department synthesis. Pulls recent docs across unlocked depts; synthesizes into a unified view. | Synthesized analysis text |
+
+All four handlers read from the vault library (see §13 — Vault) for business context, voice profile, recent decisions, and retrieval. All four log a `vault_retrieval_metrics` row when they touch retrieval, and every `runOrchestrator()` dispatch logs a `orchestrator_decisions` row fire-and-forget.
+
+### Consolidated routes (the front door)
+
+| Route | Intent | Status |
 |---|---|---|
-| `/api/orchestrate` (Command Center) | Picks department for a user message | → `/api/orchestrator` with intent=route |
-| `/api/briefing` (CEO weekly brief) | Synthesizes 30 days of work into a brief | → `/api/orchestrator` with intent=brief |
-| `/api/handoff/suggest` (not yet shipped) | Suggests cross-functional next steps | → `/api/orchestrator` with intent=handoff |
+| `/api/orchestrator` | `route` \| `handoff` \| `brief` \| `synthesize` | Direct surface |
+| `/api/orchestrate` (Command Center) | `route` | Thin wrapper — B2 cutover shipped |
+| `/api/briefing` (CEO weekly brief) | `brief` | Thin wrapper — B3 cutover shipped |
+| `/api/handoff/suggest` | `handoff` | Thin wrapper — B5 cutover shipped |
 
-### Where it lives
+The 4 consolidated routes are all thin wrappers (~95-122 LOC each) that delegate to `runOrchestrator()` and stream the response. They never call Anthropic directly.
 
-**Recommended: `apps/web/app/api/orchestrator/route.ts`** (same Vercel deploy as the rest of the web app). The original plan called for it in `apps/api` as a separate Bun/Hono service. That's architecturally cleaner but operationally heavier. For now, keeping everything on the Vercel deploy is the right tradeoff. Spin out to `apps/api` when scale demands.
+### 5 remaining non-orchestrator Claude callsites (correctly separate)
 
-**Hard rule going forward:** Any new "smart" feature MUST route through `/api/orchestrator`. No more ad-hoc Claude calls outside of generation routes (image/video) or document-saving.
+These domain pipelines call Anthropic directly because they are NOT user-facing intelligence:
+1. `_lib/vault/morning-brief.ts` — vault snapshot generation (input to `brief` handler)
+2. `_lib/vault/summarize.ts` — document summary shards (vault ingest pipeline)
+3. `worker/scheduled/route.ts` — scheduled content drafting (worker, no user prompt)
+4. `webhooks/chatwoot/route.ts` — inbound conversation auto-reply (webhook, not user-initiated)
+5. `prefill/route.ts` — onboarding vault prefill (tiny scoped helper)
+
+`agent/route.ts` and `integrations/muapi/route.ts` are also outside the orchestrator by design — they're the specialist execution tier and the generation tier respectively.
+
+### Hard rule going forward
+
+Any new "smart" feature MUST route through `runOrchestrator()`. Direct Anthropic calls outside the 5 domain pipelines above require explicit Senior Architect authorization with documented justification.
+
+---
+
+## 5.5 Orchestrator Maturity — L1→L4
+
+The Hermes Control Room project (reviewed in Discovery PR-T2.0 §6) frames agent system maturity as a four-level progression:
+
+| Level | Pattern | Where STAFFD is |
+|---|---|---|
+| L1 | Single agent | (long surpassed) |
+| L2 | Direct specialists, user picks | (long surpassed) |
+| L3 | Orchestrator + specialists | **STAFFD is here.** |
+| L4 | Automated agent team (recurring workflows, self-managing tasks) | Future tranche if/when needed |
+
+STAFFD operates at **L3** and is designed to stay there until product demand justifies L4. The orchestrator routes user requests to specific specialists; specialists execute; outputs return through the orchestrator's response envelope. No task-bus, no per-agent containers, no async handoff queue between specialists.
+
+### Why no task-bus (Decision 77)
+
+The Hermes Control Room pattern uses a filesystem-backed task-bus (`/srv/agent-bus/{inbox,working,outbox,archive}`) with per-VPS containerized agents. That model solves problems STAFFD does not have at its current stage:
+
+- **Per-agent isolation:** Vercel Functions already isolate invocations
+- **Independent scaling:** Vercel auto-scales the single deploy
+- **Separable secrets:** `packages/agents` runs in-process; no cross-process secret distribution needed
+- **Long-running async work:** STAFFD intents are all sub-30-second; no need for a persistent work queue
+
+Adopting a filesystem task-bus on Vercel would require backing it with PocketBase or Qdrant (since `/tmp` is ephemeral per-invocation), which defeats the architectural purpose. **The single-deploy in-process model is the right shape for STAFFD's current stage.**
+
+### When L4 enters the picture
+
+If/when STAFFD ships background autonomous workflows (e.g. "every Monday at 9am, the CEO Strategist runs a multi-dept brief and emails it"), that L4 work belongs in a separate worker tier — likely `/api/worker/*` cron handlers calling `runOrchestrator()` non-interactively. The orchestrator interface does not need to change; the L4 layer composes on top.
 
 ---
 
@@ -1140,16 +1201,18 @@ WORKER_SECRET                Manual worker trigger via x-worker-secret header
 - ✅ Schedule-for-review button + calendar integration
 - ✅ Resume banner ("Continue last session?") on dept entry
 
+### ✅ Phase 3 — Foundation layer (corrected PR-Tranche-1.8)
+
+> Earlier audits listed the central orchestrator + the Living Vault as ❌ MISSING. Both are built and live. Discovery PR-T2.0 (commit `a46c515`) corrected the orchestrator status; Discovery in PR-Tranche-1.8 ACTION 2 (`docs/architecture/memory-foundation-discovery.md`) corrected the vault status. The entries below reflect actual state.
+
+- ✅ **Central orchestrator built and consolidating 4 ad-hoc Claude calls** behind `apps/web/app/api/_lib/orchestrator/` (1,814 LOC, 10 files). See §5 for full file structure, per-intent policies, and the 4 intent handlers. Hard rule §B1 prohibits direct Anthropic imports under `handlers/**`.
+- ⚠ **Living Vault — pending re-classification per W21.** Discovery PR-Tranche-1.8 ACTION 2 indicates the vault library is built (12 files, 3,934 LOC; Qdrant + embeddings + ingest pipeline + retrieve + patterns all present). Final classification of "DONE vs PARTIAL vs polish required" lives in `docs/architecture/memory-foundation-discovery.md`. Until W21 closes, treat the historical "missing" framing as outdated; do not re-build what already exists.
+
 ### ❌ MISSING / BROKEN (in priority order)
-
-**Foundation gaps — both required before further "smart" features:**
-
-1. **THE CENTRAL ORCHESTRATOR (the brain).** Multiple ad-hoc Claude calls scattered across routes. Must consolidate behind `/api/orchestrator` using the `ceo-agents-orchestrator` system prompt.
-2. **THE LIVING VAULT (the memory).** Currently a flat business profile + chronological docs. Missing: conversation persistence, Qdrant embeddings, successful pattern tracking, semantic retrieval into agent context. This is the engine that makes STAFFD learn the business over time. Without it every session starts cold.
 
 **Revenue and product gaps:**
 
-3. **Stripe top-up SKUs.** Plan/dept-addon prices exist. Image/video credit top-ups do NOT. Need 6 one-time Stripe products + checkout flow + webhook handler that credits the user.
+1. **Stripe top-up SKUs.** Plan/dept-addon prices exist. Image/video credit top-ups do NOT. Need 6 one-time Stripe products + checkout flow + webhook handler that credits the user.
 4. **CEO add-on SKU.** $49/mo recurring subscription for Starter/Growth users. Needs Stripe product + checkout + webhook handler that unlocks CEO access without changing the user's plan. Acts as a soft Pro upsell.
 5. **Credits widget on dashboard.** No visible balance or "Top up" CTA. Users discover their limit by hitting 402.
 6. **Smart aspect ratio auto-selection.** Currently the user picks Square/Landscape/Portrait/4:3 manually. The system should detect the target platform from the prompt ("Instagram post" → 1:1, "TikTok video" → 9:16, "Facebook ad" → 1.91:1, etc.) and pre-select. User can still override.
@@ -1206,6 +1269,16 @@ This is the running record of locked product/architecture decisions. Anyone read
 15. **Qdrant is the Vault's memory engine.** Right tool for semantic retrieval. One instance on Railway serves all users via per-user (or per-user-per-client) collection scoping.
 16. **Brain and Memory are co-equal foundations.** Orchestrator without Vault is a smart router with no context. Vault without Orchestrator is a smart database with no decision-maker. Both must exist before further "smart" features.
 17. **Every specialist has its own reference materials and quality standards. The Orchestrator's job is to gather the right context BEFORE the specialist runs — no specialist works blind.** Each agent definition in `packages/agents` includes a role, principles, output format, reference styles, and a quality bar. When the Orchestrator routes work to a specialist, it bundles: the user's task + relevant Vault excerpts + semantically relevant past wins from Qdrant + conversation history + peer-department output (when cross-functional). The specialist's job is to execute at the standard the references describe. The Orchestrator's job is to make sure they have everything they need to produce excellence.
+
+18. ~~*(reserved — see below for 75/76 revocation context)*~~
+
+19. ~~*(reserved — see below for 75/76 revocation context)*~~
+
+20. **Decision 77 — `apps/api` split deferred indefinitely.** The original Hermes pattern called for the orchestrator to live in a separate `apps/api` Node/Hono service. Discovery PR-T2.0 (commit `a46c515`) confirmed the orchestrator already lives in-app at `apps/web/app/api/_lib/orchestrator/` as a server library + thin HTTP routes, and that the single-Vercel-deploy shape is correct for STAFFD's stage. The split solves problems (per-agent isolation, independent scaling, separable secrets) that STAFFD does not have. The Hermes per-VPS task-bus pattern is similarly skipped — `/tmp` is ephemeral on Vercel Functions; backing the bus with PB/Qdrant would defeat its purpose. **If/when STAFFD scales to the point that the orchestrator merits its own deploy or async work queue, revisit. Until then, the in-app location is canonical.**
+
+21. **Decision 78 — Muapi Workflow API rejected as an orchestration substrate.** Muapi exposes Workflow API + Agent API (`getTemplateWorkflows`, `executeWorkflow`, `getUserAgents`, etc.). Surface looks similar to STAFFD's orchestrator; routing STAFFD's coordinator brain through it was evaluated and rejected per Discovery PR-T2.0 §7. Reasons: (a) two orchestrator semantics is worse than one — STAFFD's orchestrator owns the Decision 14 routing logic, the `packages/agents` system prompts, brand laws enforcement (Decision 71), `orchestrator_decisions` audit logging, and per-intent latency policies, none of which Muapi knows about; (b) vendor lock-in risk just bit us in PR-Tranche-1.7 — multiplying it across the brain is the wrong direction; (c) Decision 14 (Muapi-primary for media) locked the vendor scope; treating it as an orchestration vendor would expand surface area without authorization. **STAFFD orchestrator stays Claude-driven via the existing `_lib/orchestrator/llm.ts` wrapper. Muapi remains media-only.**
+
+22. **Decision 79 — Standard #9: Pre-Strategy Verification Required.** Before any tranche-level strategic decision that reframes work as "build the X" or "rebuild the Y," verify whether X/Y already exists in the codebase. The Decision 75/76 cycle was triggered by ARCH §5 and §17 describing the orchestrator as "TO BUILD CORRECTLY" / "❌ MISSING" when 1,814 LOC of orchestrator code was already shipped (PRs B1-B5 in the project history). The same misread nearly happened on the Vault — caught only by running Discovery PR-T2.0 + ACTION 2 of PR-Tranche-1.8. **Standard #9 mandate:** any "build the foundation" PR spec MUST begin with a Discovery phase whose first task is `grep + file inventory + per-LOC audit` of the foundation in question. Strategic decisions ratified without Discovery are subject to revocation when Discovery surfaces the foundation already exists.
 
 ---
 
