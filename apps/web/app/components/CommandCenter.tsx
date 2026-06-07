@@ -299,6 +299,15 @@ export default function CommandCenter() {
     // Add a generating message placeholder
     setMessages((prev) => [...prev, { role: "assistant", content: "", isOutput: true }]);
 
+    // PR-Tranche-2.6.3 (W28 fix) — hoist the streamed result to function
+    // scope so the `finally` block reads the ACTUAL streamed text instead
+    // of the stale React-state closure of `outputBuffer`. React state
+    // updates queue for future renders; the running `finally` closure
+    // sees the pre-stream value (empty). Without this hoist,
+    // `completedOutput.length > 50` always fails and the handoff fetch
+    // never fires — the visible W28 symptom.
+    let streamedResult = "";
+
     try {
       const activeClientId = typeof window !== "undefined"
         ? localStorage.getItem("staffd_active_client")
@@ -326,17 +335,19 @@ export default function CommandCenter() {
       const decoder = new TextDecoder();
       if (!reader) throw new Error("No stream");
 
-      let result = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        result += decoder.decode(value, { stream: true });
+        // PR-Tranche-2.6.3 — accumulate into the function-scope hoist;
+        // setOutputBuffer is retained for the streaming UI render but
+        // is no longer the source of truth for the finally block.
+        streamedResult += decoder.decode(value, { stream: true });
         setMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: result, isOutput: true };
+          updated[updated.length - 1] = { role: "assistant", content: streamedResult, isOutput: true };
           return updated;
         });
-        setOutputBuffer(result);
+        setOutputBuffer(streamedResult);
         scrollToBottom();
       }
     } catch {
@@ -351,10 +362,11 @@ export default function CommandCenter() {
       setTimeout(scrollToBottom, 100);
 
       // PR-Tranche-2.6 (W28) — fire handoff suggestions after generation
-      // completes. Uses the captured outputBuffer (set inside the stream
-      // loop) and the most recent user message as the goal seed. Runs
-      // off-thread; UI surfaces buttons when results arrive.
-      const completedOutput = outputBuffer;
+      // completes. PR-Tranche-2.6.3 fix: read from `streamedResult`
+      // (function-scope accumulator) NOT `outputBuffer` (React-state
+      // closure — captured stale at runAgent call time, never updated
+      // by the stream's setState calls).
+      const completedOutput = streamedResult;
       const userGoal = (() => {
         // Most recent user message is the last { role: "user" } before
         // this generation kicked off

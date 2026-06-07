@@ -93,10 +93,19 @@ function briefFallback(ctx: FallbackContext): OrchestratorDecision & { notes: st
     : "- Your staff hasn't produced any work in the last 30 days.";
   // PR-Tranche-2.6.2 — brand-voiced copy; drops the misleading
   // "coordinator unavailable" attribution (cause is often vault, not LLM).
-  const task = `## Weekly Briefing\n\n**Activity snapshot:**\n${lines}\n\n_Working from limited context right now — the full briefing returns on the next run._`;
+  // PR-Tranche-2.6.3 (W27 follow-up) — discriminate "fresh slate"
+  // (no activity to brief on yet — common for new users) from true
+  // degradation (LLM failed when activity DID exist). Both reach here
+  // via callLLM failure; the activitySamples emptiness is the signal.
+  const isFreshSlate = samples.length === 0;
+  const task = isFreshSlate
+    ? `## Weekly Briefing\n\n**Working with a fresh slate** — your specialists build context from here. Your first task is the start. Once your staff produces work, your weekly brief lights up here with what's moving and what to focus on next.`
+    : `## Weekly Briefing\n\n**Activity snapshot:**\n${lines}\n\n_Working from limited context right now — the full briefing returns on the next run._`;
   return {
     task,
-    rationale: "Activity snapshot — working from limited context; the full briefing returns on the next run.",
+    rationale: isFreshSlate
+      ? "Welcoming new owner — your staff is ready; the weekly brief lights up as work moves through them."
+      : "Activity snapshot — working from limited context; the full briefing returns on the next run.",
     notes: "degraded",
   };
 }
@@ -108,14 +117,20 @@ function synthesizeFallback(ctx: FallbackContext): OrchestratorDecision & { note
       s.samples.slice(0, 1).map((q) => `• [${cap(s.department)}] ${q}`)
     )
     .slice(0, 3);
-  const task = lines.length
-    ? `Cross-department snapshot:\n\n${lines.join("\n")}`
-    : "No recent cross-department work to synthesize.";
+  // PR-Tranche-2.6.3 (W27 follow-up) — same discriminator as briefFallback.
+  // No cross-department work yet → fresh-slate welcoming copy. Work exists
+  // but LLM failed → degradation copy.
+  const isFreshSlate = lines.length === 0;
+  const task = isFreshSlate
+    ? "Working with a fresh slate — your CEO Strategist is ready. Run a few specialists across your unlocked departments and ask me again. I'll synthesize across the work."
+    : `Cross-department snapshot:\n\n${lines.join("\n")}`;
   return {
     task,
-    // PR-Tranche-2.6.2 — brand-voiced; accurate regardless of which
-    // subsystem (LLM or vault) degraded.
-    rationale: "Cross-department snapshot — working from limited context; concatenating the most recent items from each desk.",
+    rationale: isFreshSlate
+      ? "Welcoming new owner — no cross-department work to synthesize yet; the CEO synthesis lights up once your staff has produced some output."
+      // PR-Tranche-2.6.2 — brand-voiced; accurate regardless of which
+      // subsystem (LLM or vault) degraded.
+      : "Cross-department snapshot — working from limited context; concatenating the most recent items from each desk.",
     notes: "degraded",
   };
 }
