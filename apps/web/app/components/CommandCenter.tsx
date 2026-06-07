@@ -39,6 +39,22 @@ const DEPT_HREFS: Record<string, string> = {
 
 const THREAD_STORAGE_KEY = "staffd_command_center_thread_id_v1";
 
+/**
+ * PR-Tranche-2.5 (W26 fix) — strip orchestrator-protocol markers from
+ * assistant messages before sending the conversation back to the
+ * orchestrator on follow-up turns. The `READY:{...}` and `EXECUTE:{...}`
+ * lines are UI-side protocol; the orchestrator should see clean
+ * conversation context only. Exported for tests.
+ */
+export function cleanForOrchestrator(content: string): string {
+  if (!content) return "";
+  return content
+    .replace(/\nREADY:\{.+?\}/gs, "")
+    .replace(/READY:\{.+?\}/gs, "")
+    .replace(/^EXECUTE:\{.+?\}\s*$/gs, "")
+    .trim();
+}
+
 function loadOrCreateThreadId(): string {
   if (typeof window === "undefined") return "";
   try {
@@ -113,6 +129,11 @@ export default function CommandCenter() {
     const content = (text ?? input).trim();
     if (!content || phase === "routing" || phase === "generating") return;
 
+    // PR-Tranche-2.5 (W26 fix) — auto-transition done → idle so the input
+    // stays alive for follow-ups. Was previously trapped at "done" until
+    // the user clicked the destructive "+ New request" reset.
+    if (phase === "done") setPhase("idle");
+
     const newMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(newMessages);
     setInput("");
@@ -141,11 +162,21 @@ export default function CommandCenter() {
 
     // Route through orchestrator
     try {
+      // PR-Tranche-2.5 (W26 fix) — strip UI-side protocol markers from
+      // assistant messages before sending. Drop assistant messages that
+      // become empty after cleaning (READY-only stubs). Keep user messages
+      // as-is. Drop final empty placeholders.
+      const cleanedMessages = newMessages
+        .map((m) => ({
+          role: m.role,
+          content: m.role === "assistant" ? cleanForOrchestrator(m.content) : m.content,
+        }))
+        .filter((m) => m.content.length > 0);
       const res = await fetch("/api/orchestrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          messages: cleanedMessages,
           userId,
           pbToken,
         }),
@@ -479,74 +510,71 @@ export default function CommandCenter() {
         </div>
       )}
 
-      {/* Input */}
-      {phase !== "done" && (
-        <div style={{ borderTop: messages.length > 0 ? "1px solid #1E1E2A" : "none" }}>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void send();
-              }
-            }}
-            placeholder={
-              pendingAction
-                ? "Type yes to confirm, or describe something different…"
-                : messages.length === 0
-                  ? "What do you need? — e.g. 'write an invoice for a client' or 'I need to hire a designer'…"
-                  : "Reply…"
+      {/* Input — PR-Tranche-2.5 (W26 fix): always visible while the chat has
+          life, including after phase === "done". The textarea is disabled
+          during in-flight work (isWorking), but visible — the user has a
+          clear affordance to continue the conversation. */}
+      <div style={{ borderTop: messages.length > 0 ? "1px solid #1E1E2A" : "none" }}>
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
             }
-            rows={messages.length === 0 ? 2 : 1}
-            disabled={isWorking}
-            className="w-full px-5 py-4 text-sm outline-none resize-none"
-            style={{
-              background: "transparent",
-              color: "#F0F0F8",
-              lineHeight: "1.6",
-              caretColor: "#5B21E8",
-              opacity: isWorking ? 0.5 : 1,
-            }}
-          />
-          <div className="flex items-center justify-between px-5 pb-3">
-            <span className="text-xs" style={{ color: "#2E2E45" }}>
-              {isWorking ? (
-                <span className="flex items-center gap-1.5" style={{ color: "#5A5A70" }}>
-                  <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
-                  {phase === "generating" ? "generating…" : "thinking…"}
-                </span>
-              ) : "Enter to send"}
-            </span>
-            <button
-              onClick={() => void send()}
-              disabled={!input.trim() || isWorking}
-              className="btn-primary px-4 py-1.5 rounded-xl text-xs font-semibold text-white"
-              style={{ opacity: !input.trim() || isWorking ? 0.3 : 1, cursor: !input.trim() || isWorking ? "not-allowed" : "pointer" }}
-            >
-              Send →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Done state: start new */}
-      {phase === "done" && (
-        <div
-          className="px-5 py-3 flex items-center justify-between"
-          style={{ borderTop: "1px solid #1E1E2A" }}
-        >
-          <span className="text-xs" style={{ color: "#5A5A70" }}>Output generated</span>
+          }}
+          placeholder={
+            pendingAction
+              ? "Type yes to confirm, or describe something different…"
+              : messages.length === 0
+                ? "What do you need? — e.g. 'write an invoice for a client' or 'I need to hire a designer'…"
+                : phase === "done"
+                  ? "Refine, follow up, or ask for something else…"
+                  : "Reply…"
+          }
+          rows={messages.length === 0 ? 2 : 1}
+          disabled={isWorking}
+          className="w-full px-5 py-4 text-sm outline-none resize-none"
+          style={{
+            background: "transparent",
+            color: "#F0F0F8",
+            lineHeight: "1.6",
+            caretColor: "#5B21E8",
+            opacity: isWorking ? 0.5 : 1,
+          }}
+        />
+        <div className="flex items-center justify-between px-5 pb-3">
+          <span className="text-xs" style={{ color: "#2E2E45" }}>
+            {isWorking ? (
+              <span className="flex items-center gap-1.5" style={{ color: "#5A5A70" }}>
+                <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
+                {phase === "generating" ? "generating…" : "thinking…"}
+              </span>
+            ) : phase === "done" ? (
+              <span style={{ color: "#5A5A70" }}>
+                Enter to continue · or{" "}
+                <button
+                  onClick={reset}
+                  className="underline transition-colors hover:text-white"
+                  style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                >
+                  start fresh
+                </button>
+              </span>
+            ) : "Enter to send"}
+          </span>
           <button
-            onClick={reset}
-            className="text-xs font-medium transition-colors hover:text-white"
-            style={{ color: "#A07BFF" }}
+            onClick={() => void send()}
+            disabled={!input.trim() || isWorking}
+            className="btn-primary px-4 py-1.5 rounded-xl text-xs font-semibold text-white"
+            style={{ opacity: !input.trim() || isWorking ? 0.3 : 1, cursor: !input.trim() || isWorking ? "not-allowed" : "pointer" }}
           >
-            + New request
+            Send →
           </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
