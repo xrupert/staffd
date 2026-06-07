@@ -19,8 +19,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { policyFor, SOFT_INPUT_TOKEN_BUDGET, BUDGET_DEADLINE_MULTIPLIER } from "./policies";
 import { computeCostUsd } from "../llm-router";
+import { resolveAnthropicKey } from "../../../../lib/env";
 import type { FallbackReason, OrchestratorIntent } from "./types";
 
+// PR-Tranche-2.6 (W27.2) — explicitly resolve the API key per-attempt rather
+// than letting the Anthropic SDK auto-read process.env. The resolver throws
+// on undefined/empty/wrong-prefix with a precise error message that the
+// console.error in callLLM's catch will surface (vs. the opaque
+// "401 invalid_api_key" the SDK would otherwise emit).
+//
+// Constructed without an apiKey arg at module load — the SDK accepts being
+// re-initialized lazily inside `attempt()` where it can use the resolved
+// key. Tests that mock @anthropic-ai/sdk bypass this entirely.
 const anthropic = new Anthropic();
 
 const RETRY_DELAYS_MS = [250, 750];
@@ -107,6 +117,14 @@ async function attempt(
   maxTokens: number,
   model: string
 ): Promise<{ text: string; tokensIn: number; tokensOut: number }> {
+  // PR-Tranche-2.6 (W27.2) — fail-fast at the call site with a precise
+  // error message if ANTHROPIC_API_KEY is missing/empty/malformed. Without
+  // this, the SDK would emit an opaque 401 that callLLM's catch buckets
+  // into upstream_error — the operator would never know the env was wrong.
+  // The throw flows up through the SDK call into callLLM's catch, where
+  // the new console.error logs the resolver's precise message.
+  resolveAnthropicKey();
+
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), deadlineMs);
   const detach = mergeAbort(input.signal, ctrl);
@@ -218,6 +236,22 @@ export async function callLLM(input: LLMCallInput): Promise<LLMResult> {
         const fallback: FallbackReason = aborted
           ? "deadline_exceeded"
           : "upstream_error";
+        // PR-Tranche-2.6 (W27.1) — surface the real error before swallowing.
+        // Pre-W27 this catch returned silently → every Anthropic exception
+        // (auth / rate-limit / timeout / parse) collapsed into the opaque
+        // fallback. With this log, operator + Claude Code can read the
+        // actual exception class + message from Vercel logs and diagnose.
+        const e = lastErr as { name?: string; message?: string; status?: number; stack?: string };
+        console.error("[orchestrator/llm] callLLM exhausted retries", {
+          intent: input.intent,
+          model,
+          attempts,
+          fallback,
+          name: e?.name,
+          message: e?.message,
+          status: e?.status,
+          stack: e?.stack?.split("\n").slice(0, 5).join("\n"),
+        });
         return {
           ok: false,
           fallback,
@@ -236,6 +270,17 @@ export async function callLLM(input: LLMCallInput): Promise<LLMResult> {
   }
 
   // Should be unreachable, but TypeScript needs an explicit return.
+  // PR-Tranche-2.6 (W27.1) — also log here in case the loop exits without
+  // entering the catch's failure branch (defense in depth).
+  const e = lastErr as { name?: string; message?: string; status?: number; stack?: string } | null;
+  console.error("[orchestrator/llm] callLLM fell through retry loop without success", {
+    intent: input.intent,
+    model,
+    attempts,
+    name: e?.name,
+    message: e?.message,
+    status: e?.status,
+  });
   return {
     ok: false,
     fallback: "upstream_error",
@@ -246,5 +291,4 @@ export async function callLLM(input: LLMCallInput): Promise<LLMResult> {
     model,
     costUsd: 0,
   };
-  void lastErr;
 }

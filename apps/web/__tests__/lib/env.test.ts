@@ -18,6 +18,7 @@ import {
   resolveAppUrl,
   resolvePocketbasePublicUrl,
   resolvePlausibleDomain,
+  resolveAnthropicKey,
 } from "../../lib/env";
 
 // Preserve original values to restore in afterEach so test order can't leak.
@@ -26,6 +27,7 @@ const original = {
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NEXT_PUBLIC_POCKETBASE_URL: process.env.NEXT_PUBLIC_POCKETBASE_URL,
   NEXT_PUBLIC_PLAUSIBLE_DOMAIN: process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN,
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
 };
 
 function setOrDelete(name: keyof typeof original, value: string | undefined) {
@@ -38,6 +40,7 @@ afterEach(() => {
   setOrDelete("NEXT_PUBLIC_APP_URL", original.NEXT_PUBLIC_APP_URL);
   setOrDelete("NEXT_PUBLIC_POCKETBASE_URL", original.NEXT_PUBLIC_POCKETBASE_URL);
   setOrDelete("NEXT_PUBLIC_PLAUSIBLE_DOMAIN", original.NEXT_PUBLIC_PLAUSIBLE_DOMAIN);
+  setOrDelete("ANTHROPIC_API_KEY", original.ANTHROPIC_API_KEY);
 });
 
 // ─── resolveMuapiBase ───────────────────────────────────────────────────
@@ -127,6 +130,41 @@ describe("resolvePocketbasePublicUrl", () => {
   it("throws when scheme is missing", () => {
     process.env.NEXT_PUBLIC_POCKETBASE_URL = "pb.railway.internal";
     expect(() => resolvePocketbasePublicUrl()).toThrow(/must include scheme/);
+  });
+});
+
+// ─── resolveAnthropicKey (PR-Tranche-2.6 W27.2) ─────────────────────────
+
+describe("resolveAnthropicKey", () => {
+  beforeEach(() => delete process.env.ANTHROPIC_API_KEY);
+
+  it("returns key when valid (sk-ant-… prefix)", () => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-api03-VALID_FAKE_KEY_FOR_TESTS";
+    expect(resolveAnthropicKey()).toBe("sk-ant-api03-VALID_FAKE_KEY_FOR_TESTS");
+  });
+
+  it("throws on undefined env (clean missing case)", () => {
+    expect(() => resolveAnthropicKey()).toThrow(/missing or empty/);
+  });
+
+  it("throws on empty string (THE W8 footgun)", () => {
+    process.env.ANTHROPIC_API_KEY = "";
+    expect(() => resolveAnthropicKey()).toThrow(/missing or empty/);
+  });
+
+  it("throws on whitespace-only value", () => {
+    process.env.ANTHROPIC_API_KEY = "   ";
+    expect(() => resolveAnthropicKey()).toThrow(/missing or empty/);
+  });
+
+  it("throws on missing sk-ant- prefix (catches wrong-key class)", () => {
+    process.env.ANTHROPIC_API_KEY = "wrong-format-key-12345";
+    expect(() => resolveAnthropicKey()).toThrow(/format invalid/);
+  });
+
+  it("strips whitespace and accepts the trimmed value", () => {
+    process.env.ANTHROPIC_API_KEY = "  sk-ant-api03-TRIMMED  ";
+    expect(resolveAnthropicKey()).toBe("sk-ant-api03-TRIMMED");
   });
 });
 

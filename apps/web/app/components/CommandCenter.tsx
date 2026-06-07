@@ -21,6 +21,15 @@ interface PendingAction {
   lockedAlternative?: string;
 }
 
+// PR-Tranche-2.6 (W28) — handoff intent response shape (subset; matches
+// FollowUp in apps/web/app/api/_lib/orchestrator/types.ts).
+interface HandoffSuggestion {
+  department: string;
+  task: string;
+  rationale?: string;
+  locked?: boolean;
+}
+
 type Phase = "idle" | "routing" | "confirmed" | "generating" | "done";
 
 const DEPT_LABELS: Record<string, string> = {
@@ -82,6 +91,19 @@ export default function CommandCenter() {
   const [threadId, setThreadId] = useState<string>("");
   // Phase 25 — thread picker drawer.
   const [threadPickerOpen, setThreadPickerOpen] = useState(false);
+  // PR-Tranche-2.6 (W28) — cross-functional handoff suggestions surfaced
+  // below the generated output. Fetched fire-and-forget after each
+  // generation completes; non-blocking on failure.
+  const [followUps, setFollowUps] = useState<HandoffSuggestion[]>([]);
+  // Holds the last completed user task + department for downstream handoff
+  // requests (the prior task is what `/api/handoff/suggest` uses as
+  // sourceDoc.prompt).
+  const [lastCompleted, setLastCompleted] = useState<{
+    department: string;
+    task: string;
+    output: string;
+    userGoal: string;
+  } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -228,8 +250,52 @@ export default function CommandCenter() {
     setTimeout(scrollToBottom, 100);
   }
 
+  // PR-Tranche-2.6 (W28) — fire the handoff intent after a successful
+  // generation; render returned followUps as buttons below the output.
+  // Non-blocking: failures are logged but never surface a UI error
+  // (handoff is a polish feature, not a critical path).
+  async function fetchHandoffSuggestions(
+    department: string,
+    task: string,
+    output: string,
+    userGoal: string,
+    userId: string,
+    pbToken: string,
+  ): Promise<void> {
+    try {
+      const res = await fetch("/api/handoff/suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId,
+          pbToken,
+          sourceDoc: {
+            department,
+            prompt: task,
+            outputExcerpt: output.length > 1200 ? output.slice(0, 1200) + "…" : output,
+          },
+          query: userGoal,
+        }),
+      });
+      if (!res.ok) {
+        console.warn("[CommandCenter] handoff fetch failed", { status: res.status });
+        return;
+      }
+      const data = (await res.json()) as {
+        ok?: boolean;
+        followUps?: HandoffSuggestion[];
+        degraded?: { followUps?: HandoffSuggestion[] };
+      };
+      const suggestions = data.followUps ?? data.degraded?.followUps ?? [];
+      setFollowUps(suggestions.slice(0, 3));
+    } catch (err) {
+      console.warn("[CommandCenter] handoff fetch errored (non-blocking)", err);
+    }
+  }
+
   async function runAgent(department: string, task: string, userId: string, pbToken: string, agentId?: string) {
     setOutputBuffer("");
+    setFollowUps([]); // clear any previous handoff suggestions before this run
     // Add a generating message placeholder
     setMessages((prev) => [...prev, { role: "assistant", content: "", isOutput: true }]);
 
@@ -283,6 +349,25 @@ export default function CommandCenter() {
       setPhase("done");
       setPendingAction(null);
       setTimeout(scrollToBottom, 100);
+
+      // PR-Tranche-2.6 (W28) — fire handoff suggestions after generation
+      // completes. Uses the captured outputBuffer (set inside the stream
+      // loop) and the most recent user message as the goal seed. Runs
+      // off-thread; UI surfaces buttons when results arrive.
+      const completedOutput = outputBuffer;
+      const userGoal = (() => {
+        // Most recent user message is the last { role: "user" } before
+        // this generation kicked off
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const m = messages[i]!;
+          if (m.role === "user") return m.content;
+        }
+        return task;
+      })();
+      setLastCompleted({ department, task, output: completedOutput, userGoal });
+      if (completedOutput && completedOutput.length > 50) {
+        void fetchHandoffSuggestions(department, task, completedOutput, userGoal, userId, pbToken);
+      }
     }
   }
 
@@ -293,6 +378,9 @@ export default function CommandCenter() {
     setPendingAction(null);
     setOutputBuffer("");
     setLastLockedAlt(null);
+    // PR-Tranche-2.6 (W28) — clear handoff state on explicit reset
+    setFollowUps([]);
+    setLastCompleted(null);
     // Phase 9 — rotate the threadId on reset so the next chat is a fresh
     // conversation. Server-side `conversations` rows stay intact under the
     // old threadId for future thread-picker UX.
@@ -389,9 +477,12 @@ export default function CommandCenter() {
         <CommandCenterSuggestions onPick={(prompt) => { setInput(prompt); setTimeout(() => void send(prompt), 0); }} />
       )}
 
-      {/* Message thread */}
+      {/* Message thread — PR-Tranche-2.6 (W29): removed `max-h-96
+          overflow-y-auto` which capped the thread at 384px and forced
+          internal scroll while page space sat unused. Matches
+          DepartmentRoom semantics — content flows, page scrolls. */}
       {messages.length > 0 && (
-        <div className="px-5 py-4 flex flex-col gap-3 max-h-96 overflow-y-auto">
+        <div className="px-5 py-4 flex flex-col gap-3">
           {messages.map((msg, i) => {
             if (msg.role === "user") {
               return (
@@ -506,6 +597,48 @@ export default function CommandCenter() {
               </div>
             );
           })}
+          {/* PR-Tranche-2.6 (W28) — cross-functional handoff suggestions.
+              Rendered after the message thread; only when phase is done
+              (output is complete) and the handoff intent returned
+              suggestions. Empty array → renders nothing. */}
+          {phase === "done" && followUps.length > 0 && lastCompleted && (
+            <div className="flex flex-col gap-2 pt-2" style={{ borderTop: "1px solid #1E1E2A" }}>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#7070A0" }}>
+                Next steps
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {followUps.map((f, i) => {
+                  const deptLabel = DEPT_LABELS[f.department] ?? f.department;
+                  const dimmed = f.locked === true;
+                  return (
+                    <button
+                      key={`${f.department}-${i}`}
+                      onClick={() => {
+                        // Locked dept → route to its dashboard page as an upsell;
+                        // unlocked → submit the suggested task as the next turn
+                        if (dimmed) {
+                          window.location.href = DEPT_HREFS[f.department] ?? "/dashboard";
+                          return;
+                        }
+                        void send(f.task);
+                      }}
+                      title={f.rationale ?? `Send to ${deptLabel}`}
+                      className="text-xs px-3 py-1.5 rounded-lg transition-colors hover:text-white"
+                      style={{
+                        background: dimmed ? "rgba(91,33,232,0.05)" : "rgba(91,33,232,0.12)",
+                        border: `1px solid ${dimmed ? "rgba(91,33,232,0.15)" : "rgba(91,33,232,0.30)"}`,
+                        color: dimmed ? "#5A5A70" : "#A07BFF",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {dimmed ? "🔒 " : ""}
+                      {deptLabel} · {f.task.length > 60 ? f.task.slice(0, 60) + "…" : f.task}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
       )}

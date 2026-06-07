@@ -99,6 +99,41 @@ export function resolvePocketbasePublicUrl(): string {
 }
 
 /**
+ * Resolve `ANTHROPIC_API_KEY` (PR-Tranche-2.6 / W27.2).
+ *
+ * The Anthropic SDK auto-reads `process.env.ANTHROPIC_API_KEY` at
+ * construction time when no explicit `apiKey` is passed. An empty-string
+ * env value defeats nothing (SDK accepts it) — every subsequent
+ * `messages.create()` then throws an opaque error that the orchestrator's
+ * llm.ts wrapper catches and reports as `upstream_error`. THIS resolver
+ * gives that error its real name at the call site.
+ *
+ * Throws on undefined / empty / whitespace; throws on missing `sk-ant-`
+ * prefix (catches operator-typo class — wrong env value entirely).
+ *
+ * Callers should invoke this at the LLM call site (NOT at module load) so
+ * test environments that mock the SDK don't trip the check. The orchestrator
+ * llm.ts wrapper passes the resolved key to `new Anthropic({ apiKey })`
+ * inside the per-attempt code path.
+ */
+export function resolveAnthropicKey(): string {
+  const raw = process.env.ANTHROPIC_API_KEY?.trim();
+  if (!raw) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is missing or empty. Set it in Vercel env panel. " +
+        "Orchestrator + agent loop both require this key to function.",
+    );
+  }
+  if (!/^sk-ant-/i.test(raw)) {
+    throw new Error(
+      `ANTHROPIC_API_KEY format invalid (expected prefix "sk-ant-", got "${raw.slice(0, 10)}..."). ` +
+        "Check Vercel env panel for typos or wrong value.",
+    );
+  }
+  return raw;
+}
+
+/**
  * Resolve the Plausible analytics `data-domain` attribute. Falls back to
  * `urstaffd.com` on undefined/empty/whitespace. Does NOT throw on missing
  * scheme — this is a domain identifier (bare hostname), not a URL.
