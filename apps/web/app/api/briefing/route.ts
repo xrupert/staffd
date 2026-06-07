@@ -46,7 +46,8 @@ export async function POST(req: Request) {
   // user a coherent message instead of an empty stream.
   const finalText = briefText.length > 0
     ? briefText
-    : "## Weekly Briefing\n\nThe coordinator is temporarily unavailable. Please try again in a moment.";
+    // PR-Tranche-2.6.2 — brand-voiced + accurate-regardless-of-cause
+    : "## Weekly Briefing\n\nWorking from limited context right now — your staff is still on duty. Try again in a moment.";
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

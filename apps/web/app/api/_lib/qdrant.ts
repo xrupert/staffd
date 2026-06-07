@@ -121,9 +121,23 @@ export async function search(
 ): Promise<QdrantSearchHit[]> {
   assertConfigured();
 
+  // PR-Tranche-2.6.2 — Qdrant's MatchInterface enum accepts MatchValue
+  // (string | number | boolean), NOT null. Earlier code pushed
+  // `{ value: opts.client }` whenever client was !== undefined, but
+  // `retrieve()` was passing `client: opts.clientId ?? null` — coercing
+  // undefined to null. The resulting `match: { value: null }` produced
+  // a 400 "data did not match any variant of untagged enum MatchInterface"
+  // at column ~12,816 (where null sits after the ~12 KB vector payload).
+  //
+  // Fix: only push filter clauses for non-empty string values. Defense in
+  // depth — retrieve.ts also now passes undefined instead of null.
   const must: Array<Record<string, unknown>> = [];
-  if (opts.dept) must.push({ key: "dept", match: { value: opts.dept } });
-  if (opts.client !== undefined) must.push({ key: "client", match: { value: opts.client } });
+  if (typeof opts.dept === "string" && opts.dept.length > 0) {
+    must.push({ key: "dept", match: { value: opts.dept } });
+  }
+  if (typeof opts.client === "string" && opts.client.length > 0) {
+    must.push({ key: "client", match: { value: opts.client } });
+  }
 
   const body: Record<string, unknown> = {
     vector,

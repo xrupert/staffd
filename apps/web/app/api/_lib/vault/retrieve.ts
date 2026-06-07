@@ -145,9 +145,15 @@ export async function retrieve(
     const embedded = await embed(query, { timeoutMs: 3_000 });
     provider = embedded.provider;
     const collection = userCollection(userId, opts.clientId ?? null);
+    // PR-Tranche-2.6.2 — pass `undefined` (not null) when there's no client
+    // so the Qdrant client wrapper correctly omits the filter clause.
+    // Coercing to null produced `match: { value: null }` which Qdrant rejected
+    // with 400 (MatchInterface enum doesn't accept null). The wrapper now
+    // double-guards this at qdrant.ts:126; we also stop emitting null at
+    // the call site.
     hits = await search(collection, embedded.vector, {
       limit: headroom,
-      client: opts.clientId ?? null,
+      client: opts.clientId || undefined,
     });
   } catch (err) {
     console.warn("[retrieve] upstream error — returning degraded:", err);

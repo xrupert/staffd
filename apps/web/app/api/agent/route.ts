@@ -145,7 +145,8 @@ export async function POST(req: Request) {
         : (synth.degraded.task ?? "").trim();
       const finalText = synthText.length > 0
         ? synthText
-        : "The coordinator is briefly unavailable. Please try again in a moment.";
+        // PR-Tranche-2.6.2 — brand-voiced + accurate-regardless-of-cause
+        : "Working from limited context right now — your specialists are still on duty. Try again in a moment.";
 
       if (userId) {
         void writeConversationTurnAndEnqueue({

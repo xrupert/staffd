@@ -44,12 +44,18 @@ function routeFallback(ctx: FallbackContext): OrchestratorDecision {
     : null;
   const dept = lastUsed ?? (unlocked.includes(DEFAULT_DEPT) ? DEFAULT_DEPT : unlocked[0] ?? DEFAULT_DEPT);
   const task = (ctx.message ?? "").trim() || "Continue the conversation.";
+  // PR-Tranche-2.6.2 — brand-voiced fallback copy. Earlier copy said
+  // "the coordinator is unavailable" which (a) used out-of-brand vocabulary
+  // and (b) misattributed failures: the trigger is often vault retrieve
+  // (W26 production case), not the orchestrator LLM. New copy uses the
+  // staff/duty vocabulary per ARCH BRAND_VOICE.md and is accurate
+  // regardless of which subsystem degraded.
   return {
     department: dept,
     task,
     rationale: lastUsed
-      ? `Routing to your most recently used department while the coordinator is unavailable.`
-      : `Routing to a sensible default while the coordinator is unavailable.`,
+      ? `Working from limited context right now — sending this to your ${cap(dept)} desk where you were just working.`
+      : `Working from limited context right now — your specialists are still on duty.`,
   };
 }
 
@@ -73,7 +79,8 @@ function handoffFallback(ctx: FallbackContext): OrchestratorDecision & { followU
   };
   const followUps: FollowUp[] = src ? (map[src] ?? []) : [];
   return {
-    rationale: "Degraded handoff suggestions — the coordinator is unavailable; surfacing default cross-functional next steps.",
+    // PR-Tranche-2.6.2 — brand-voiced + accurate-regardless-of-cause
+    rationale: "Surfacing default cross-functional next steps — your staff has the work covered while the coordinator catches up.",
     followUps,
     notes: "degraded",
   };
@@ -84,10 +91,12 @@ function briefFallback(ctx: FallbackContext): OrchestratorDecision & { notes: st
   const lines = samples.length
     ? samples.map((s) => `- ${cap(s.department)}: ${s.count} doc${s.count === 1 ? "" : "s"}${s.samples[0] ? ` — "${s.samples[0]}"` : ""}`).join("\n")
     : "- Your staff hasn't produced any work in the last 30 days.";
-  const task = `## Weekly Briefing (degraded — coordinator unavailable)\n\n**Activity snapshot:**\n${lines}\n\n_The full briefing will resume on the next run._`;
+  // PR-Tranche-2.6.2 — brand-voiced copy; drops the misleading
+  // "coordinator unavailable" attribution (cause is often vault, not LLM).
+  const task = `## Weekly Briefing\n\n**Activity snapshot:**\n${lines}\n\n_Working from limited context right now — the full briefing returns on the next run._`;
   return {
     task,
-    rationale: "Extractive briefing — the coordinator is unavailable; returning a deterministic snapshot.",
+    rationale: "Activity snapshot — working from limited context; the full briefing returns on the next run.",
     notes: "degraded",
   };
 }
@@ -104,7 +113,9 @@ function synthesizeFallback(ctx: FallbackContext): OrchestratorDecision & { note
     : "No recent cross-department work to synthesize.";
   return {
     task,
-    rationale: "Extractive synthesis — the coordinator is unavailable; concatenating the most recent items from each department.",
+    // PR-Tranche-2.6.2 — brand-voiced; accurate regardless of which
+    // subsystem (LLM or vault) degraded.
+    rationale: "Cross-department snapshot — working from limited context; concatenating the most recent items from each desk.",
     notes: "degraded",
   };
 }
