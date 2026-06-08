@@ -71,15 +71,28 @@ describe("synthesizeFallback empty-vault discrimination (W27 follow-up)", () => 
   });
 });
 
-describe("routeFallback unchanged (W27 — true degradation only)", () => {
-  it("still emits 'limited context' copy on LLM failure (route intent IS true degradation)", () => {
+describe("routeFallback — neutral routing copy (W27.complete / W36)", () => {
+  it("does NOT emit 'limited context' editorializing on degraded path (W27.complete)", () => {
+    // Pre-T2.6.4 the copy editorialized about context state. That misattributed
+    // the degraded path (often LLM going off-format on conversational queries,
+    // NOT a vault issue) as a context degradation. Per W36 "agent wins on
+    // contextuality" — orchestrator stays neutral; specialist's streamed
+    // response carries any context acknowledgment.
     const result = degradedFor("route", {
       message: "I need a tik tok video",
       unlockedDepts: ["marketing", "sales", "design"],
     });
-    // routeFallback fires when callLLM itself failed — always a real
-    // degradation; the empty-vault discriminator does NOT apply here.
-    expect(result.rationale).toContain("limited context");
+    expect(result.rationale).not.toContain("limited context");
+    expect(result.rationale).not.toContain("Working from");
+  });
+
+  it("emits neutral routing copy (default-dept path)", () => {
+    const result = degradedFor("route", {
+      message: "anything",
+      unlockedDepts: ["marketing"],
+    });
+    expect(result.rationale).toContain("Marketing desk");
+    expect(result.rationale).toContain("specialist");
   });
 
   it("uses last-used-dept path when lastUsedDept is in unlocked set", () => {
@@ -90,5 +103,7 @@ describe("routeFallback unchanged (W27 — true degradation only)", () => {
     });
     expect(result.department).toBe("design");
     expect(result.rationale).toContain("Design desk");
+    expect(result.rationale).toContain("where you were just working");
+    expect(result.rationale).not.toContain("limited context");
   });
 });

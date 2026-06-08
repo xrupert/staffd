@@ -147,7 +147,22 @@ export default function CommandCenter() {
 
   const CONFIRM_WORDS = /^(yes|confirm|confirmed|approved|approve|go|do it|go ahead|sure|yep|yup|ok|okay|sounds good|make it|run it|let'?s go)/i;
 
-  async function send(text?: string) {
+  /**
+   * PR-Tranche-2.6.4 (W35) — `send()` options.
+   * `skipConfirm` + `preselectDept` together short-circuit the orchestrate
+   * round-trip AND the Yes/Cancel confirm gate. Used by Next Steps button
+   * clicks where the followUp already knows the target department, so the
+   * user's click IS explicit consent — no second-step confirm needed.
+   * `preselectAgent` is optional (handoff intent doesn't currently emit
+   * agentId; runAgent's existing smart-keyword picker fills in).
+   */
+  type SendOptions = {
+    skipConfirm?: boolean;
+    preselectDept?: string;
+    preselectAgent?: string;
+  };
+
+  async function send(text?: string, options?: SendOptions) {
     const content = (text ?? input).trim();
     if (!content || phase === "routing" || phase === "generating") return;
 
@@ -164,6 +179,15 @@ export default function CommandCenter() {
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
+
+    // PR-Tranche-2.6.4 (W35) — direct-execute path. Bypasses orchestrate
+    // round-trip AND confirm gate when caller already knows the target
+    // dept (Next Steps button click). User's click IS the explicit consent.
+    if (options?.skipConfirm && options?.preselectDept) {
+      setPhase("generating");
+      await runAgent(options.preselectDept, content, userId, pbToken, options.preselectAgent);
+      return;
+    }
 
     // Check if this is a confirmation message with a pending action
     if (pendingAction && CONFIRM_WORDS.test(content)) {
@@ -632,7 +656,10 @@ export default function CommandCenter() {
                           window.location.href = DEPT_HREFS[f.department] ?? "/dashboard";
                           return;
                         }
-                        void send(f.task);
+                        // PR-Tranche-2.6.4 (W35) — bypass orchestrate +
+                        // confirm gate. Button click IS explicit consent;
+                        // the followUp already knows target dept.
+                        void send(f.task, { skipConfirm: true, preselectDept: f.department });
                       }}
                       title={f.rationale ?? `Send to ${deptLabel}`}
                       className="text-xs px-3 py-1.5 rounded-lg transition-colors hover:text-white"

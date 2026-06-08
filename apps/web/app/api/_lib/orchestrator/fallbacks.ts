@@ -44,18 +44,19 @@ function routeFallback(ctx: FallbackContext): OrchestratorDecision {
     : null;
   const dept = lastUsed ?? (unlocked.includes(DEFAULT_DEPT) ? DEFAULT_DEPT : unlocked[0] ?? DEFAULT_DEPT);
   const task = (ctx.message ?? "").trim() || "Continue the conversation.";
-  // PR-Tranche-2.6.2 — brand-voiced fallback copy. Earlier copy said
-  // "the coordinator is unavailable" which (a) used out-of-brand vocabulary
-  // and (b) misattributed failures: the trigger is often vault retrieve
-  // (W26 production case), not the orchestrator LLM. New copy uses the
-  // staff/duty vocabulary per ARCH BRAND_VOICE.md and is accurate
-  // regardless of which subsystem degraded.
+  // PR-Tranche-2.6.4 (W27.complete + W36) — drop the editorial context-state
+  // copy from routeFallback entirely. Earlier "Working from limited context"
+  // copy misattributed the degraded path as a vault/context issue when the
+  // actual cause is often the LLM going off-format on conversational queries
+  // (parseDecision returns null → degraded envelope fires). The specialist's
+  // streamed response carries any genuine context acknowledgment per W36's
+  // "agent wins on contextuality" principle — orchestrator stays neutral.
   return {
     department: dept,
     task,
     rationale: lastUsed
-      ? `Working from limited context right now — sending this to your ${cap(dept)} desk where you were just working.`
-      : `Working from limited context right now — your specialists are still on duty.`,
+      ? `Sending this to your ${cap(dept)} desk where you were just working.`
+      : `Routing you to your ${cap(dept)} desk — your specialist will take it from here.`,
   };
 }
 
