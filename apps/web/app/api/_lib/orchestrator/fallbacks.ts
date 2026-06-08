@@ -44,19 +44,17 @@ function routeFallback(ctx: FallbackContext): OrchestratorDecision {
     : null;
   const dept = lastUsed ?? (unlocked.includes(DEFAULT_DEPT) ? DEFAULT_DEPT : unlocked[0] ?? DEFAULT_DEPT);
   const task = (ctx.message ?? "").trim() || "Continue the conversation.";
-  // PR-Tranche-2.6.4 (W27.complete + W36) — drop the editorial context-state
-  // copy from routeFallback entirely. Earlier "Working from limited context"
-  // copy misattributed the degraded path as a vault/context issue when the
-  // actual cause is often the LLM going off-format on conversational queries
-  // (parseDecision returns null → degraded envelope fires). The specialist's
-  // streamed response carries any genuine context acknowledgment per W36's
-  // "agent wins on contextuality" principle — orchestrator stays neutral.
+  // PR-Tranche-2.6.5 (copy lock) — operator-approved single-form copy.
+  // Removes "your" (no false personalization), removes "desk" (non-canonical
+  // vocabulary), removes the lastUsed-dept "where you were just working"
+  // suffix. Both branches converge on one canonical form parameterized by
+  // the resolved department name. The route handler's branch logic still
+  // distinguishes lastUsed vs default for WHICH dept gets selected; the
+  // emitted user-facing copy is uniform.
   return {
     department: dept,
     task,
-    rationale: lastUsed
-      ? `Sending this to your ${cap(dept)} desk where you were just working.`
-      : `Routing you to your ${cap(dept)} desk — your specialist will take it from here.`,
+    rationale: `Routing this to ${cap(dept)} — they'll take it from here.`,
   };
 }
 

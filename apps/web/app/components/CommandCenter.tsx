@@ -64,6 +64,33 @@ export function cleanForOrchestrator(content: string): string {
     .trim();
 }
 
+/**
+ * PR-Tranche-2.6.5 (W38 + W39) — detect whether an agent's response ends
+ * in a clarifying question (vs. a completed deliverable).
+ *
+ * Used to:
+ *   - W38: skip the handoff intent fetch when the agent is waiting on the
+ *     user (handoff suggestions are nonsense if the work isn't done yet)
+ *   - W39: switch the input placeholder to "Type your reply…" and
+ *     auto-focus the textarea so the user can answer immediately
+ *
+ * Predicate (intentionally simple, no over-engineering):
+ *   - Trailing `?` after trim → question
+ *   - Common interrogative phrasings in the last 200 chars → question
+ *
+ * The 200-char window catches "Which platform are you targeting?" near
+ * the end of a multi-paragraph response without false-positiving on
+ * questions inside the body (rhetorical questions, etc.).
+ */
+export function isAgentAskingQuestion(text: string): boolean {
+  const trimmed = (text ?? "").trim();
+  if (!trimmed) return false;
+  if (trimmed.endsWith("?")) return true;
+  const tail = trimmed.slice(-200);
+  const phrasings = /\b(which|what|how|would you|can you|should (we|i|you)|do you|are you|did you|where|when|why|tell me|let me know|share with me)\b/i;
+  return phrasings.test(tail);
+}
+
 function loadOrCreateThreadId(): string {
   if (typeof window === "undefined") return "";
   try {
@@ -110,6 +137,28 @@ export default function CommandCenter() {
   useEffect(() => {
     setThreadId(loadOrCreateThreadId());
   }, []);
+
+  // PR-Tranche-2.6.5 (W39) — derived state: is the agent's most recent
+  // assistant message a clarifying question? Drives placeholder switch +
+  // auto-focus below. `useMemo` would be overkill — the messages array
+  // doesn't churn fast enough to matter.
+  const lastAgentMessage = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]!;
+      if (m.role === "assistant" && m.content) return cleanContent(m.content);
+    }
+    return "";
+  })();
+  const agentAwaitingReply = phase === "done" && isAgentAskingQuestion(lastAgentMessage);
+
+  // PR-Tranche-2.6.5 (W39) — auto-focus the textarea when the agent finishes
+  // by asking a question. Reduces friction: user doesn't have to click into
+  // the input to answer.
+  useEffect(() => {
+    if (agentAwaitingReply) {
+      inputRef.current?.focus();
+    }
+  }, [agentAwaitingReply]);
 
   // Phase 25 — switch to an existing thread (hydrates message history).
   function switchToThread(newThreadId: string, hydrated: HydratedMessage[]) {
@@ -401,7 +450,14 @@ export default function CommandCenter() {
         return task;
       })();
       setLastCompleted({ department, task, output: completedOutput, userGoal });
-      if (completedOutput && completedOutput.length > 50) {
+      // PR-Tranche-2.6.5 (W38) — skip handoff fetch when agent is asking
+      // a clarifying question. Handoff suggestions are nonsense if the
+      // work isn't done — the user needs to answer first.
+      if (
+        completedOutput &&
+        completedOutput.length > 50 &&
+        !isAgentAskingQuestion(completedOutput)
+      ) {
         void fetchHandoffSuggestions(department, task, completedOutput, userGoal, userId, pbToken);
       }
     }
@@ -702,9 +758,13 @@ export default function CommandCenter() {
               ? "Type yes to confirm, or describe something different…"
               : messages.length === 0
                 ? "What do you need? — e.g. 'write an invoice for a client' or 'I need to hire a designer'…"
-                : phase === "done"
-                  ? "Refine, follow up, or ask for something else…"
-                  : "Reply…"
+                : // PR-Tranche-2.6.5 (W39) — when agent's most recent message
+                  // ends in a question, switch placeholder + signal answer mode
+                  agentAwaitingReply
+                  ? "Type your reply…"
+                  : phase === "done"
+                    ? "Refine, follow up, or ask for something else…"
+                    : "Reply…"
           }
           rows={messages.length === 0 ? 2 : 1}
           disabled={isWorking}

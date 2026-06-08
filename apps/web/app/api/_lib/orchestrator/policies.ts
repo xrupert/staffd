@@ -49,8 +49,13 @@ export const POLICIES: Record<OrchestratorIntent, IntentPolicy> = {
   route: {
     intent: "route",
     maxTokens: 512,
-    deadlineMs: 4_000,
-    retries: 0,
+    // PR-Tranche-2.6.5 (W37) — deadline bumped 4s → 8s and retries 0 → 3
+    // to absorb transient Anthropic latency / rate-limit blips that were
+    // intermittently degrading prompts post-T2.6.4. The W27.1 structured
+    // logging stays armed; if degradations persist at this headroom, the
+    // logs reveal a different root cause to investigate.
+    deadlineMs: 8_000,
+    retries: 3,
     vaultTopK: 3,
     vaultMaxTokens: 1_000,
     messageCap: 6,

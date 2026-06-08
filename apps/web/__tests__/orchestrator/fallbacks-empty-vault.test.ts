@@ -86,24 +86,29 @@ describe("routeFallback — neutral routing copy (W27.complete / W36)", () => {
     expect(result.rationale).not.toContain("Working from");
   });
 
-  it("emits neutral routing copy (default-dept path)", () => {
+  // PR-Tranche-2.6.5 (copy lock) — operator-approved single-form copy:
+  // "Routing this to ${Dept} — they'll take it from here."
+  // No "your", no "desk", no per-branch differentiation.
+  it("emits operator-approved copy (default-dept path)", () => {
     const result = degradedFor("route", {
       message: "anything",
       unlockedDepts: ["marketing"],
     });
-    expect(result.rationale).toContain("Marketing desk");
-    expect(result.rationale).toContain("specialist");
+    expect(result.rationale).toBe("Routing this to Marketing — they'll take it from here.");
+    expect(result.rationale).not.toContain("desk");
+    expect(result.rationale).not.toContain("your");
   });
 
-  it("uses last-used-dept path when lastUsedDept is in unlocked set", () => {
+  it("uses last-used-dept path AND emits same canonical copy form", () => {
     const result = degradedFor("route", {
       message: "x",
       unlockedDepts: ["marketing", "design"],
       lastUsedDept: "design",
     });
     expect(result.department).toBe("design");
-    expect(result.rationale).toContain("Design desk");
-    expect(result.rationale).toContain("where you were just working");
+    expect(result.rationale).toBe("Routing this to Design — they'll take it from here.");
+    expect(result.rationale).not.toContain("desk");
+    expect(result.rationale).not.toContain("where you were just working");
     expect(result.rationale).not.toContain("limited context");
   });
 });
