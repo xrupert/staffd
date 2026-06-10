@@ -173,7 +173,8 @@ export function routeTask(task: string, department?: Department): AgentDef | und
   let bestScore = 0;
 
   for (const agent of pool) {
-    const score = agent.tags.filter((tag) => lowerTask.includes(tag)).length;
+    // W54 — normalize tag casing at match time only; stored casing untouched.
+    const score = agent.tags.filter((tag) => lowerTask.includes(tag.toLowerCase())).length;
     if (score > bestScore) {
       bestScore = score;
       bestMatch = agent;
