@@ -164,6 +164,13 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
     systemManaged: true,
     note: "Decision 74 — premium operations triggered by super-admin (image gen, agent calls, etc.) that would have cost a normal user credits.",
   },
+  // Stripe webhook idempotency ledger (W47)
+  {
+    name: "stripe_events",
+    rules: ADMIN_ONLY_RULES,
+    systemManaged: true,
+    note: "W47 — one row per processed Stripe event id; webhook checks before processing so re-deliveries never double-credit. Admin-token-only access.",
+  },
 ];
 
 /** Quick lookup helper. */

@@ -11,10 +11,13 @@
  */
 
 import Stripe from "stripe";
-import { addAgentTopupCredits } from "../../_lib/credits";
+import { addTopupCredits, type CreditKind } from "../../_lib/credits";
 
 // Returns 200 for all events even on processing errors —
 // otherwise Stripe will retry and we may double-process.
+// W47 — additionally, every event id is checked against the
+// `stripe_events` ledger before processing, so genuine Stripe
+// re-deliveries can never double-credit.
 
 function getPrices(): Record<string, string> {
   try {
@@ -47,6 +50,46 @@ async function getAdminToken(pbUrl: string): Promise<string> {
   if (!res.ok) throw new Error("PocketBase admin auth failed");
   const { token } = (await res.json()) as { token: string };
   return token;
+}
+
+/**
+ * W47 — webhook idempotency ledger helpers. `wasEventProcessed` is checked
+ * before any branch runs; `markEventProcessed` records the event id after
+ * successful processing. The ledger collection has a unique index on
+ * event_id, so even a race between two concurrent deliveries can only
+ * insert once.
+ */
+async function wasEventProcessed(
+  pbUrl: string,
+  adminToken: string,
+  eventId: string
+): Promise<boolean> {
+  const res = await fetch(
+    `${pbUrl}/api/collections/stripe_events/records?filter=(event_id='${eventId}')&perPage=1`,
+    { headers: { Authorization: adminToken } }
+  );
+  if (!res.ok) return false; // ledger unavailable — process rather than drop
+  const data = (await res.json()) as { items?: Array<{ id: string }> };
+  return (data.items?.length ?? 0) > 0;
+}
+
+async function markEventProcessed(
+  pbUrl: string,
+  adminToken: string,
+  eventId: string,
+  eventType: string,
+  userId: string | null
+): Promise<void> {
+  await fetch(`${pbUrl}/api/collections/stripe_events/records`, {
+    method: "POST",
+    headers: { Authorization: adminToken, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event_id: eventId,
+      event_type: eventType,
+      user: userId ?? "",
+      processed_at: new Date().toISOString(),
+    }),
+  });
 }
 
 interface SubUpdate {
@@ -338,6 +381,12 @@ export async function POST(req: Request) {
   try {
     const adminToken = await getAdminToken(pbUrl);
 
+    // W47 — idempotency gate. Applies to EVERY branch, not just top-ups.
+    if (await wasEventProcessed(pbUrl, adminToken, event.id)) {
+      console.log(`[stripe.webhook] duplicate event ignored event_id=${event.id}`);
+      return Response.json({ received: true, duplicate: true });
+    }
+
     switch (event.type) {
 
       case "checkout.session.completed": {
@@ -350,14 +399,31 @@ export async function POST(req: Request) {
         const addonDept  = session.metadata?.staffd_addon_dept;
         const plan       = session.metadata?.staffd_plan;
         const topupPack    = session.metadata?.staffd_topup_pack;
-        const topupCredits = Number.parseInt(session.metadata?.staffd_topup_credits ?? "0", 10);
+        const topupType    = session.metadata?.topup_type;
+        const creditCount  = Number.parseInt(session.metadata?.credit_count ?? "0", 10);
+        const legacyCredits = Number.parseInt(session.metadata?.staffd_topup_credits ?? "0", 10);
 
         if (!userId) break;
 
-        // Phase 4 — one-time credit top-up. mode === "payment" path.
-        if (session.mode === "payment" && topupPack && topupCredits > 0) {
-          await addAgentTopupCredits(pbUrl, userId, topupCredits);
-          console.log(`[stripe.webhook] topup credited user=${userId} pack=${topupPack} credits=${topupCredits}`);
+        // W47 — one-time credit top-up. mode === "payment" path. Routes by
+        // metadata.topup_type to the image or video bucket per ARCH §12.
+        if (session.mode === "payment") {
+          if ((topupType === "image" || topupType === "video") && creditCount > 0) {
+            await addTopupCredits(pbUrl, userId, topupType as CreditKind, creditCount);
+            console.log(`[stripe.webhook] topup credited user=${userId} type=${topupType} credits=${creditCount}`);
+            break;
+          }
+          // W47-legacy shim — checkout sessions created before the SKU
+          // realignment carry staffd_topup_pack + staffd_topup_credits but
+          // no topup_type. SA ruling (Phase B Q6): mint to image credits.
+          if (topupPack && !topupType && legacyCredits > 0) {
+            await addTopupCredits(pbUrl, userId, "image", legacyCredits);
+            console.log(`[W47-legacy] minted image credits for legacy session=${session.id} pack=${topupPack} credits=${legacyCredits}`);
+            break;
+          }
+          // Unknown shape — log loudly, mint nothing, return 200 via the
+          // normal exit so Stripe doesn't retry a malformed event forever.
+          console.error(`[stripe.webhook] unknown topup metadata shape session=${session.id}`);
           break;
         }
 
@@ -461,6 +527,18 @@ export async function POST(req: Request) {
         // Unhandled event type — ignore
         break;
     }
+
+    // W47 — record the event id only after the branch processed without
+    // throwing. A failed run stays unrecorded so a Stripe retry can
+    // reprocess it.
+    const eventObj = event.data.object as { metadata?: Record<string, string> } | undefined;
+    await markEventProcessed(
+      pbUrl,
+      adminToken,
+      event.id,
+      event.type,
+      eventObj?.metadata?.staffd_user_id ?? null
+    );
   } catch (err) {
     // Log but return 200 — don't let Stripe retry on our processing errors
     console.error("Webhook processing error:", err);

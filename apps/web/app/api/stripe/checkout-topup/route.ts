@@ -12,18 +12,15 @@
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
 
-const TOPUP_PACK_IDS = new Set([
-  "topup-100", "topup-250", "topup-500",
-  "topup-1000", "topup-2500", "topup-5000",
-]);
-
-const TOPUP_CREDIT_QUANTITY: Record<string, number> = {
-  "topup-100":  100,
-  "topup-250":  250,
-  "topup-500":  500,
-  "topup-1000": 1000,
-  "topup-2500": 2500,
-  "topup-5000": 5000,
+// W47 — §3-aligned typed packs. Route translates the pack id into
+// topup_type + credit_count session metadata; the webhook routes by type.
+const TOPUP_PACKS: Record<string, { type: "image" | "video"; count: number }> = {
+  "topup-img-50":  { type: "image", count: 50  },
+  "topup-img-150": { type: "image", count: 150 },
+  "topup-img-350": { type: "image", count: 350 },
+  "topup-vid-10":  { type: "video", count: 10  },
+  "topup-vid-25":  { type: "video", count: 25  },
+  "topup-vid-50":  { type: "video", count: 50  },
 };
 
 function getPrices(): Record<string, string> {
@@ -64,7 +61,8 @@ export async function POST(req: Request) {
   if (!userId || !pack) {
     return Response.json({ error: "userId and pack required" }, { status: 400 });
   }
-  if (!TOPUP_PACK_IDS.has(pack)) {
+  const packDef = TOPUP_PACKS[pack];
+  if (!packDef) {
     return Response.json({ error: "Unknown top-up pack" }, { status: 400 });
   }
 
@@ -75,11 +73,6 @@ export async function POST(req: Request) {
       { error: `Top-up price not configured for ${pack}. Run /api/setup/stripe.` },
       { status: 503 }
     );
-  }
-
-  const credits = TOPUP_CREDIT_QUANTITY[pack];
-  if (!credits) {
-    return Response.json({ error: "Pack credit quantity unmapped" }, { status: 500 });
   }
 
   // PR-Tranche-1.6 — resolveAppUrl handles empty-string env (W8 clone fix).
@@ -114,7 +107,8 @@ export async function POST(req: Request) {
       metadata: {
         staffd_user_id: userId,
         staffd_topup_pack: pack,
-        staffd_topup_credits: String(credits),
+        topup_type: packDef.type,
+        credit_count: String(packDef.count),
       },
       allow_promotion_codes: true,
       billing_address_collection: "auto",
@@ -122,7 +116,8 @@ export async function POST(req: Request) {
         metadata: {
           staffd_user_id: userId,
           staffd_topup_pack: pack,
-          staffd_topup_credits: String(credits),
+          topup_type: packDef.type,
+          credit_count: String(packDef.count),
         },
       },
     });

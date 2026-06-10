@@ -38,16 +38,24 @@ const ADDONS = [
   },
 ];
 
-// Phase 4 — generic credit top-up packs (one-time payments).
-// Pricing curve rewards bigger packs; margins stay healthy because credits
-// are spent against per-call costs that average $0.005–$0.020.
-const TOPUPS = [
-  { id: "topup-100",  name: "100 Credits",   credits: 100,  oneOff:   999 }, // $9.99
-  { id: "topup-250",  name: "250 Credits",   credits: 250,  oneOff:  1999 }, // $19.99
-  { id: "topup-500",  name: "500 Credits",   credits: 500,  oneOff:  3499 }, // $34.99
-  { id: "topup-1000", name: "1,000 Credits", credits: 1000, oneOff:  5999 }, // $59.99
-  { id: "topup-2500", name: "2,500 Credits", credits: 2500, oneOff: 12999 }, // $129.99
-  { id: "topup-5000", name: "5,000 Credits", credits: 5000, oneOff: 22999 }, // $229.99
+// W47 — typed credit top-up packs (one-time payments) per ARCH §3.
+// Credits exist for images and videos only (ARCH §12); each SKU carries
+// topup_type + credit_count metadata so the webhook routes to the right
+// bucket without a lookup table.
+export const TOPUPS = [
+  { id: "topup-img-50",  name: "50 Image Credits",  type: "image" as const, count: 50,  oneOff:   999 }, // $9.99
+  { id: "topup-img-150", name: "150 Image Credits", type: "image" as const, count: 150, oneOff:  2499 }, // $24.99
+  { id: "topup-img-350", name: "350 Image Credits", type: "image" as const, count: 350, oneOff:  5499 }, // $54.99
+  { id: "topup-vid-10",  name: "10 Video Credits",  type: "video" as const, count: 10,  oneOff:  2299 }, // $22.99
+  { id: "topup-vid-25",  name: "25 Video Credits",  type: "video" as const, count: 25,  oneOff:  5499 }, // $54.99
+  { id: "topup-vid-50",  name: "50 Video Credits",  type: "video" as const, count: 50,  oneOff: 10999 }, // $109.99
+];
+
+// W47 — the retired Phase 4 "generic credits" SKUs. Archived (active=false),
+// never deleted, so historical payment records stay intact.
+export const LEGACY_TOPUP_IDS = [
+  "topup-100", "topup-250", "topup-500",
+  "topup-1000", "topup-2500", "topup-5000",
 ];
 
 // Phase 8 — industry packs ($19/mo subscriptions, one product per vertical).
@@ -190,8 +198,12 @@ export async function POST() {
       } else {
         const product = await stripe.products.create({
           name: `STAFFD ${t.name}`,
-          description: `${t.credits} generic credits for STAFFD agent calls. Never expire.`,
-          metadata: { staffd_topup_id: t.id, staffd_topup_credits: String(t.credits) },
+          description: `${t.count} ${t.type} credits — top up your monthly allowance. Never expire.`,
+          metadata: {
+            staffd_topup_id: t.id,
+            topup_type: t.type,
+            credit_count: String(t.count),
+          },
         });
         productId = product.id;
       }
@@ -210,9 +222,29 @@ export async function POST() {
           currency: "usd",
           // No `recurring` — one-time payment.
           nickname: `STAFFD ${t.name} One-time`,
-          metadata: { staffd_topup_id: t.id, staffd_topup_credits: String(t.credits), staffd_interval: "oneoff" },
+          metadata: {
+            staffd_topup_id: t.id,
+            topup_type: t.type,
+            credit_count: String(t.count),
+            staffd_interval: "oneoff",
+          },
         });
         prices[`${t.id}_oneoff`] = p.id;
+      }
+    }
+
+    // ─── W47 — archive the retired generic-credit SKUs (active=false) ─────────
+    // Never delete: Stripe products with payment history must stay queryable.
+    const archived: string[] = [];
+    for (const legacyId of LEGACY_TOPUP_IDS) {
+      const found = await stripe.products.search({
+        query: `metadata['staffd_topup_id']:'${legacyId}'`,
+        limit: 1,
+      });
+      const legacy = found.data[0];
+      if (legacy && legacy.active) {
+        await stripe.products.update(legacy.id, { active: false });
+        archived.push(legacy.id);
       }
     }
 
@@ -257,8 +289,16 @@ export async function POST() {
 
     const STRIPE_PRICES = JSON.stringify(prices);
 
+    // W47 — surface the rotated payload in logs so the operator can copy it
+    // into Vercel even if the response body is lost.
+    console.log(`[stripe.setup] STRIPE_PRICES=${STRIPE_PRICES}`);
+    if (archived.length > 0) {
+      console.log(`[stripe.setup] W47 archived legacy topup products: ${archived.join(", ")}`);
+    }
+
     return Response.json({
       ok: true,
+      archivedLegacyTopups: archived,
       prices,
       // ─── Paste this entire value into Vercel as STRIPE_PRICES ───────────────
       STRIPE_PRICES,

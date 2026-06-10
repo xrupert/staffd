@@ -9,7 +9,6 @@ import { enqueue } from "../_lib/vault/queue";
 import { runOrchestrator } from "../_lib/orchestrator";
 import { getVoiceBlock } from "../_lib/vault/voice";
 import { pickModel, callGroq, computeCostUsd } from "../_lib/llm-router";
-import { spendAgentCredit } from "../_lib/credits";
 import { trySuperAdminFromToken } from "../_lib/auth/super-admin";
 import { logSuperAdminUsage } from "../_lib/auth/super-admin-logging";
 import { ensureConversationThreadRow } from "../_lib/conversations";
@@ -288,14 +287,12 @@ export async function POST(req: Request) {
     const choice = pickModel({ department, agentId, task });
     console.log(`[agent] model_choice provider=${choice.provider} model=${choice.model} dept=${department} task_chars=${task.length} reason="${choice.reason}"`);
 
-    // Phase 4 — soft agent-credit deduction. Fire-and-forget; does not block
-    // the generation. The X2 daily rate limit (50/day) is the hard gate.
-    // Phase 5 will introduce monthly allowances + harder gating.
+    // W47 — agent-credit deduction removed: specialist conversations are
+    // unlimited per ARCH §12; the X2 daily rate limit (50/day) is the gate.
     //
-    // Decision 74 — super-admin bypass. If the caller is super-admin, log
-    // the operation to super_admin_usage_log instead of deducting a credit.
-    // Comped users (jrw-solutions 100× allowance) still hit spendAgentCredit
-    // normally — super-admin is a distinct tier above comp.
+    // Decision 74 — super-admin usage logging preserved intact: premium
+    // operations triggered by super-admin are logged to
+    // super_admin_usage_log for visibility.
     if (userId) {
       const pbUrlVal = process.env.NEXT_PUBLIC_POCKETBASE_URL;
       if (pbUrlVal) {
@@ -306,8 +303,6 @@ export async function POST(req: Request) {
               operation_detail: `${department}/${agentId ?? "default"}`,
               parameters: { task_chars: task.length, threadId },
             });
-          } else {
-            await spendAgentCredit(pbUrlVal, userId);
           }
         })();
       }

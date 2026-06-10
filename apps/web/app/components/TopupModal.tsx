@@ -1,25 +1,30 @@
 "use client";
 
 /**
- * TopupModal — credit-pack purchase modal (Phase 4).
+ * TopupModal — credit-pack purchase modal (W47, §3-aligned).
  *
- * Six SKUs match the locked spec (100 / 250 / 500 / 1000 / 2500 / 5000).
- * Prices match `/api/setup/stripe`. Clicking a pack POSTs to
+ * Six SKUs match ARCH §3: three image packs, three video packs. Prices
+ * match `/api/setup/stripe`. Clicking a pack POSTs to
  * `/api/stripe/checkout-topup`, which returns a Stripe Checkout URL; we
- * redirect to it. The webhook credits the user on success and the dashboard
- * widget re-fetches.
+ * redirect to it. The webhook credits the matching bucket (image or video
+ * — ARCH §12) on success and the dashboard widget re-fetches.
  */
 
 import { useState } from "react";
 import pb from "../../lib/pb";
 
-const PACKS = [
-  { id: "topup-100",  credits:  100, priceCents:   999, perCredit: 0.099 },
-  { id: "topup-250",  credits:  250, priceCents:  1999, perCredit: 0.080 },
-  { id: "topup-500",  credits:  500, priceCents:  3499, perCredit: 0.070 },
-  { id: "topup-1000", credits: 1000, priceCents:  5999, perCredit: 0.060 },
-  { id: "topup-2500", credits: 2500, priceCents: 12999, perCredit: 0.052 },
-  { id: "topup-5000", credits: 5000, priceCents: 22999, perCredit: 0.046 },
+type Pack = { id: string; type: "image" | "video"; count: number; priceCents: number };
+
+const IMAGE_PACKS: Pack[] = [
+  { id: "topup-img-50",  type: "image", count: 50,  priceCents:   999 },
+  { id: "topup-img-150", type: "image", count: 150, priceCents:  2499 },
+  { id: "topup-img-350", type: "image", count: 350, priceCents:  5499 },
+];
+
+const VIDEO_PACKS: Pack[] = [
+  { id: "topup-vid-10",  type: "video", count: 10,  priceCents:  2299 },
+  { id: "topup-vid-25",  type: "video", count: 25,  priceCents:  5499 },
+  { id: "topup-vid-50",  type: "video", count: 50,  priceCents: 10999 },
 ];
 
 function dollarStr(cents: number): string {
@@ -89,42 +94,54 @@ export default function TopupModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Grid */}
-        <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {PACKS.map((p) => {
-            const isLoading = loadingPack === p.id;
-            return (
-              <button
-                key={p.id}
-                onClick={() => void buyPack(p.id)}
-                disabled={loadingPack !== null}
-                className="text-left p-4 rounded-xl transition-all"
-                style={{
-                  background: "#1A1A24",
-                  border: "1px solid #2A2A38",
-                  cursor: loadingPack !== null ? "wait" : "pointer",
-                  opacity: loadingPack !== null && !isLoading ? 0.4 : 1,
-                }}
-              >
-                <div className="flex items-baseline justify-between mb-1">
-                  <div className="text-lg font-bold" style={{ color: "#F0F0F8" }}>
-                    {p.credits.toLocaleString()}
-                  </div>
-                  <div className="text-sm font-semibold" style={{ color: "#A07BFF" }}>
-                    {dollarStr(p.priceCents)}
-                  </div>
-                </div>
-                <div className="text-xs" style={{ color: "#7070A0" }}>
-                  credits · {dollarStr(Math.round(p.perCredit * 100))}/credit
-                </div>
-                {isLoading && (
-                  <div className="text-xs mt-2" style={{ color: "#A07BFF" }}>
-                    Opening Stripe…
-                  </div>
-                )}
-              </button>
-            );
-          })}
+        {/* Packs — grouped by credit type per ARCH §12 (image / video only) */}
+        <div className="p-6 flex flex-col gap-5">
+          {[
+            { label: "Image credits", packs: IMAGE_PACKS },
+            { label: "Video credits", packs: VIDEO_PACKS },
+          ].map((group) => (
+            <div key={group.label}>
+              <p className="text-xs font-semibold mb-2" style={{ color: "#7070A0" }}>
+                {group.label}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {group.packs.map((p) => {
+                  const isLoading = loadingPack === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => void buyPack(p.id)}
+                      disabled={loadingPack !== null}
+                      className="text-left p-4 rounded-xl transition-all"
+                      style={{
+                        background: "#1A1A24",
+                        border: "1px solid #2A2A38",
+                        cursor: loadingPack !== null ? "wait" : "pointer",
+                        opacity: loadingPack !== null && !isLoading ? 0.4 : 1,
+                      }}
+                    >
+                      <div className="flex items-baseline justify-between mb-1">
+                        <div className="text-lg font-bold" style={{ color: "#F0F0F8" }}>
+                          {p.count.toLocaleString()}
+                        </div>
+                        <div className="text-sm font-semibold" style={{ color: "#A07BFF" }}>
+                          {dollarStr(p.priceCents)}
+                        </div>
+                      </div>
+                      <div className="text-xs" style={{ color: "#7070A0" }}>
+                        {p.count} {p.type} credits — {dollarStr(p.priceCents)}
+                      </div>
+                      {isLoading && (
+                        <div className="text-xs mt-2" style={{ color: "#A07BFF" }}>
+                          Opening Stripe…
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
 
         {error && (

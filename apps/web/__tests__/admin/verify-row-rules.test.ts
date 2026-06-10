@@ -162,9 +162,10 @@ describe("GET /api/admin/verify-row-rules", () => {
       if (
         name === "orphan_decisions" ||
         name === "super_admin_audit_log" ||
-        name === "super_admin_usage_log"
+        name === "super_admin_usage_log" ||
+        name === "stripe_events"
       ) {
-        // Decision 73 / 74 — ADMIN_ONLY pattern (all-null), systemManaged
+        // Decision 73 / 74 + W47 — ADMIN_ONLY pattern (all-null), systemManaged
         return {
           listRule: null,
           viewRule: null,
@@ -218,6 +219,7 @@ describe("GET /api/admin/verify-row-rules", () => {
               { name: "clients" }, { name: "document_versions" },
               { name: "users" }, { name: "templates" }, { name: "orphan_decisions" },
               { name: "super_admin_audit_log" }, { name: "super_admin_usage_log" },
+              { name: "stripe_events" },
             ],
           }),
         };
@@ -239,7 +241,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     const body = await res.json();
     expect(body.overall_status).toBe("✅");
     expect(body.gap_count).toBe(0);
-    expect(body.collections_checked).toBe(23);
+    // W47 — 24 = 23-collection baseline + stripe_events idempotency ledger
+    expect(body.collections_checked).toBe(24);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

@@ -30,7 +30,13 @@ interface SubscriptionRecord {
   video_credits_used?: number;
   image_credits_topup?: number;
   video_credits_topup?: number;
-  agent_credits_topup?: number;  // Phase 4 — generic credits purchased via top-up SKUs
+  /**
+   * @deprecated W47 — generic agent credits are dead per ARCH §12 (specialist
+   * conversations are unlimited). No reads or writes remain; any legacy
+   * balance is lazily migrated into image_credits_topup on credit-state read.
+   * W47.1 will drop the column after 30 days of confirmed zero writes.
+   */
+  agent_credits_topup?: number;
   ceo_addon_sub?: string;         // Phase 4 — set when CEO add-on subscription is active
   credits_reset_at?: string;      // ISO date — first day of current credit month
 }
@@ -42,8 +48,6 @@ interface CreditState {
   topupBalance: { image: number; video: number };
   monthlyRemaining: { image: number; video: number };
   totalRemaining: { image: number; video: number };
-  // Phase 4 surface
-  agentCreditsTopup: number;
   ceoAddonActive: boolean;
 }
 
@@ -141,13 +145,28 @@ export async function getCreditState(
       topupBalance: { image: 0, video: 0 },
       monthlyRemaining: { ...monthlyAllowance },
       totalRemaining: { ...monthlyAllowance },
-      agentCreditsTopup: 0,
       ceoAddonActive: false,
     };
   }
 
   // Reset monthly counters if we've crossed into a new month
   sub = await resetIfNewMonth(pbUrl, adminToken, sub);
+
+  // W47 — lazy migration of legacy generic agent credits. Any residual
+  // balance folds into image_credits_topup exactly once; second read finds
+  // zero and skips. Keeps the §12 invariant (credits are image/video only)
+  // without a bulk migration script.
+  if ((sub.agent_credits_topup ?? 0) > 0) {
+    const legacy = sub.agent_credits_topup ?? 0;
+    const migratedImageTopup = (sub.image_credits_topup ?? 0) + legacy;
+    await fetch(`${pbUrl}/api/collections/subscriptions/records/${sub.id}`, {
+      method: "PATCH",
+      headers: { Authorization: adminToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ image_credits_topup: migratedImageTopup, agent_credits_topup: 0 }),
+    });
+    sub = { ...sub, image_credits_topup: migratedImageTopup, agent_credits_topup: 0 };
+    console.log(`[W47-migration] user=${userId} migrated ${legacy} credits to image_credits_topup`);
+  }
 
   const monthlyUsed = {
     image: sub.image_credits_used ?? 0,
@@ -173,7 +192,6 @@ export async function getCreditState(
     topupBalance,
     monthlyRemaining,
     totalRemaining,
-    agentCreditsTopup: sub.agent_credits_topup ?? 0,
     ceoAddonActive: !!sub.ceo_addon_sub,
   };
 }
@@ -247,6 +265,10 @@ export async function spendCredits(
 /**
  * Add purchased top-up credits to a user's balance. Used by the Stripe
  * webhook after a top-up payment succeeds.
+ *
+ * W47 — creates the subscription record if missing so a user who buys
+ * credits before settling a plan still gets credited (behavior ported from
+ * the retired addAgentTopupCredits).
  */
 export async function addTopupCredits(
   pbUrl: string,
@@ -257,35 +279,8 @@ export async function addTopupCredits(
   if (amount <= 0) return true;
   const adminToken = await getAdminToken(pbUrl);
   const sub = await fetchSubscription(pbUrl, adminToken, userId);
-  if (!sub) return false;
 
-  const current = (kind === "image" ? sub.image_credits_topup : sub.video_credits_topup) ?? 0;
-  const patch: Record<string, number> = {};
-  if (kind === "image") patch.image_credits_topup = current + amount;
-  else                  patch.video_credits_topup = current + amount;
-
-  const res = await fetch(`${pbUrl}/api/collections/subscriptions/records/${sub.id}`, {
-    method: "PATCH",
-    headers: { Authorization: adminToken, "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  return res.ok;
-}
-
-/**
- * Phase 4 — add generic agent credits to a user's balance after a top-up
- * one-time payment succeeds. Same fail-safe shape as addTopupCredits;
- * creates the subscription record if missing so a user who buys credits
- * before settling a plan still gets credited.
- */
-export async function addAgentTopupCredits(
-  pbUrl: string,
-  userId: string,
-  amount: number
-): Promise<boolean> {
-  if (amount <= 0) return true;
-  const adminToken = await getAdminToken(pbUrl);
-  let sub = await fetchSubscription(pbUrl, adminToken, userId);
+  const field = kind === "image" ? "image_credits_topup" : "video_credits_topup";
 
   if (!sub) {
     const createRes = await fetch(`${pbUrl}/api/collections/subscriptions/records`, {
@@ -294,47 +289,18 @@ export async function addAgentTopupCredits(
       body: JSON.stringify({
         user: userId,
         plan: "starter",
-        agent_credits_topup: amount,
+        [field]: amount,
         credits_reset_at: currentMonthIso(),
       }),
     });
     return createRes.ok;
   }
 
-  const current = sub.agent_credits_topup ?? 0;
+  const current = (kind === "image" ? sub.image_credits_topup : sub.video_credits_topup) ?? 0;
   const res = await fetch(`${pbUrl}/api/collections/subscriptions/records/${sub.id}`, {
     method: "PATCH",
     headers: { Authorization: adminToken, "Content-Type": "application/json" },
-    body: JSON.stringify({ agent_credits_topup: current + amount }),
+    body: JSON.stringify({ [field]: current + amount }),
   });
   return res.ok;
-}
-
-/**
- * Phase 4 — fire-and-forget decrement of an agent credit. Returns the new
- * balance (or 0 if no credits present). NEVER blocks the agent call — the
- * X2 daily rate limit is the hard gate. Phase 5 will introduce real plan
- * allowances + hard-gate behaviour; for now this is a soft consumption
- * counter that the dashboard widget reads.
- */
-export async function spendAgentCredit(
-  pbUrl: string,
-  userId: string
-): Promise<number> {
-  try {
-    const adminToken = await getAdminToken(pbUrl);
-    const sub = await fetchSubscription(pbUrl, adminToken, userId);
-    if (!sub) return 0;
-    const current = sub.agent_credits_topup ?? 0;
-    if (current <= 0) return 0;
-    const next = current - 1;
-    await fetch(`${pbUrl}/api/collections/subscriptions/records/${sub.id}`, {
-      method: "PATCH",
-      headers: { Authorization: adminToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ agent_credits_topup: next }),
-    });
-    return next;
-  } catch {
-    return 0;
-  }
 }
