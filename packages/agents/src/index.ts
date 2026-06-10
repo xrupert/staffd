@@ -196,3 +196,6 @@ export const STARTER_PACK_IDS = [
 export const starterPackAgents: AgentDef[] = STARTER_PACK_IDS.map(
   (id) => allAgents.find((a) => a.id === id)!
 );
+
+// W44 — outcome card pool (single source of truth for W43/W45/landing/demo)
+export * from "./outcome-cards";

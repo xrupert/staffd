@@ -1,0 +1,130 @@
+/**
+ * W44 — Reputation outcome cards (15).
+ * Voice-locked per BRAND_VOICE.md: verb-first, operator-to-staff, no
+ * specialist names, no tool jargon. Seeds pull vault context implicitly.
+ */
+
+import type { OutcomeCard } from "./types";
+
+export const reputationOutcomeCards: OutcomeCard[] = [
+  {
+    id: "rep-respond-review",
+    department: "reputation",
+    label: "Respond to a tough customer review",
+    seed: "Write a response to a tough customer review. Match my brand voice, own what we got wrong without groveling, and make the path to making it right obvious.",
+    tags: ["one-shot", "support"],
+    weight: 1.5,
+  },
+  {
+    id: "rep-write-replies",
+    department: "reputation",
+    label: "Write replies to this week's reviews",
+    seed: "Write replies to this week's customer reviews — the good and the bad. Keep every reply in my voice and specific to what each person said.",
+    tags: ["weekly", "support"],
+    weight: 1.5,
+  },
+  {
+    id: "rep-draft-apology",
+    department: "reputation",
+    label: "Draft a make-it-right message",
+    seed: "Draft a message to a customer we let down. Apologize like a human, explain without excusing, and offer something that actually makes it right.",
+    tags: ["one-shot", "support"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-build-asks",
+    department: "reputation",
+    label: "Build a steady stream of review asks",
+    seed: "Build a repeatable way to ask happy customers for reviews. Time the ask to the moment they're happiest, and write the message in my voice.",
+    tags: ["ongoing", "support", "growth"],
+    weight: 1.5,
+  },
+  {
+    id: "rep-review-listings",
+    department: "reputation",
+    label: "Review my listings for wrong info",
+    seed: "Review my business listings for outdated or inconsistent information — hours, address, services, photos. List every fix by platform.",
+    tags: ["quarterly", "support"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-write-answers",
+    department: "reputation",
+    label: "Write answers to my top questions",
+    seed: "Write polished answers to the questions customers ask most. Pull from how we actually operate, and keep each answer warm and short.",
+    tags: ["one-shot", "support"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-plan-community",
+    department: "reputation",
+    label: "Plan a community worth joining",
+    seed: "Plan a community space for my customers worth their attention. Where it lives, what happens there weekly, and how we keep it alive without it eating my time.",
+    tags: ["one-shot", "support", "growth"],
+    weight: 0.5,
+  },
+  {
+    id: "rep-respond-complaint",
+    department: "reputation",
+    label: "Respond to a public complaint calmly",
+    seed: "Write a public response to a complaint that's getting attention. Stay calm, stick to facts, take the resolution private, and protect the relationship.",
+    tags: ["one-shot", "support"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-map-feedback",
+    department: "reputation",
+    label: "Map this month's customer feedback",
+    seed: "Map the customer feedback from this month into themes. Tell me what's growing, what's shrinking, and the one complaint worth fixing this quarter.",
+    tags: ["monthly", "support"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-draft-winback",
+    department: "reputation",
+    label: "Draft a win-back note to a lost customer",
+    seed: "Draft a note to win back a customer who left. Acknowledge why they might have gone, share what's changed, and make returning feel easy, not desperate.",
+    tags: ["one-shot", "support", "revenue"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-write-testimonialask",
+    department: "reputation",
+    label: "Write a testimonial ask that gets a yes",
+    seed: "Write a testimonial request for a customer we did great work for. Make it specific to their result and effortless to say yes to.",
+    tags: ["one-shot", "support", "content"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-review-sentiment",
+    department: "reputation",
+    label: "Review what customers really think",
+    seed: "Review everything customers have said about us lately — reviews, messages, social mentions. Give me the honest picture, not the comfortable one.",
+    tags: ["quarterly", "support"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-build-templates",
+    department: "reputation",
+    label: "Build reply templates for common asks",
+    seed: "Build reply templates for the customer messages we get most. Write them in my voice with a clear spot to personalize each one.",
+    tags: ["one-shot", "support", "ops"],
+    weight: 1.0,
+  },
+  {
+    id: "rep-plan-crisis",
+    department: "reputation",
+    label: "Plan my response before a bad day hits",
+    seed: "Plan how we respond if something goes publicly wrong — who says what, where, and how fast. Write the holding statement now, while it's calm.",
+    tags: ["one-shot", "support", "compliance"],
+    weight: 0.5,
+  },
+  {
+    id: "rep-outline-loyalty",
+    department: "reputation",
+    label: "Outline a loyalty thank-you program",
+    seed: "Outline a simple way to thank repeat customers that fits my margins. Make it feel personal, not points-card corporate.",
+    tags: ["one-shot", "support", "growth"],
+    weight: 0.5,
+  },
+];

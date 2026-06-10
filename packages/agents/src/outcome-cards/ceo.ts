@@ -1,0 +1,130 @@
+/**
+ * W44 — CEO outcome cards (15).
+ * Voice-locked per BRAND_VOICE.md: verb-first, operator-to-staff, no
+ * specialist names, no tool jargon. Seeds pull vault context implicitly.
+ */
+
+import type { OutcomeCard } from "./types";
+
+export const ceoOutcomeCards: OutcomeCard[] = [
+  {
+    id: "ceo-write-brief",
+    department: "ceo",
+    label: "Write my Monday morning brief",
+    seed: "Write my Monday brief. Pull together what happened across the business last week, what's due this week, and the one thing that needs my decision.",
+    tags: ["weekly", "ops"],
+    weight: 1.5,
+  },
+  {
+    id: "ceo-plan-quarter",
+    department: "ceo",
+    label: "Plan the quarter's three priorities",
+    seed: "Plan the three priorities that should own next quarter. Argue for each from what you know about the business, and name what we're saying no to.",
+    tags: ["quarterly", "growth"],
+    weight: 1.5,
+  },
+  {
+    id: "ceo-review-business",
+    department: "ceo",
+    label: "Review the whole business in one page",
+    seed: "Review the whole business in one page — money, customers, work in flight, and people. Plain language, no dashboard worship.",
+    tags: ["monthly", "ops", "money"],
+    weight: 1.5,
+  },
+  {
+    id: "ceo-map-goals",
+    department: "ceo",
+    label: "Map my goals to what staff works on",
+    seed: "Map my top business goals to the work each department should be doing. Flag the goals nothing currently supports.",
+    tags: ["quarterly", "ops", "growth"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-outline-strategy",
+    department: "ceo",
+    label: "Outline a strategy I can say out loud",
+    seed: "Outline my business strategy in a form I can say in one breath — who we serve, how we win, what we refuse to do. Then back it up in one page.",
+    tags: ["one-shot", "growth"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-review-week",
+    department: "ceo",
+    label: "Review my week and what to drop",
+    seed: "Review how I spent this week against what only I can do. Tell me what to delegate, what to drop, and what deserved more of me.",
+    tags: ["weekly", "ops", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-plan-handoffs",
+    department: "ceo",
+    label: "Plan what to hand off next",
+    seed: "Plan the next three things I should stop doing personally. For each, name who or what takes it over and what good enough looks like.",
+    tags: ["one-shot", "ops", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-draft-vision",
+    department: "ceo",
+    label: "Draft a vision worth repeating",
+    seed: "Draft a vision statement for where this business is going — concrete enough to steer decisions, short enough that my team can repeat it.",
+    tags: ["one-shot", "growth"],
+    weight: 0.5,
+  },
+  {
+    id: "ceo-forecast-scenarios",
+    department: "ceo",
+    label: "Forecast best, worst, and likely cases",
+    seed: "Forecast the next six months in three scenarios — best, worst, and likely. For each, the early signals to watch and the first move to make.",
+    tags: ["quarterly", "money", "growth"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-review-decisions",
+    department: "ceo",
+    label: "Review decisions waiting on me",
+    seed: "Review the open decisions sitting on my plate. For each one, give me the recommendation, the reasoning, and what it costs to keep waiting.",
+    tags: ["weekly", "ops"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-map-risks",
+    department: "ceo",
+    label: "Map the risks I'm not watching",
+    seed: "Map the biggest risks to this business that I'm probably not watching — customer concentration, key-person dependence, cash timing. Rank and mitigate.",
+    tags: ["quarterly", "ops", "money"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-write-allhands",
+    department: "ceo",
+    label: "Write an all-hands update",
+    seed: "Write an update to my whole team on how the business is doing. Honest about the hard parts, specific about the wins, clear about what's next.",
+    tags: ["monthly", "people"],
+    weight: 0.5,
+  },
+  {
+    id: "ceo-plan-growthbet",
+    department: "ceo",
+    label: "Plan the next growth bet",
+    seed: "Plan the single growth bet most worth making next — new offer, new audience, or doubling down. Make the case and define the kill criteria.",
+    tags: ["one-shot", "growth"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-outline-goals",
+    department: "ceo",
+    label: "Outline goals my team can actually hit",
+    seed: "Outline this quarter's goals in a form my team can own — few enough to remember, measurable enough to argue about, ambitious without fantasy.",
+    tags: ["quarterly", "people", "growth"],
+    weight: 1.0,
+  },
+  {
+    id: "ceo-review-competition",
+    department: "ceo",
+    label: "Review the competition without panic",
+    seed: "Review what my competitors are doing lately and what it actually means for us. Separate the moves worth answering from the noise worth ignoring.",
+    tags: ["quarterly", "growth"],
+    weight: 0.5,
+  },
+];

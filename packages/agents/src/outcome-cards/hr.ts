@@ -1,0 +1,130 @@
+/**
+ * W44 — HR outcome cards (15).
+ * Voice-locked per BRAND_VOICE.md: verb-first, operator-to-staff, no
+ * specialist names, no tool jargon. Seeds pull vault context implicitly.
+ */
+
+import type { OutcomeCard } from "./types";
+
+export const hrOutcomeCards: OutcomeCard[] = [
+  {
+    id: "hr-build-onboarding",
+    department: "hr",
+    label: "Build a 30/60/90 onboarding plan",
+    seed: "Build a 30/60/90 day onboarding plan for my next hire. Base it on how my business runs, and leave space for me to add the role specifics.",
+    tags: ["one-shot", "people"],
+    weight: 1.5,
+  },
+  {
+    id: "hr-write-jobpost",
+    department: "hr",
+    label: "Write a job post that attracts fit",
+    seed: "Write a job post for the role I need to fill. Sell the reality of working here, name the outcomes the role owns, and filter out the wrong applicants by being specific.",
+    tags: ["one-shot", "people"],
+    weight: 1.5,
+  },
+  {
+    id: "hr-build-interview",
+    department: "hr",
+    label: "Build an interview scorecard",
+    seed: "Build an interview plan and scorecard for a role I'm hiring. Give me questions that reveal how someone actually works, and a fair way to compare candidates.",
+    tags: ["one-shot", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "hr-draft-offer",
+    department: "hr",
+    label: "Draft an offer letter",
+    seed: "Draft an offer letter for a candidate I want to hire. Warm enough to feel wanted, clear enough that nothing needs renegotiating later.",
+    tags: ["one-shot", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "hr-plan-review",
+    department: "hr",
+    label: "Plan a performance review that lands",
+    seed: "Plan a performance review for someone on my team. Structure it around specifics, balance recognition with growth, and end with goals we both believe.",
+    tags: ["quarterly", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "hr-write-handbook",
+    department: "hr",
+    label: "Write the first draft of my handbook",
+    seed: "Write the first draft of an employee handbook for my business. Cover the essentials in my voice, and skip the corporate filler nobody reads.",
+    tags: ["one-shot", "people", "compliance"],
+    weight: 1.0,
+  },
+  {
+    id: "hr-build-payband",
+    department: "hr",
+    label: "Build a fair pay band for a role",
+    seed: "Build a pay band for a role I'm hiring or reviewing. Ground it in market reality for my industry and area, and show me where each level starts.",
+    tags: ["one-shot", "people", "money"],
+    weight: 1.0,
+  },
+  {
+    id: "hr-draft-pip",
+    department: "hr",
+    label: "Draft an improvement plan that's fair",
+    seed: "Draft a performance improvement plan for a struggling team member. Make the expectations measurable, the support real, and the timeline honest.",
+    tags: ["one-shot", "people"],
+    weight: 0.5,
+  },
+  {
+    id: "hr-plan-training",
+    department: "hr",
+    label: "Plan a training week for my team",
+    seed: "Plan a week of training for my team on the skill that would help us most right now. Mix instruction with practice and keep each session under an hour.",
+    tags: ["one-shot", "people"],
+    weight: 0.5,
+  },
+  {
+    id: "hr-write-survey",
+    department: "hr",
+    label: "Write an employee pulse survey",
+    seed: "Write a short pulse survey for my team. Ask the questions that surface real problems early, and keep it anonymous enough to get honest answers.",
+    tags: ["quarterly", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "hr-outline-culture",
+    department: "hr",
+    label: "Outline the culture I want to build",
+    seed: "Outline the working culture I want this business to have. Turn what I value into concrete behaviors we hire for, praise, and protect.",
+    tags: ["one-shot", "people"],
+    weight: 0.5,
+  },
+  {
+    id: "hr-draft-termination",
+    department: "hr",
+    label: "Draft a respectful termination letter",
+    seed: "Draft a termination letter that's legally careful and humanly decent. Clear about the decision, generous about the transition.",
+    tags: ["one-shot", "people", "compliance"],
+    weight: 0.5,
+  },
+  {
+    id: "hr-build-referrals",
+    department: "hr",
+    label: "Build an employee referral program",
+    seed: "Build a simple employee referral program. Set a reward that motivates without distorting, and write the announcement that kicks it off.",
+    tags: ["one-shot", "people", "growth"],
+    weight: 0.5,
+  },
+  {
+    id: "hr-plan-oneonones",
+    department: "hr",
+    label: "Plan better one-on-ones",
+    seed: "Plan a one-on-one format I'll actually keep doing. Give me a repeatable agenda, the questions worth asking every time, and how to track what we agree.",
+    tags: ["ongoing", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "hr-review-retention",
+    department: "hr",
+    label: "Review why people stay or leave",
+    seed: "Review what's driving retention on my team. Use what you know about how we work, flag the risks I'm not seeing, and suggest the cheapest fixes first.",
+    tags: ["quarterly", "people"],
+    weight: 1.0,
+  },
+];

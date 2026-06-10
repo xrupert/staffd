@@ -1,0 +1,130 @@
+/**
+ * W44 — Legal outcome cards (15).
+ * Voice-locked per BRAND_VOICE.md: verb-first, operator-to-staff, no
+ * specialist names, no tool jargon. Seeds pull vault context implicitly.
+ */
+
+import type { OutcomeCard } from "./types";
+
+export const legalOutcomeCards: OutcomeCard[] = [
+  {
+    id: "leg-draft-nda",
+    department: "legal",
+    label: "Draft an NDA ready to send",
+    seed: "Draft a mutual NDA for my business, ready to send. Keep it standard and fair so the other side signs without a fight.",
+    tags: ["one-shot", "compliance", "b2b"],
+    weight: 1.5,
+  },
+  {
+    id: "leg-draft-services",
+    department: "legal",
+    label: "Draft a service agreement",
+    seed: "Draft a service agreement for what my business sells. Cover scope, payment, and what happens when things change — in plain language my clients can read.",
+    tags: ["one-shot", "compliance", "service"],
+    weight: 1.5,
+  },
+  {
+    id: "leg-review-contract",
+    department: "legal",
+    label: "Review a contract before I sign",
+    seed: "Review a contract I've been sent before I sign it. Flag the clauses that favor the other side, explain each risk plainly, and suggest the redlines worth asking for.",
+    tags: ["one-shot", "compliance"],
+    weight: 1.5,
+  },
+  {
+    id: "leg-write-privacy",
+    department: "legal",
+    label: "Write a privacy policy for my site",
+    seed: "Write a privacy policy for my website. Base it on how my business actually collects and uses data, and keep the language readable.",
+    tags: ["one-shot", "compliance"],
+    weight: 1.0,
+  },
+  {
+    id: "leg-write-terms",
+    department: "legal",
+    label: "Write terms of service",
+    seed: "Write terms of service for my business. Cover what we promise, what we don't, and how disputes get handled — without burying it in legalese.",
+    tags: ["one-shot", "compliance"],
+    weight: 1.0,
+  },
+  {
+    id: "leg-build-intake",
+    department: "legal",
+    label: "Build a client intake form",
+    seed: "Build a client intake form that gathers everything we need before the first meeting. Keep it short enough that people actually finish it.",
+    tags: ["one-shot", "compliance", "law", "service"],
+    weight: 0.5,
+  },
+  {
+    id: "leg-draft-engagement",
+    department: "legal",
+    label: "Draft an engagement letter",
+    seed: "Draft an engagement letter for a new client. Define the scope, the fees, and where the engagement ends — clearly enough to prevent scope creep later.",
+    tags: ["one-shot", "compliance", "law", "consultants"],
+    weight: 0.5,
+  },
+  {
+    id: "leg-review-marketing",
+    department: "legal",
+    label: "Review my marketing for legal risk",
+    seed: "Review my current marketing claims for legal exposure. Flag anything we lack proof for, and suggest wording that keeps the punch without the risk.",
+    tags: ["quarterly", "compliance"],
+    weight: 1.0,
+  },
+  {
+    id: "leg-draft-demand",
+    department: "legal",
+    label: "Draft a payment demand letter",
+    seed: "Draft a firm demand letter for an unpaid invoice. Professional, factual, and clear about what happens next if it stays unpaid.",
+    tags: ["one-shot", "compliance", "money"],
+    weight: 1.0,
+  },
+  {
+    id: "leg-write-policy",
+    department: "legal",
+    label: "Write an employee policy",
+    seed: "Write a workplace policy my business needs. Make it clear, enforceable, and short enough that people actually read it.",
+    tags: ["one-shot", "compliance", "people"],
+    weight: 1.0,
+  },
+  {
+    id: "leg-outline-dispute",
+    department: "legal",
+    label: "Outline my options in a dispute",
+    seed: "Outline my options in a business dispute I'm dealing with. Lay out the realistic paths, the cost and effort of each, and which one you'd take first.",
+    tags: ["one-shot", "compliance"],
+    weight: 0.5,
+  },
+  {
+    id: "leg-draft-amendment",
+    department: "legal",
+    label: "Draft a contract amendment",
+    seed: "Draft an amendment to an existing agreement. Capture exactly what's changing and nothing else, so both sides can sign it the same day.",
+    tags: ["one-shot", "compliance"],
+    weight: 0.5,
+  },
+  {
+    id: "leg-review-lease",
+    department: "legal",
+    label: "Review a lease before I commit",
+    seed: "Review a commercial lease before I commit. Flag the clauses that bite small businesses — escalations, personal guarantees, repair duties — and rank them by risk.",
+    tags: ["one-shot", "compliance", "real-estate"],
+    weight: 0.5,
+  },
+  {
+    id: "leg-build-checklist",
+    department: "legal",
+    label: "Build a compliance checklist",
+    seed: "Build a compliance checklist for my business. Cover the obligations that apply to my industry and size, ordered by what hurts most to miss.",
+    tags: ["quarterly", "compliance"],
+    weight: 1.0,
+  },
+  {
+    id: "leg-draft-release",
+    department: "legal",
+    label: "Draft a liability release",
+    seed: "Draft a liability release for my business. Make it cover the realistic risks of what we do without scaring customers off at the signature line.",
+    tags: ["one-shot", "compliance", "service"],
+    weight: 0.5,
+  },
+];
