@@ -111,8 +111,6 @@ export default function CommandCenter() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [outputBuffer, setOutputBuffer] = useState("");
   const [lastLockedAlt, setLastLockedAlt] = useState<string | null>(null);
-  // Phase 4 — small agent-credit badge in the header.
-  const [agentCredits, setAgentCredits] = useState<number | null>(null);
   // Phase 9 — persistent conversation thread. Survives reloads via localStorage
   // so /api/agent + /api/orchestrate can stitch turns together server-side.
   const [threadId, setThreadId] = useState<string>("");
@@ -174,21 +172,6 @@ export default function CommandCenter() {
     setInput("");
     setTimeout(() => inputRef.current?.focus(), 50);
   }
-
-  // Load agent credit balance on mount + after every generation completes
-  // (phase transitions to "done"), so the badge stays in sync with usage.
-  useEffect(() => {
-    const userId = pb.authStore.record?.id ?? "";
-    if (!userId) return;
-    void fetch(`/api/credits?userId=${encodeURIComponent(userId)}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
-        if (data && typeof data.agentCreditsTopup === "number") {
-          setAgentCredits(data.agentCreditsTopup);
-        }
-      })
-      .catch(() => {});
-  }, [phase]);
 
   function scrollToBottom() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -526,22 +509,6 @@ export default function CommandCenter() {
           >
             Threads
           </button>
-          {/* Phase 4 — agent credits badge. Only shown when user actually has
-              a topup balance; absent state stays clean. */}
-          {agentCredits !== null && agentCredits > 0 && (
-            <span
-              className="text-xs px-2 py-1 rounded-md"
-              style={{
-                background: "rgba(91,33,232,0.1)",
-                color: "#A07BFF",
-                border: "1px solid rgba(91,33,232,0.25)",
-                fontWeight: 600,
-              }}
-              title="Agent credits remaining"
-            >
-              {agentCredits.toLocaleString()} credits
-            </span>
-          )}
           {messages.length > 0 && (
             <button
               onClick={reset}

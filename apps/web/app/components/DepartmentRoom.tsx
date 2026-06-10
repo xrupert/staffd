@@ -107,7 +107,6 @@ export default function DepartmentRoom({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
   const [videoError, setVideoError] = useState("");
-  const [creditsRemaining, setCreditsRemaining] = useState<{ image: number; video: number } | null>(null);
   // Conversation thread — keeps the specialist talking to the user across turns
   const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   // Phase 30 — persistent per-department thread id. Mirrors Command Center's
@@ -140,7 +139,6 @@ export default function DepartmentRoom({
     void loadAgents();
     void loadContext();
     void loadTrialStatus();
-    void loadCreditsState();
     void loadResumeBanner();
     void loadHandoffSource();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -163,18 +161,6 @@ export default function DepartmentRoom({
       setTask(task);
       // Clean the URL so refreshing doesn't re-trigger
       window.history.replaceState({}, "", window.location.pathname);
-    } catch { /* proceed */ }
-  }
-
-  async function loadCreditsState() {
-    if (!pb.authStore.isValid) return;
-    const userId = pb.authStore.record?.id ?? "";
-    if (!userId) return;
-    try {
-      const res = await fetch(`/api/credits?userId=${userId}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as { totalRemaining?: { image: number; video: number } };
-      if (data.totalRemaining) setCreditsRemaining(data.totalRemaining);
     } catch { /* proceed */ }
   }
 
@@ -641,9 +627,6 @@ export default function DepartmentRoom({
         setImageError(reason.length > 500 ? reason.slice(0, 500) + "…" : reason);
       } else {
         setImageUrl(data.url);
-        if (typeof data.remaining === "number") {
-          setCreditsRemaining((c) => ({ image: data.remaining!, video: c?.video ?? 0 }));
-        }
       }
     } catch (err) {
       setImageError(`Failed to reach generation service: ${err instanceof Error ? err.message : String(err)}`);
@@ -675,9 +658,6 @@ export default function DepartmentRoom({
         setVideoError(reason.length > 500 ? reason.slice(0, 500) + "…" : reason);
       } else {
         setVideoUrl(data.url);
-        if (typeof data.remaining === "number") {
-          setCreditsRemaining((c) => ({ image: c?.image ?? 0, video: data.remaining! }));
-        }
       }
     } catch {
       setVideoError("Failed to reach generation service.");
@@ -1499,11 +1479,6 @@ export default function DepartmentRoom({
                       >
                         {videoLoading ? "Filming…" : videoUrl ? "Video ready ✓" : videoError ? "Retry video" : "Generate Video →"}
                       </button>
-                      {creditsRemaining && (
-                        <span className="text-xs" style={{ color: "#3A3A55" }}>
-                          · {creditsRemaining.image} 🖼️ / {creditsRemaining.video} 🎬
-                        </span>
-                      )}
                     </>
                   )}
                   {(department === "legal" || department === "sales") && (

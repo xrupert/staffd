@@ -1,12 +1,15 @@
 "use client";
 
 /**
- * CreditsWidget — dashboard credit balance card (Phase 4).
+ * CreditsWidget — dashboard credit balance card (Phase 4, reshaped T3.0).
  *
- * Surfaces image / video / agent credit balances + "Top up" CTA that opens
- * the TopupModal. Re-fetches on visibility change so a successful Stripe
- * checkout (which redirects back to /dashboard?topup=success) shows the
- * updated balance immediately.
+ * Per ARCH §12 credits exist for IMAGES and VIDEOS only — specialist
+ * conversations are unlimited, so no agent counter is ever rendered here
+ * (the API may still emit agentCreditsTopup; it stays invisible).
+ * "Top up" CTA opens the existing TopupModal when a balance runs low.
+ * Re-fetches on visibility change so a successful Stripe checkout (which
+ * redirects back to /dashboard?topup=success) shows the updated balance
+ * immediately.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -19,11 +22,18 @@ type CreditState = {
   monthlyRemaining?: { image: number; video: number };
   totalRemaining?: { image: number; video: number };
   topupBalance?: { image: number; video: number };
-  agentCreditsTopup?: number;
   ceoAddonActive?: boolean;
 };
 
-const LOW_THRESHOLD = 10;
+// T3.0 — Top-up CTA thresholds per SA spec: image < 20%, video < 30%.
+const IMAGE_LOW_RATIO = 0.2;
+const VIDEO_LOW_RATIO = 0.3;
+
+// W46 interim — comp accounts inferred client-side from the 100×-Agency
+// allowance shape until the API exposes a `comped` boolean.
+function isCompState(state: CreditState): boolean {
+  return state.plan === "agency" && (state.monthlyAllowance?.image ?? 0) >= 5000;
+}
 
 export default function CreditsWidget() {
   const [state, setState] = useState<CreditState | null>(null);
@@ -62,10 +72,17 @@ export default function CreditsWidget() {
     );
   }
 
-  const image = state.totalRemaining?.image ?? 0;
-  const video = state.totalRemaining?.video ?? 0;
-  const agent = state.agentCreditsTopup ?? 0;
-  const anyLow = image < LOW_THRESHOLD || video < LOW_THRESHOLD || agent < LOW_THRESHOLD;
+  const comp = isCompState(state);
+  const imageAllowance = state.monthlyAllowance?.image ?? 0;
+  const videoAllowance = state.monthlyAllowance?.video ?? 0;
+  const imageRemaining = state.totalRemaining?.image ?? 0;
+  const videoRemaining = state.totalRemaining?.video ?? 0;
+  const imageTopup = state.topupBalance?.image ?? 0;
+  const videoTopup = state.topupBalance?.video ?? 0;
+
+  const imageLow = !comp && (imageAllowance > 0 ? imageRemaining / imageAllowance < IMAGE_LOW_RATIO : true);
+  const videoLow = !comp && (videoAllowance > 0 ? videoRemaining / videoAllowance < VIDEO_LOW_RATIO : true);
+  const showTopup = !comp && (imageLow || videoLow);
 
   return (
     <>
@@ -83,21 +100,36 @@ export default function CreditsWidget() {
               {state.ceoAddonActive ? " · CEO add-on" : ""}
             </p>
           </div>
-          <button
-            onClick={() => setTopupOpen(true)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white btn-primary"
-          >
-            Top up
-          </button>
+          {showTopup && (
+            <button
+              onClick={() => setTopupOpen(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white btn-primary"
+            >
+              Top up
+            </button>
+          )}
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <CreditTile label="Images" value={image} />
-          <CreditTile label="Videos" value={video} />
-          <CreditTile label="Agent" value={agent} subtle={agent === 0} />
+        <div className="grid grid-cols-2 gap-3">
+          <CreditTile
+            label="images"
+            remaining={imageRemaining}
+            allowance={imageAllowance}
+            topup={imageTopup}
+            low={imageLow}
+            unlimited={comp}
+          />
+          <CreditTile
+            label="videos"
+            remaining={videoRemaining}
+            allowance={videoAllowance}
+            topup={videoTopup}
+            low={videoLow}
+            unlimited={comp}
+          />
         </div>
 
-        {anyLow && (
+        {showTopup && (
           <p className="text-xs mt-3" style={{ color: "#F59E0B" }}>
             One or more balances are running low. Top up to keep generating.
           </p>
@@ -109,21 +141,36 @@ export default function CreditsWidget() {
   );
 }
 
-function CreditTile({ label, value, subtle }: { label: string; value: number; subtle?: boolean }) {
-  const isLow = value < LOW_THRESHOLD;
+function CreditTile({
+  label,
+  remaining,
+  allowance,
+  topup,
+  low,
+  unlimited,
+}: {
+  label: string;
+  remaining: number;
+  allowance: number;
+  topup: number;
+  low: boolean;
+  unlimited: boolean;
+}) {
   return (
     <div
+      data-testid="credit-tile"
       className="rounded-xl p-3"
       style={{
         background: "#1A1A24",
-        border: `1px solid ${isLow ? "rgba(245,158,11,0.25)" : "#2A2A38"}`,
+        border: `1px solid ${low ? "rgba(245,158,11,0.25)" : "#2A2A38"}`,
       }}
+      title={unlimited ? undefined : `of ${allowance.toLocaleString()} monthly + ${topup.toLocaleString()} top-up`}
     >
       <div
-        className="text-2xl font-bold"
-        style={{ color: subtle ? "#5A5A70" : isLow ? "#F59E0B" : "#F0F0F8" }}
+        className="text-lg font-bold"
+        style={{ color: low ? "#F59E0B" : "#F0F0F8" }}
       >
-        {value.toLocaleString()}
+        {unlimited ? "Unlimited" : `${remaining.toLocaleString()} left this month`}
       </div>
       <div className="text-xs mt-0.5" style={{ color: "#7070A0" }}>{label}</div>
     </div>

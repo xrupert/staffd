@@ -1,8 +1,12 @@
 "use client";
 
 /**
- * LowCreditsBanner — dismissible top-of-page warning when any credit
- * balance is running low (Phase 4).
+ * LowCreditsBanner — dismissible top-of-page warning when the image or
+ * video credit balance is running low (Phase 4, reshaped T3.0).
+ *
+ * Per ARCH §12 credits exist for IMAGES and VIDEOS only — no agent counter
+ * is tracked or displayed. Comp accounts (100× Agency allowance) never see
+ * this banner per the §12 hard rule: comp users never see "out of credits."
  *
  * Dismissal is session-only (sessionStorage) so the banner returns on the
  * next visit if the situation hasn't been resolved by a top-up.
@@ -12,8 +16,9 @@ import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
 
 type CreditState = {
+  plan?: string;
+  monthlyAllowance?: { image: number; video: number };
   totalRemaining?: { image: number; video: number };
-  agentCreditsTopup?: number;
 };
 
 const LOW_THRESHOLD = 10;
@@ -21,7 +26,7 @@ const DISMISS_KEY = "staffd_low_credits_dismissed_v1";
 
 export default function LowCreditsBanner({ onTopUp }: { onTopUp?: () => void }) {
   const [shouldShow, setShouldShow] = useState(false);
-  const [low, setLow] = useState<{ image: number; video: number; agent: number } | null>(null);
+  const [low, setLow] = useState<{ image: number; video: number } | null>(null);
 
   useEffect(() => {
     const dismissed = typeof window !== "undefined" && sessionStorage.getItem(DISMISS_KEY) === "1";
@@ -35,11 +40,13 @@ export default function LowCreditsBanner({ onTopUp }: { onTopUp?: () => void }) 
         const res = await fetch(`/api/credits?userId=${encodeURIComponent(userId)}`);
         if (!res.ok) return;
         const data = (await res.json()) as CreditState;
+        // W46 interim — comp inference from the 100×-Agency allowance shape.
+        // Comp users never see "out of credits" (ARCH §12 hard rule).
+        if (data.plan === "agency" && (data.monthlyAllowance?.image ?? 0) >= 5000) return;
         const image = data.totalRemaining?.image ?? 0;
         const video = data.totalRemaining?.video ?? 0;
-        const agent = data.agentCreditsTopup ?? 0;
-        if (image < LOW_THRESHOLD || video < LOW_THRESHOLD || agent < LOW_THRESHOLD) {
-          setLow({ image, video, agent });
+        if (image < LOW_THRESHOLD || video < LOW_THRESHOLD) {
+          setLow({ image, video });
           setShouldShow(true);
         }
       } catch { /* silent */ }
@@ -51,7 +58,6 @@ export default function LowCreditsBanner({ onTopUp }: { onTopUp?: () => void }) 
   const lowList: string[] = [];
   if (low.image < LOW_THRESHOLD) lowList.push(`${low.image} image`);
   if (low.video < LOW_THRESHOLD) lowList.push(`${low.video} video`);
-  if (low.agent < LOW_THRESHOLD) lowList.push(`${low.agent} agent`);
 
   return (
     <div
