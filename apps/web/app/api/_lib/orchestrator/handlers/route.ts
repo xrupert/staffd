@@ -9,7 +9,7 @@
  * This handler ships in B1. B2 cuts the legacy `/api/orchestrate` over to it.
  */
 
-import { getAgent, getDepartmentAgents, routeTask, type Department } from "@staffd/agents";
+import { getAgent, getDepartmentAgents, routeTask, resolveIndustryToPackId, type Department, type IndustryPack } from "@staffd/agents";
 import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
 import { resolveDepartments } from "../../trial";
 import { callLLM } from "../llm";
@@ -69,12 +69,16 @@ function pickAgentForDept(
   department: string,
   message: string,
   activePacks: string[],
+  userIndustry: IndustryPack | null,
 ): string | undefined {
   const pool = getDepartmentAgents(department as Department, { activePacks });
   if (pool.length === 0) return undefined;
 
   // First try tag-keyword scoring against the user's actual message.
-  const matched = routeTask(message, department as Department);
+  // W58 (D-19) — pass owned packs so packed specialists join the scoring
+  // pool (closes W54.1), and the user's industry so matching pack agents
+  // get the 1.5× boost and win their domain.
+  const matched = routeTask(message, department as Department, { activePacks, userIndustry });
   if (matched && pool.some((a) => a.id === matched.id)) return matched.id;
 
   return pool[0]?.id;
@@ -94,6 +98,10 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   const unlockedDepts = trialState?.resolved.length ? trialState.resolved : ["marketing","sales","legal"];
   const lockedDepts = ALL_DEPTS.filter((d) => !unlockedDepts.includes(d));
   const activePacks = trialState?.activePacks ?? [];
+  // W58 (D-19) — resolve the free-text business industry to a pack id for
+  // routing prioritization. Null (no match / no vault) → no boost, current
+  // behavior preserved.
+  const userIndustry = resolveIndustryToPackId(vault?.industry);
 
   // Hotfix bundle A1 — build the full roster of available specialists across
   // unlocked departments so the LLM can pick the right one BY NAME, not just
@@ -215,7 +223,7 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
     if (!inDept) agentId = undefined;
   }
   if (!agentId) {
-    agentId = pickAgentForDept(dept, message, activePacks);
+    agentId = pickAgentForDept(dept, message, activePacks, userIndustry);
   }
 
   return {

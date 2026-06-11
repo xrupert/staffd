@@ -40,9 +40,9 @@ import { designAgents } from "./departments/design";
 import { paidMediaAgents } from "./departments/paid-media";
 import { reputationAgents } from "./departments/reputation";
 import { ceoAgents } from "./departments/ceo";
-import { allPackAgents } from "./packs";
+import { allPackAgents, PACK_IDS } from "./packs";
 import { STAFFD_BRAND_LAWS, applyBrandLawsToPrompt } from "./brand-laws";
-import type { AgentDef, Department } from "./types";
+import type { AgentDef, Department, IndustryPack } from "./types";
 
 /**
  * Hotfix bundle A — every specialist's system prompt is auto-prepended with
@@ -164,9 +164,28 @@ export function getDepartmentDefaultAgent(
  * Route a natural-language task to the most relevant agent
  * using keyword matching against agent tags.
  * Returns the best match or undefined if no tags match.
+ *
+ * W58 (D-19 routing layer) — optional opts:
+ *   - `activePacks`: owned pack ids; when department-scoped, packed agents
+ *     from these packs join the pool (closes W54.1 — entitlement-gated,
+ *     unowned packs never enter a department-scoped pool).
+ *   - `userIndustry`: the user's resolved industry pack id. Agents whose
+ *     `pack` matches receive a 1.5× score boost so they win their domain
+ *     without crushing legitimate generic wins. Boost only — never adds
+ *     unowned agents to the pool.
+ * Omitting opts preserves W54 behavior exactly.
  */
-export function routeTask(task: string, department?: Department): AgentDef | undefined {
-  const pool = department ? getDepartmentAgents(department) : allAgents;
+export function routeTask(
+  task: string,
+  department?: Department,
+  opts?: {
+    userIndustry?: IndustryPack | null;
+    activePacks?: ReadonlyArray<string>;
+  }
+): AgentDef | undefined {
+  const pool = department
+    ? getDepartmentAgents(department, { activePacks: opts?.activePacks })
+    : allAgents;
   const lowerTask = task.toLowerCase();
 
   let bestMatch: AgentDef | undefined;
@@ -174,7 +193,10 @@ export function routeTask(task: string, department?: Department): AgentDef | und
 
   for (const agent of pool) {
     // W54 — normalize tag casing at match time only; stored casing untouched.
-    const score = agent.tags.filter((tag) => lowerTask.includes(tag.toLowerCase())).length;
+    const base = agent.tags.filter((tag) => lowerTask.includes(tag.toLowerCase())).length;
+    // W58 — industry boost for pack agents matching the user's industry.
+    const score =
+      opts?.userIndustry && agent.pack === opts.userIndustry ? base * 1.5 : base;
     if (score > bestScore) {
       bestScore = score;
       bestMatch = agent;
@@ -182,6 +204,44 @@ export function routeTask(task: string, department?: Department): AgentDef | und
   }
 
   return bestMatch;
+}
+
+/**
+ * W58 — resolve a free-text business `industry` value ("Industry / What
+ * you do" is a sentence, not a category) to a canonical IndustryPack id.
+ *
+ * Normalized (lowercase, trimmed) substring matching: exact pack-id match
+ * first, then keyword scan in vertical-before-generic order so
+ * "restaurant consulting" lands on the richer restaurants pack rather
+ * than the generic consultants bucket (SA-acked W58 Phase A §J). No
+ * match → null → callers proceed without an industry boost.
+ */
+const INDUSTRY_KEYWORDS: ReadonlyArray<[IndustryPack, ReadonlyArray<string>]> = [
+  ["law",         ["law firm", "attorney", "lawyer", "legal practice", "paralegal", "law office"]],
+  ["real-estate", ["real estate", "realtor", "brokerage", "property management", "realty"]],
+  ["restaurants", ["restaurant", "cafe", "café", "coffee shop", "bakery", "food truck", "catering", "bistro", "pizzeria", "diner", "food service"]],
+  ["trades",      ["plumb", "electric", "hvac", "roofing", "landscaping", "contractor", "handyman", "carpent", "painting", "home service"]],
+  ["salons",      ["salon", "barber", "spa", "nails", "hair", "esthetic", "beauty", "lash", "massage"]],
+  ["coaches",     ["coach", "coaching", "personal trainer", "fitness studio", "mentor"]],
+  ["agencies",    ["marketing agency", "design agency", "creative agency", "ad agency", "digital agency", "dev agency", "media agency"]],
+  ["consultants", ["consultant", "consulting", "advisory", "advisor"]],
+];
+
+export function resolveIndustryToPackId(
+  industry: string | null | undefined
+): IndustryPack | null {
+  if (!industry) return null;
+  const normalized = industry.toLowerCase().trim();
+  if (!normalized) return null;
+
+  // Exact canonical id ("restaurants", "real-estate", …) resolves directly.
+  const exact = (PACK_IDS as ReadonlyArray<string>).find((id) => id === normalized);
+  if (exact) return exact as IndustryPack;
+
+  for (const [pack, keywords] of INDUSTRY_KEYWORDS) {
+    if (keywords.some((kw) => normalized.includes(kw))) return pack;
+  }
+  return null;
 }
 
 /** Starter pack: 6 curated agents for the Starter plan (per locked plan v1.0) */
