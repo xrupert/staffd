@@ -349,6 +349,53 @@ export default function CommandCenter() {
     }
   }
 
+  /**
+   * W49 (GAP #2) — persist a completed Command Center generation to the
+   * documents collection so it appears in the Library, mirroring
+   * DepartmentRoom's saveDocument pattern. agent_name resolves from the
+   * routed agentId via the roster endpoint, falling back to the department
+   * label. Fire-and-forget; a failed save never disturbs the chat.
+   */
+  async function saveGeneratedDocument(
+    department: string,
+    task: string,
+    output: string,
+    userId: string,
+    agentId?: string
+  ) {
+    try {
+      let agentName = DEPT_LABELS[department] ?? department;
+      if (agentId) {
+        try {
+          const rosterRes = await fetch(`/api/agents/${encodeURIComponent(department)}?userId=${encodeURIComponent(userId)}`);
+          if (rosterRes.ok) {
+            const roster = (await rosterRes.json()) as Array<{ id: string; name: string }>;
+            agentName = roster.find((a) => a.id === agentId)?.name ?? agentName;
+          }
+        } catch { /* fall back to department label */ }
+      }
+      const activeClientId = typeof window !== "undefined"
+        ? localStorage.getItem("staffd_active_client")
+        : null;
+      const rec = await pb.collection("documents").create({
+        user: userId,
+        department,
+        agent_name: agentName,
+        prompt: task,
+        output,
+        client: activeClientId ?? "",
+      });
+      // V4b pattern — fire-and-forget Vault ingestion enqueue.
+      void fetch("/api/vault/enqueue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ docId: rec.id, kind: "document", pbToken: pb.authStore.token }),
+      }).catch(() => {});
+    } catch (err) {
+      console.error("[W49] Command Center document save failed:", err);
+    }
+  }
+
   async function runAgent(department: string, task: string, userId: string, pbToken: string, agentId?: string) {
     setOutputBuffer("");
     setFollowUps([]); // clear any previous handoff suggestions before this run
@@ -405,6 +452,12 @@ export default function CommandCenter() {
         });
         setOutputBuffer(streamedResult);
         scrollToBottom();
+      }
+
+      // W49 (GAP #2) — success path only (Decision 3: failed generations
+      // don't persist; the catch below never reaches this line).
+      if (streamedResult.trim().length > 0 && userId) {
+        void saveGeneratedDocument(department, task, streamedResult, userId, agentId);
       }
     } catch {
       setMessages((prev) => {

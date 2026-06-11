@@ -13,9 +13,50 @@
  * On `ok:false` (deadline / budget / upstream), we stream the deterministic
  * degraded brief from the orchestrator's fallback layer — never an empty
  * body.
+ *
+ * W49 — successful briefs persist to `documents` (department "ceo",
+ * agent_name "Chief of Staff") so they survive navigation and appear in
+ * the Library's CEO tab. Degraded fallbacks do NOT persist (they're an
+ * apology, not work — Decision 3). A failed write logs at error level but
+ * never blocks the brief reaching the user.
  */
 
 import { runOrchestrator } from "../_lib/orchestrator";
+import { adminHeaders, getAdminToken, pbUrl } from "../_lib/pb";
+import { enqueue } from "../_lib/vault/queue";
+
+async function persistBrief(opts: {
+  userId: string;
+  clientId?: string;
+  briefText: string;
+}): Promise<void> {
+  try {
+    const date = new Date().toLocaleDateString("en-US", {
+      month: "long", day: "numeric", year: "numeric",
+    });
+    const token = await getAdminToken();
+    const res = await fetch(`${pbUrl()}/api/collections/documents/records`, {
+      method: "POST",
+      headers: adminHeaders(token),
+      body: JSON.stringify({
+        user: opts.userId,
+        client: opts.clientId ?? "",
+        department: "ceo",
+        agent_name: "Chief of Staff",
+        prompt: `Weekly briefing — ${date}`,
+        output: opts.briefText,
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[W49] briefing persist failed user=${opts.userId} status=${res.status}`);
+      return;
+    }
+    const created = (await res.json()) as { id?: string };
+    if (created.id) void enqueue("document", created.id);
+  } catch (err) {
+    console.error("[W49] briefing persist failed:", err);
+  }
+}
 
 export async function POST(req: Request) {
   let body: { userId?: string; pbToken?: string; clientId?: string };
@@ -41,6 +82,12 @@ export async function POST(req: Request) {
   const briefText = response.ok
     ? (response.decision.task ?? "").trim()
     : (response.degraded.task ?? "").trim();
+
+  // W49 — persist the real brief before streaming (the orchestrator is
+  // non-streaming, so the full text is in hand). Success path only.
+  if (response.ok && briefText.length > 0) {
+    await persistBrief({ userId, clientId, briefText });
+  }
 
   // Last-resort guard — if even the degraded path produced nothing, give the
   // user a coherent message instead of an empty stream.
