@@ -30,7 +30,10 @@ describe("routeTask — industry boost (W58 Tests 1–2)", () => {
       userIndustry: "law",
     });
     // Generic finance agent wins ("variance" overlap); the restaurants
-    // pack agent is not in this user's pool at all (entitlement gate).
+    // pack agent is not in this user's pool — pool membership is
+    // activePacks-driven (derived upstream in trial.ts; W58.0.1 bridges
+    // industry → activePacks there, so a restaurant user's pool would
+    // include it, a law user's never does).
     expect(match?.id).toBe("finance-fpa-analyst");
     expect(match?.id).not.toBe("pack-restaurants-finance-cogs-tracker");
   });
@@ -64,8 +67,10 @@ describe("routeTask — multiplier effect (W58 Test 4)", () => {
   });
 });
 
-describe("getDepartmentAgents — pool inclusion stays entitlement-gated (W58 Test 5)", () => {
-  it("owned packs add their department agents; unowned never appear", () => {
+describe("getDepartmentAgents — pool inclusion is activePacks-driven (W58 Test 5)", () => {
+  // activePacks derivation (purchase, comp, or W58.0.1 industry bridging)
+  // happens upstream in trial.ts — this function honors whatever it's given.
+  it("active packs add their department agents; inactive never appear", () => {
     const generic = getDepartmentAgents("operations").length;
     expect(generic).toBe(12);
     expect(getDepartmentAgents("operations", { activePacks: ["restaurants"] }).length).toBe(generic + 1);

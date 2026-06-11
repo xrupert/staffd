@@ -89,11 +89,16 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   const ctx = (req.context ?? {}) as RouteContext;
   const message = (ctx.message ?? ctx.messages?.[ctx.messages.length - 1]?.content ?? "").trim();
 
-  // Parallel: vault summary, department resolution, and (best-effort) Vault retrieval.
-  const [vault, trialState] = await Promise.all([
-    req.pbToken && req.userId ? fetchVault(req.pbToken, req.userId, { clientId: req.clientId }) : Promise.resolve(null),
-    req.userId ? resolveDepartments(req.userId) : Promise.resolve(null),
-  ]);
+  // W58.0.1 (D-19 bridging) — vault loads FIRST so its industry value can
+  // drive pack auto-activation inside resolveDepartments. This serializes
+  // two PB reads that previously ran in parallel (~one extra roundtrip,
+  // well inside the 8s route deadline from W37).
+  const vault = req.pbToken && req.userId
+    ? await fetchVault(req.pbToken, req.userId, { clientId: req.clientId })
+    : null;
+  const trialState = req.userId
+    ? await resolveDepartments(req.userId, { vaultIndustry: vault?.industry })
+    : null;
 
   const unlockedDepts = trialState?.resolved.length ? trialState.resolved : ["marketing","sales","legal"];
   const lockedDepts = ALL_DEPTS.filter((d) => !unlockedDepts.includes(d));

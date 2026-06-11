@@ -10,7 +10,7 @@
  */
 
 import { isCompedUser } from "./comp";
-import { PACK_IDS } from "@staffd/agents";
+import { PACK_IDS, resolveIndustryToPackId } from "@staffd/agents";
 import { getAdminToken, pbUrl, pbEscape, adminHeaders, pbFirst } from "./pb";
 
 const TRIAL_LIMIT = 3;
@@ -77,8 +77,19 @@ export type TrialState = {
   activePacks: string[];
 };
 
-/** Resolves the full department + trial picture for a user. No self-fetch. */
-export async function resolveDepartments(userId: string): Promise<TrialState> {
+/**
+ * Resolves the full department + trial picture for a user. No self-fetch.
+ *
+ * W58.0.1 (D-19 bridging) — `opts.vaultIndustry` is the user's free-text
+ * business industry. When the subscription carries no explicit pack
+ * ownership and the user is non-comp, the industry resolves to a pack id
+ * and auto-activates that single pack. Callers without vault access omit
+ * it and keep pre-bridging behavior (W58.2 adds vault loading to them).
+ */
+export async function resolveDepartments(
+  userId: string,
+  opts?: { vaultIndustry?: string | null }
+): Promise<TrialState> {
   const fallback: TrialState = {
     plan: "starter",
     resolved: [...STARTER_DEPARTMENTS],
@@ -110,7 +121,22 @@ export async function resolveDepartments(userId: string): Promise<TrialState> {
     // "less than 100 agents active" observation: 83 core + 55 packed = 138
     // specialists, but pack agents only surface when the pack is active.
     const subscribedPacks = Array.isArray(sub?.industry_packs) ? sub.industry_packs : [];
-    const activePacks = comped ? [...PACK_IDS] : subscribedPacks;
+    // W58.0.1 (D-19) — pack activation, in priority order:
+    //   1. Comp → every pack (unchanged Hotfix E1 behavior).
+    //   2. Explicit subscription ownership → honor it (backward compat
+    //      for purchased-pack data).
+    //   3. Industry bridging → the user's business industry resolves to
+    //      a pack id and auto-activates that single pack. No match (or
+    //      no vaultIndustry supplied) → no packs, pre-bridging behavior.
+    let activePacks: string[];
+    if (comped) {
+      activePacks = [...PACK_IDS];
+    } else if (subscribedPacks.length > 0) {
+      activePacks = subscribedPacks;
+    } else {
+      const bridged = resolveIndustryToPackId(opts?.vaultIndustry);
+      activePacks = bridged ? [bridged] : [];
+    }
 
     return {
       plan,
