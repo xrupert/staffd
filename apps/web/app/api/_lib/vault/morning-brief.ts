@@ -127,10 +127,13 @@ type SectionRunInput = {
 
 async function runSection(input: SectionRunInput): Promise<BriefSection | null> {
   try {
-    const [vault, voiceBlock, trial] = await Promise.all([
-      fetchVaultAdmin(input.userId),
+    // W58.2 (D-19 bridging) — vault loads first so its industry can drive
+    // pack auto-activation in resolveDepartments (cold path; serialization
+    // cost is irrelevant on the nightly run).
+    const vault = await fetchVaultAdmin(input.userId);
+    const [voiceBlock, trial] = await Promise.all([
       getVoiceBlock(input.userId, input.department),
-      resolveDepartments(input.userId),
+      resolveDepartments(input.userId, { vaultIndustry: vault?.industry }),
     ]);
     const vaultBlock = renderVaultBlock(vault, { detail: "full" });
 
@@ -476,7 +479,11 @@ export async function generateBriefForUser(userId: string, opts?: { force?: bool
     } catch { /* proceed on lookup failure */ }
   }
 
-  const trial = await resolveDepartments(userId);
+  // W58.2 (D-19 bridging) — this site only consumes `resolved` (dept
+  // gating, pack-independent), but bridging keeps trial state uniform
+  // across all callers. Vault is loaded again per-section in runSection.
+  const briefVault = await fetchVaultAdmin(userId);
+  const trial = await resolveDepartments(userId, { vaultIndustry: briefVault?.industry });
   const unlocked = new Set(trial.resolved);
 
   const tasks: Array<Promise<BriefSection | null>> = [];

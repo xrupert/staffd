@@ -172,10 +172,14 @@ export async function POST(req: Request) {
     // Vault fetch — single shared helper. Agency mode handled inside fetchVault.
     // Phase 2 — voice block. Phase 8 — active packs (used by the default-agent
     // resolver below so packed specialists take priority over generic ones).
-    const [vault, voiceBlock, trialStateForPacks] = await Promise.all([
-      pbToken && userId ? fetchVault(pbToken, userId, { clientId }) : Promise.resolve(null),
+    // W58.2 (D-19 bridging) — vault loads first so its industry can drive
+    // pack auto-activation in resolveDepartments. One serialized PB read.
+    const vault = pbToken && userId
+      ? await fetchVault(pbToken, userId, { clientId })
+      : null;
+    const [voiceBlock, trialStateForPacks] = await Promise.all([
       getVoiceBlock(userId, department),
-      userId ? resolveDepartments(userId) : Promise.resolve(null),
+      userId ? resolveDepartments(userId, { vaultIndustry: vault?.industry }) : Promise.resolve(null),
     ]);
     const vaultBlock = renderVaultBlock(vault, { detail: "full" });
     const activePacks = trialStateForPacks?.activePacks ?? [];

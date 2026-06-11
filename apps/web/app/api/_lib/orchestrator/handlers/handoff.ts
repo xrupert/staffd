@@ -53,9 +53,14 @@ export async function handleHandoff(req: OrchestratorRequest): Promise<Orchestra
   // Handoff suggestions feel more personal when the user's voice is on —
   // we use ctx.sourceDoc.department to decide voice applicability so a
   // legal-doc handoff stays neutral while a marketing handoff is in-voice.
-  const [vault, trialState, voiceBlock] = await Promise.all([
-    req.pbToken && req.userId ? fetchVault(req.pbToken, req.userId, { clientId: req.clientId }) : Promise.resolve(null),
-    req.userId ? resolveDepartments(req.userId) : Promise.resolve(null),
+  // W58.2 (D-19 bridging) — vault loads first so its industry can drive
+  // pack auto-activation in resolveDepartments (same pattern as the route
+  // handler, W58.0.1). One serialized PB read.
+  const vault = req.pbToken && req.userId
+    ? await fetchVault(req.pbToken, req.userId, { clientId: req.clientId })
+    : null;
+  const [trialState, voiceBlock] = await Promise.all([
+    req.userId ? resolveDepartments(req.userId, { vaultIndustry: vault?.industry }) : Promise.resolve(null),
     getVoiceBlock(req.userId, ctx.sourceDoc?.department),
   ]);
   const unlockedDepts = trialState?.resolved.length ? trialState.resolved : ["marketing","sales","legal"];

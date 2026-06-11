@@ -7,6 +7,7 @@
  */
 
 import { resolveDepartments, recordTrialRun } from "../_lib/trial";
+import { getAdminToken, pbEscape, pbFirst } from "../_lib/pb";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -14,7 +15,21 @@ export async function GET(req: Request) {
   if (!userId) return Response.json({ error: "userId required" }, { status: 400 });
 
   try {
-    const state = await resolveDepartments(userId);
+    // W58.2 (D-19 bridging) — read the business industry so activePacks
+    // reflects bridged state. Same admin-read pattern as /api/packs.
+    let vaultIndustry: string | undefined;
+    try {
+      const token = await getAdminToken();
+      const biz = await pbFirst<{ industry?: string }>(
+        "businesses",
+        `(user='${pbEscape(userId)}')`,
+        token
+      );
+      vaultIndustry = biz?.industry;
+    } catch {
+      /* no industry — bridging silently skipped */
+    }
+    const state = await resolveDepartments(userId, { vaultIndustry });
     return Response.json({
       plan: state.plan,
       trial_runs: state.trialRuns,
@@ -22,6 +37,9 @@ export async function GET(req: Request) {
       unlocked_departments: state.unlockedDepartments,
       needs_department_selection: state.needsDepartmentSelection,
       resolved_departments: state.resolved,
+      // W58.2 — bridged pack state surfaces here (additive; consumers
+      // parse named fields and tolerate extras).
+      active_packs: state.activePacks,
       comp: state.comp || undefined,
     });
   } catch (err) {

@@ -1,6 +1,7 @@
 import { getDepartmentAgents } from "@staffd/agents";
 import type { Department } from "@staffd/agents";
 import { resolveDepartments } from "../../_lib/trial";
+import { getAdminToken, pbEscape, pbFirst } from "../../_lib/pb";
 
 export async function GET(
   req: Request,
@@ -16,7 +17,22 @@ export async function GET(
   let activePacks: string[] = [];
   if (userId) {
     try {
-      const trial = await resolveDepartments(userId);
+      // W58.2 (D-19 bridging) — read the business industry so the roster
+      // drawer lists bridged pack specialists, not just purchased ones.
+      // Same admin-read pattern as /api/packs (W58.3, SA Decision 7).
+      let vaultIndustry: string | undefined;
+      try {
+        const token = await getAdminToken();
+        const biz = await pbFirst<{ industry?: string }>(
+          "businesses",
+          `(user='${pbEscape(userId)}')`,
+          token
+        );
+        vaultIndustry = biz?.industry;
+      } catch {
+        /* no industry — bridging silently skipped */
+      }
+      const trial = await resolveDepartments(userId, { vaultIndustry });
       activePacks = trial.activePacks;
     } catch {
       /* fall through with no packs */

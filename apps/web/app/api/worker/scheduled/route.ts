@@ -10,6 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgent, getDepartmentDefaultAgent } from "@staffd/agents";
+import { resolveDepartments } from "../../_lib/trial";
 import { computeRetrievalP95 } from "../../_lib/vault";
 import { enqueue } from "../../_lib/vault/queue";
 import { recomputeActiveUserVoiceProfiles } from "../../_lib/vault/voice";
@@ -31,10 +32,12 @@ async function getAdminToken(pbUrl: string): Promise<string> {
   return token;
 }
 
-async function generateContent(task: string, department: string, agentId: string | null, vault: Record<string, unknown> | null): Promise<string> {
+async function generateContent(task: string, department: string, agentId: string | null, vault: Record<string, unknown> | null, activePacks: string[] = []): Promise<string> {
   // Single source of truth: packages/agents. Caller-supplied agent wins,
   // otherwise fall back to the department's canonical default.
-  const resolvedAgent = (agentId ? getAgent(agentId) : null) ?? getDepartmentDefaultAgent(department);
+  // W58.2 (D-19) — pack-aware default so a bridged restaurant user's
+  // scheduled marketing post comes from the pack specialist, not generic.
+  const resolvedAgent = (agentId ? getAgent(agentId) : null) ?? getDepartmentDefaultAgent(department, activePacks);
   let systemPrompt = resolvedAgent?.systemPrompt ?? "";
 
   if (vault) {
@@ -144,8 +147,19 @@ export async function GET(req: Request) {
           }
         } catch { /* proceed without vault */ }
 
+        // W58.2 (D-19) — per-task trial state with industry bridging so
+        // pack defaults resolve. Vault was just loaded above; failure here
+        // degrades to generic defaults (Decision 2).
+        let activePacks: string[] = [];
+        try {
+          const trial = await resolveDepartments(item.user, {
+            vaultIndustry: (vault?.industry as string | undefined) ?? undefined,
+          });
+          activePacks = trial.activePacks;
+        } catch { /* generic defaults */ }
+
         // Generate content
-        const output = await generateContent(item.task, item.department, null, vault);
+        const output = await generateContent(item.task, item.department, null, vault, activePacks);
 
         if (!output.trim()) throw new Error("Empty output");
 

@@ -135,14 +135,18 @@ export async function handleSynthesize(req: OrchestratorRequest): Promise<Orches
   const operatingAgent = ceoAgent ?? getAgent(policy.systemAgentId);
   const baseSystem = operatingAgent?.systemPrompt ?? "";
 
-  // Resolve which departments are in play, then fan out fetches.
-  const trialState = req.userId ? await resolveDepartments(req.userId) : null;
+  // W58.2 (D-19 bridging) — vault loads first so its industry can drive
+  // pack auto-activation in resolveDepartments. Then departments resolve,
+  // then the remaining fetches fan out as before.
+  const vault = req.pbToken && req.userId
+    ? await fetchVault(req.pbToken, req.userId, { clientId: req.clientId })
+    : null;
+  const trialState = req.userId
+    ? await resolveDepartments(req.userId, { vaultIndustry: vault?.industry })
+    : null;
   const resolvedDepts = trialState?.resolved ?? [];
 
-  const [vault, workload, priorCeo, retrieval, voiceBlock] = await Promise.all([
-    req.pbToken && req.userId
-      ? fetchVault(req.pbToken, req.userId, { clientId: req.clientId })
-      : Promise.resolve(null),
+  const [workload, priorCeo, retrieval, voiceBlock] = await Promise.all([
     fetchCrossDeptWorkload(req.userId, resolvedDepts),
     fetchPriorCeoDocs(req.userId),
     req.userId
