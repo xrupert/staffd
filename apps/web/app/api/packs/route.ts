@@ -2,7 +2,13 @@
  * GET /api/packs?userId=...
  *
  * Returns the list of all industry packs plus which ones are active for the
- * given user. Used by the Settings UI panel to render add / manage buttons.
+ * given user. Purely informational (W58.3) — packs activate automatically
+ * via D-19 industry bridging; there is no purchase path.
+ *
+ * W58.3 (SA Decision 7) — the route loads the user's `businesses.industry`
+ * via admin token and passes it to `resolveDepartments` so the `active`
+ * flags reflect bridged state, not just legacy purchased packs. Single
+ * extra PB read per request on a low-frequency endpoint.
  *
  * Public list — no auth required for the catalog. User-specific `active`
  * flag returned only when `userId` matches a known sub record (no auth
@@ -12,6 +18,7 @@
 
 import { ALL_PACKS } from "@staffd/agents";
 import { resolveDepartments } from "../_lib/trial";
+import { getAdminToken, pbEscape, pbFirst } from "../_lib/pb";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -20,7 +27,20 @@ export async function GET(req: Request) {
   let activePacks: string[] = [];
   if (userId) {
     try {
-      const trial = await resolveDepartments(userId);
+      // W58.3 — read the business industry so bridging applies here too.
+      let vaultIndustry: string | undefined;
+      try {
+        const token = await getAdminToken();
+        const biz = await pbFirst<{ industry?: string }>(
+          "businesses",
+          `(user='${pbEscape(userId)}')`,
+          token
+        );
+        vaultIndustry = biz?.industry;
+      } catch {
+        /* no industry — bridging silently skipped */
+      }
+      const trial = await resolveDepartments(userId, { vaultIndustry });
       activePacks = trial.activePacks;
     } catch {
       /* return catalog only */

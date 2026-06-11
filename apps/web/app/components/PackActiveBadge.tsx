@@ -3,13 +3,11 @@
 /**
  * PackActiveBadge — Phase 28 (Pack discovery deeper into UI).
  *
- * The opposite surface to PackUpsellCard. When the user has an ACTIVE pack
- * that adds specialists to this department, show a quiet affirmation so they
- * remember they're getting extra value here. Silent otherwise.
- *
- * Rendered above PackUpsellCard in DepartmentRoom — only one of the two
- * will ever be visible for a given (user, dept) since they have opposite
- * `active` conditions.
+ * When the user has an ACTIVE pack that adds specialists to this
+ * department, show a quiet affirmation so they remember they're getting
+ * extra value here. Silent otherwise. (W58.3 — packs activate
+ * automatically via D-19 industry bridging; the buy card that used to
+ * pair with this badge is retired.)
  */
 
 import { useEffect, useState } from "react";

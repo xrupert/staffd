@@ -9,7 +9,6 @@ import { exportToDocx } from "./DocExport";
 import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
 import HandoffPanel from "./HandoffPanel";
-import PackUpsellCard from "./PackUpsellCard";
 import { PUBLISH_ENABLED, PUBLISH_DISABLED_NOTE } from "../../lib/feature-flags";
 import PatternBadgeList from "./PatternBadge";
 import PackActiveBadge from "./PackActiveBadge";
@@ -901,14 +900,10 @@ export default function DepartmentRoom({
         </header>
 
         {/* Phase 28 — when a relevant pack is ACTIVE, surface a quiet
-            "Pack active" affirmation. Silent otherwise. Mutually exclusive
-            with PackUpsellCard below in practice. */}
+            "Pack active" affirmation. Silent otherwise. (W58.3 — the buy
+            card that used to render below was retired: industry packs
+            activate automatically via D-19 bridging.) */}
         <PackActiveBadge department={department} />
-
-        {/* Phase 9 — contextual pack upsell. Silently absent unless the user's
-            industry signals a specific pack AND they don't already have it
-            active AND that pack has a specialist for this department. */}
-        <PackUpsellCard department={department} />
 
         {/* Resume banner — pick up where you left off */}
         {resumeBanner && !output && conversation.length === 0 && (
