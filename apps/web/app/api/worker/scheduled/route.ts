@@ -11,6 +11,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { getAgent, getDepartmentDefaultAgent } from "@staffd/agents";
 import { resolveDepartments } from "../../_lib/trial";
+import { bridgingIndustryFor } from "../../_lib/industry";
 import { computeRetrievalP95 } from "../../_lib/vault";
 import { enqueue } from "../../_lib/vault/queue";
 import { recomputeActiveUserVoiceProfiles } from "../../_lib/vault/voice";
@@ -153,7 +154,7 @@ export async function GET(req: Request) {
         let activePacks: string[] = [];
         try {
           const trial = await resolveDepartments(item.user, {
-            vaultIndustry: (vault?.industry as string | undefined) ?? undefined,
+            vaultIndustry: bridgingIndustryFor(vault as { id?: string; industry?: string; industry_category?: string } | null),
           });
           activePacks = trial.activePacks;
         } catch { /* generic defaults */ }

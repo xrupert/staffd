@@ -11,6 +11,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import pb from "../../lib/pb";
+import IndustryCategoryPicker from "./IndustryCategoryPicker";
+import { type IndustryCategoryId } from "../../lib/industry-categories";
 
 type PackCatalogEntry = {
   id: string;
@@ -38,6 +40,13 @@ const DEPT_SHORT: Record<string, string> = {
 export default function IndustryPacksPanel() {
   const [packs, setPacks] = useState<PackCatalogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  // W59 — inline industry edit (the recovery path for legacy users whose
+  // industry never got captured, and the change path for everyone else).
+  const [editing, setEditing] = useState(false);
+  const [editCategory, setEditCategory] = useState<IndustryCategoryId | "">("");
+  const [editDetail, setEditDetail] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const userId = pb.authStore.record?.id ?? "";
@@ -71,9 +80,82 @@ export default function IndustryPacksPanel() {
   const activePacks = packs.filter((p) => p.active);
   const allActive = packs.length > 0 && activePacks.length === packs.length;
 
+  async function saveIndustry() {
+    if (!editCategory) return;
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      if (!userId) throw new Error("not signed in");
+      const payload: Record<string, string> = { industry_category: editCategory };
+      if (editDetail.trim()) payload.industry = editDetail.trim();
+      // Same client-side PB write pattern as onboarding — row rules
+      // authorize own-record writes; no new endpoint needed (Decision 6).
+      const existing = await pb.collection("businesses").getList(1, 1, {
+        filter: `user = '${userId}'`,
+      });
+      if (existing.items.length > 0 && existing.items[0]) {
+        await pb.collection("businesses").update(existing.items[0].id, payload);
+      } else {
+        await pb.collection("businesses").create({ user: userId, ...payload });
+      }
+      setEditing(false);
+      setLoading(true);
+      await load(); // refetch /api/packs — activePacks re-resolves per request
+    } catch {
+      setEditError("Couldn't save. Try again.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   return (
     <section className="rounded-2xl p-6 mb-5" style={cardStyle}>
-      <h2 className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>Your industry support</h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>Your industry support</h2>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs font-medium transition-colors hover:text-white flex-shrink-0"
+            style={{ color: "#A07BFF" }}
+          >
+            Change industry →
+          </button>
+        )}
+      </div>
+
+      {editing && (
+        <div className="mt-3 mb-4 flex flex-col gap-3">
+          <p className="text-xs" style={{ color: "#9090A8" }}>What kind of business do you run?</p>
+          <IndustryCategoryPicker value={editCategory} onChange={setEditCategory} compact />
+          <input
+            value={editDetail}
+            onChange={(e) => setEditDetail(e.target.value)}
+            placeholder="Anything else about your business? (optional)"
+            className="rounded-xl px-3 py-2 text-xs"
+            style={{ background: "#0D0D16", border: "1px solid #2A2A38", color: "#F0F0F8" }}
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => void saveIndustry()}
+              disabled={!editCategory || savingEdit}
+              className="btn-primary px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
+              style={{ opacity: !editCategory || savingEdit ? 0.5 : 1 }}
+            >
+              {savingEdit ? "Saving…" : "Save"}
+            </button>
+            <button
+              onClick={() => { setEditing(false); setEditError(null); }}
+              className="text-xs transition-colors hover:text-white"
+              style={{ color: "#5A5A70" }}
+            >
+              Cancel
+            </button>
+            {editError && <span className="text-xs" style={{ color: "#EF4444" }}>{editError}</span>}
+          </div>
+        </div>
+      )}
+
       <p className="text-xs mt-1 mb-4" style={{ color: "#9090A8" }}>
         {allActive
           ? "Industry support active across all 8 verticals"

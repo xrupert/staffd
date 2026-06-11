@@ -19,6 +19,7 @@
 import { getAgent, type Department } from "@staffd/agents";
 import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
 import { resolveDepartments } from "../../trial";
+import { bridgingIndustryFor } from "../../industry";
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../pb";
 import { callLLM } from "../llm";
 import { policyFor } from "../policies";
@@ -142,7 +143,7 @@ export async function handleSynthesize(req: OrchestratorRequest): Promise<Orches
     ? await fetchVault(req.pbToken, req.userId, { clientId: req.clientId })
     : null;
   const trialState = req.userId
-    ? await resolveDepartments(req.userId, { vaultIndustry: vault?.industry })
+    ? await resolveDepartments(req.userId, { vaultIndustry: bridgingIndustryFor(vault) })
     : null;
   const resolvedDepts = trialState?.resolved ?? [];
 

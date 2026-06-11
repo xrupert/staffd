@@ -8,6 +8,7 @@
 import { getAgent } from "@staffd/agents";
 import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
 import { resolveDepartments } from "../../trial";
+import { bridgingIndustryFor } from "../../industry";
 import { callLLM } from "../llm";
 import { policyFor } from "../policies";
 import { degradedFor } from "../fallbacks";
@@ -60,7 +61,7 @@ export async function handleHandoff(req: OrchestratorRequest): Promise<Orchestra
     ? await fetchVault(req.pbToken, req.userId, { clientId: req.clientId })
     : null;
   const [trialState, voiceBlock] = await Promise.all([
-    req.userId ? resolveDepartments(req.userId, { vaultIndustry: vault?.industry }) : Promise.resolve(null),
+    req.userId ? resolveDepartments(req.userId, { vaultIndustry: bridgingIndustryFor(vault) }) : Promise.resolve(null),
     getVoiceBlock(req.userId, ctx.sourceDoc?.department),
   ]);
   const unlockedDepts = trialState?.resolved.length ? trialState.resolved : ["marketing","sales","legal"];

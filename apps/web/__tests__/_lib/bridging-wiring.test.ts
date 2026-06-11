@@ -41,6 +41,10 @@ describe("W58.2 — vaultIndustry pass-through wiring", () => {
       // Every resolveDepartments call in the file carries the opts object.
       const bareCalls = source.match(/resolveDepartments\((?:[^,)]+)\)/g) ?? [];
       expect(bareCalls, `${label} still has a bare resolveDepartments(userId) call: ${bareCalls.join(" | ")}`).toHaveLength(0);
+      // W59 — every caller resolves through the single-owner helper
+      // (precedence + lazy migration), never raw vault?.industry.
+      expect(source, `${label} bypasses bridgingIndustryFor`).toContain("bridgingIndustryFor(");
+      expect(source, `${label} passes raw industry`).not.toMatch(/vaultIndustry:\s*(?:vault|biz|briefVault)\?\.industry/);
     });
   }
 

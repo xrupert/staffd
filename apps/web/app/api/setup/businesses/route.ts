@@ -10,6 +10,9 @@ const REQUIRED_FIELDS = [
   { name: "user",            type: "text", required: true },
   { name: "business_name",   type: "text", required: false },
   { name: "industry",        type: "text", required: false },
+  // W59 — structured industry category (one of the 8 pack ids or "other").
+  // Drives D-19 bridging; the free-text `industry` stays as vault context.
+  { name: "industry_category", type: "text", required: false },
   { name: "description",     type: "text", required: false },
   { name: "target_audience", type: "text", required: false },
   { name: "website",         type: "text", required: false },

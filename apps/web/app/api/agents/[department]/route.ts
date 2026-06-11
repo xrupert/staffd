@@ -2,6 +2,7 @@ import { getDepartmentAgents } from "@staffd/agents";
 import type { Department } from "@staffd/agents";
 import { resolveDepartments } from "../../_lib/trial";
 import { getAdminToken, pbEscape, pbFirst } from "../../_lib/pb";
+import { bridgingIndustryFor } from "../../_lib/industry";
 
 export async function GET(
   req: Request,
@@ -23,12 +24,12 @@ export async function GET(
       let vaultIndustry: string | undefined;
       try {
         const token = await getAdminToken();
-        const biz = await pbFirst<{ industry?: string }>(
+        const biz = await pbFirst<{ id?: string; industry?: string; industry_category?: string }>(
           "businesses",
           `(user='${pbEscape(userId)}')`,
           token
         );
-        vaultIndustry = biz?.industry;
+        vaultIndustry = bridgingIndustryFor(biz);
       } catch {
         /* no industry — bridging silently skipped */
       }

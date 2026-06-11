@@ -11,6 +11,7 @@
 
 import { getAgent, getDepartmentAgents, routeTask, resolveIndustryToPackId, type Department, type IndustryPack } from "@staffd/agents";
 import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
+import { bridgingIndustryFor, resolveBridgingIndustry } from "../../industry";
 import { resolveDepartments } from "../../trial";
 import { callLLM } from "../llm";
 import { policyFor } from "../policies";
@@ -97,7 +98,7 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
     ? await fetchVault(req.pbToken, req.userId, { clientId: req.clientId })
     : null;
   const trialState = req.userId
-    ? await resolveDepartments(req.userId, { vaultIndustry: vault?.industry })
+    ? await resolveDepartments(req.userId, { vaultIndustry: bridgingIndustryFor(vault) })
     : null;
 
   const unlockedDepts = trialState?.resolved.length ? trialState.resolved : ["marketing","sales","legal"];
@@ -106,7 +107,8 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   // W58 (D-19) — resolve the free-text business industry to a pack id for
   // routing prioritization. Null (no match / no vault) → no boost, current
   // behavior preserved.
-  const userIndustry = resolveIndustryToPackId(vault?.industry);
+  // W59 (Decision 8) — boost resolution honors the structured category too.
+  const userIndustry = resolveIndustryToPackId(resolveBridgingIndustry(vault));
 
   // Hotfix bundle A1 — build the full roster of available specialists across
   // unlocked departments so the LLM can pick the right one BY NAME, not just

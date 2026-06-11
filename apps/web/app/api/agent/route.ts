@@ -9,6 +9,7 @@ import { enqueue } from "../_lib/vault/queue";
 import { runOrchestrator } from "../_lib/orchestrator";
 import { getVoiceBlock } from "../_lib/vault/voice";
 import { pickModel, callGroq, computeCostUsd } from "../_lib/llm-router";
+import { bridgingIndustryFor } from "../_lib/industry";
 import { trySuperAdminFromToken } from "../_lib/auth/super-admin";
 import { logSuperAdminUsage } from "../_lib/auth/super-admin-logging";
 import { ensureConversationThreadRow } from "../_lib/conversations";
@@ -179,7 +180,7 @@ export async function POST(req: Request) {
       : null;
     const [voiceBlock, trialStateForPacks] = await Promise.all([
       getVoiceBlock(userId, department),
-      userId ? resolveDepartments(userId, { vaultIndustry: vault?.industry }) : Promise.resolve(null),
+      userId ? resolveDepartments(userId, { vaultIndustry: bridgingIndustryFor(vault) }) : Promise.resolve(null),
     ]);
     const vaultBlock = renderVaultBlock(vault, { detail: "full" });
     const activePacks = trialStateForPacks?.activePacks ?? [];

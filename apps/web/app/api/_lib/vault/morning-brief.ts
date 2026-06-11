@@ -31,6 +31,7 @@ import { renderVaultBlock, retrieve, type Vault } from "../vault";
 import { getVoiceBlock } from "./voice";
 import { fetchRecentDecisions } from "./outcomes";
 import { resolveDepartments } from "../trial";
+import { bridgingIndustryFor } from "../industry";
 import { runOrchestrator } from "../orchestrator";
 import { pickModel, callGroq, computeCostUsd } from "../llm-router";
 import { sendPushToUser } from "../push";
@@ -133,7 +134,7 @@ async function runSection(input: SectionRunInput): Promise<BriefSection | null> 
     const vault = await fetchVaultAdmin(input.userId);
     const [voiceBlock, trial] = await Promise.all([
       getVoiceBlock(input.userId, input.department),
-      resolveDepartments(input.userId, { vaultIndustry: vault?.industry }),
+      resolveDepartments(input.userId, { vaultIndustry: bridgingIndustryFor(vault) }),
     ]);
     const vaultBlock = renderVaultBlock(vault, { detail: "full" });
 
@@ -483,7 +484,7 @@ export async function generateBriefForUser(userId: string, opts?: { force?: bool
   // gating, pack-independent), but bridging keeps trial state uniform
   // across all callers. Vault is loaded again per-section in runSection.
   const briefVault = await fetchVaultAdmin(userId);
-  const trial = await resolveDepartments(userId, { vaultIndustry: briefVault?.industry });
+  const trial = await resolveDepartments(userId, { vaultIndustry: bridgingIndustryFor(briefVault) });
   const unlocked = new Set(trial.resolved);
 
   const tasks: Array<Promise<BriefSection | null>> = [];

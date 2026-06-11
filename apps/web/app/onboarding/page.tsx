@@ -4,6 +4,9 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import pb from "../../lib/pb";
+import IndustryCategoryPicker from "../components/IndustryCategoryPicker";
+import { type IndustryCategoryId } from "../../lib/industry-categories";
+import { resolveIndustryToPackId } from "@staffd/agents";
 
 const TOTAL_STEPS = 6;
 
@@ -67,6 +70,7 @@ function computeRecommended(focus: string, bottlenecks: string[]): string[] {
 interface PrefillData {
   business_name?: string;
   industry?: string;
+  industry_category?: string;
   description?: string;
   target_audience?: string;
 }
@@ -80,6 +84,12 @@ export default function OnboardingPage() {
   const [prefillLoading, setPrefillLoading] = useState(false);
   const [prefillError, setPrefillError] = useState("");
   const [prefillData, setPrefillData] = useState<PrefillData | null>(null);
+
+  // W59 — structured industry capture (chip picker, required) + optional
+  // free-text detail. The picker drives D-19 pack bridging; the detail
+  // augments vault context.
+  const [industryCategory, setIndustryCategory] = useState<IndustryCategoryId | "">("");
+  const [industryDetail, setIndustryDetail] = useState("");
 
   // Steps 2–6
   const [focus, setFocus] = useState("");
@@ -104,6 +114,12 @@ export default function OnboardingPage() {
       const data = await res.json() as PrefillData & { error?: string };
       if (!res.ok) throw new Error(data.error ?? "Failed to fetch");
       setPrefillData(data);
+      // W59 — auto-select the category chip when the scrape's industry
+      // resolves (prefill route also sends industry_category directly).
+      const scraped = (data.industry_category as IndustryCategoryId | undefined)
+        ?? resolveIndustryToPackId(data.industry) ?? undefined;
+      if (scraped) setIndustryCategory(scraped);
+      if (data.industry && !industryDetail) setIndustryDetail(data.industry);
     } catch (err) {
       setPrefillError(err instanceof Error ? err.message : "Could not pull info. You can fill in manually later.");
     } finally {
@@ -118,7 +134,7 @@ export default function OnboardingPage() {
   }
 
   function canAdvance() {
-    if (step === 1) return true; // website step is optional
+    if (step === 1) return !!industryCategory; // W59 — picker required; website still optional
     if (step === 2) return !!focus;
     if (step === 3) return bottlenecks.length > 0;
     if (step === 4) return !!situation;
@@ -147,7 +163,8 @@ export default function OnboardingPage() {
           recommended_departments: rec,
           website: normalizedUrl,
           business_name: prefillData?.business_name ?? "",
-          industry: prefillData?.industry ?? "",
+          industry: industryDetail || (prefillData?.industry ?? ""),
+          industry_category: industryCategory || "other",
           description: prefillData?.description ?? "",
           target_audience: prefillData?.target_audience ?? "",
         };
@@ -253,11 +270,6 @@ export default function OnboardingPage() {
                       onChange={(v) => setPrefillData((d) => d ? { ...d, business_name: v } : d)}
                     />
                     <OnboardingField
-                      label="Industry / What you do"
-                      value={prefillData.industry ?? ""}
-                      onChange={(v) => setPrefillData((d) => d ? { ...d, industry: v } : d)}
-                    />
-                    <OnboardingField
                       label="Description"
                       value={prefillData.description ?? ""}
                       onChange={(v) => setPrefillData((d) => d ? { ...d, description: v } : d)}
@@ -273,9 +285,28 @@ export default function OnboardingPage() {
 
                 {!prefillData && !prefillLoading && (
                   <p className="text-xs text-center" style={{ color: "#3A3A50" }}>
-                    No website yet? Hit Continue — you can add business details in the Vault later.
+                    No website yet? Pick your business type below — you can add details in the Vault later.
                   </p>
                 )}
+
+                {/* W59 — structured industry capture. Always visible (the
+                    website step is optional, so this is the one guaranteed
+                    industry signal). Required to continue; "Other" is
+                    always available — never a dead-end. */}
+                <div className="flex flex-col gap-3">
+                  <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>
+                    What kind of business do you run?
+                  </p>
+                  <IndustryCategoryPicker
+                    value={industryCategory}
+                    onChange={setIndustryCategory}
+                  />
+                  <OnboardingField
+                    label="Anything else about your business? (optional)"
+                    value={industryDetail}
+                    onChange={setIndustryDetail}
+                  />
+                </div>
               </div>
             </Step>
           )}

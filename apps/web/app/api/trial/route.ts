@@ -8,6 +8,7 @@
 
 import { resolveDepartments, recordTrialRun } from "../_lib/trial";
 import { getAdminToken, pbEscape, pbFirst } from "../_lib/pb";
+import { bridgingIndustryFor } from "../_lib/industry";
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -20,12 +21,12 @@ export async function GET(req: Request) {
     let vaultIndustry: string | undefined;
     try {
       const token = await getAdminToken();
-      const biz = await pbFirst<{ industry?: string }>(
+      const biz = await pbFirst<{ id?: string; industry?: string; industry_category?: string }>(
         "businesses",
         `(user='${pbEscape(userId)}')`,
         token
       );
-      vaultIndustry = biz?.industry;
+      vaultIndustry = bridgingIndustryFor(biz);
     } catch {
       /* no industry — bridging silently skipped */
     }

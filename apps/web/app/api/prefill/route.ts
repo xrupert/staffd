@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { resolveIndustryToPackId } from "@staffd/agents";
 
 const anthropic = new Anthropic();
 
@@ -66,7 +67,10 @@ Return ONLY the JSON object. No explanation, no markdown, no code fences.`,
       target_audience?: string;
     };
 
-    return Response.json(data);
+    // W59 — when the scraped industry phrase resolves to a known category,
+    // send it along so onboarding pre-selects the matching chip.
+    const industry_category = resolveIndustryToPackId(data.industry);
+    return Response.json(industry_category ? { ...data, industry_category } : data);
   } catch (err) {
     console.error("Prefill error:", err);
     return Response.json(

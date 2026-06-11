@@ -14,8 +14,13 @@
 import { pbUrl, pbEscape } from "../pb";
 
 export type Vault = {
+  id?: string;
   business_name?: string;
   industry?: string;
+  /** W59 — structured industry category (pack id or "other"). Drives D-19
+   *  bridging via resolveBridgingIndustry; free-text `industry` stays the
+   *  richer LLM context (prompt renderers unchanged by design). */
+  industry_category?: string;
   description?: string;
   target_audience?: string;
   website?: string;
