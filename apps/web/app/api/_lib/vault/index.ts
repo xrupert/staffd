@@ -34,6 +34,21 @@ export type Vault = {
   superpower?: string;
   bottlenecks?: string[];
   magic_wand?: string;
+  // W50 — Vault expansion (D-21 substrate)
+  brand_voice?: string;
+  brand_tone?: string;
+  brand_visuals?: string;
+  messaging_pillars?: string;
+  hard_nos?: string;
+  customer_profile?: string;
+  positioning?: string;
+  service_area?: string;
+  avg_ticket?: string;
+  lead_sources?: string;
+  seasonality?: string;
+  review_count?: number;
+  review_rating?: number;
+  review_platform?: string;
   // raw PocketBase metadata may also be present
   [k: string]: unknown;
 };
@@ -158,6 +173,25 @@ export function vaultLines(vault: Vault | null): string[] {
     lines.push(`Key bottlenecks: ${vault.bottlenecks.map((b) => BOTTLENECK_LABELS[b] ?? b).join(", ")}`);
   }
   if (vault.magic_wand) lines.push(`What they most want off their plate: ${vault.magic_wand}`);
+
+  // W50 — expanded business profile. Operator-curated context that makes
+  // specialist work sharper; every field optional, surfaced only when set.
+  if (vault.brand_voice)       lines.push(`Brand voice: ${vault.brand_voice}`);
+  if (vault.brand_tone)        lines.push(`Brand tone: ${vault.brand_tone}`);
+  if (vault.brand_visuals)     lines.push(`Brand visuals: ${vault.brand_visuals}`);
+  if (vault.messaging_pillars) lines.push(`Messaging pillars: ${vault.messaging_pillars}`);
+  if (vault.hard_nos)          lines.push(`Hard nos (never say, do, or claim): ${vault.hard_nos}`);
+  if (vault.customer_profile)  lines.push(`Customer profile: ${vault.customer_profile}`);
+  if (vault.positioning)       lines.push(`Positioning vs competitors: ${vault.positioning}`);
+  if (vault.service_area)      lines.push(`Service area: ${vault.service_area}`);
+  if (vault.avg_ticket)        lines.push(`Average ticket / job size: ${vault.avg_ticket}`);
+  if (vault.lead_sources)      lines.push(`Lead sources: ${vault.lead_sources}`);
+  if (vault.seasonality)       lines.push(`Seasonality / capacity: ${vault.seasonality}`);
+  if (typeof vault.review_count === "number" && vault.review_count > 0) {
+    const rating = typeof vault.review_rating === "number" ? ` averaging ${vault.review_rating}/5` : "";
+    const platform = vault.review_platform ? ` on ${vault.review_platform}` : "";
+    lines.push(`Reviews: ${vault.review_count}${rating}${platform}`);
+  }
   return lines;
 }
 

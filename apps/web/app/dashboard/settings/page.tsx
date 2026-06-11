@@ -8,6 +8,7 @@ import ConnectedAccounts from "../../components/ConnectedAccounts";
 import VoiceProfilePanel from "../../components/VoiceProfilePanel";
 import PushNotificationsToggle from "../../components/PushNotificationsToggle";
 import IndustryPacksPanel from "../../components/IndustryPacksPanel";
+import VaultEditor from "../../components/VaultEditor";
 import AutopilotControlsPanel from "../../components/AutopilotControlsPanel";
 import BriefPreferencesPanel from "../../components/BriefPreferencesPanel";
 
@@ -196,6 +197,9 @@ export default function SettingsPage() {
 
         {/* Push notifications (Phase 7) */}
         <PushNotificationsToggle />
+
+        {/* W50 — expanded business profile (D-21 substrate) */}
+        <VaultEditor />
 
         {/* Industry packs (Phase 8) */}
         <IndustryPacksPanel />

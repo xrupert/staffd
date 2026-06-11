@@ -26,6 +26,27 @@ const REQUIRED_FIELDS = [
   { name: "superpower",      type: "text", required: false },
   { name: "bottlenecks",     type: "json", required: false },
   { name: "magic_wand",      type: "text", required: false },
+
+  // W50 — Vault expansion (D-21 substrate). All optional; flat schema,
+  // categories are UI-only in the Business Profile editor.
+  // Brand & Voice
+  { name: "brand_voice",       type: "text",   required: false },
+  { name: "brand_tone",        type: "text",   required: false },
+  { name: "brand_visuals",     type: "text",   required: false },
+  { name: "messaging_pillars", type: "text",   required: false },
+  { name: "hard_nos",          type: "text",   required: false },
+  // Customer & Market
+  { name: "customer_profile",  type: "text",   required: false },
+  { name: "positioning",       type: "text",   required: false },
+  { name: "service_area",      type: "text",   required: false },
+  // Operations
+  { name: "avg_ticket",        type: "text",   required: false },
+  { name: "lead_sources",      type: "text",   required: false },
+  { name: "seasonality",       type: "text",   required: false },
+  // Reputation
+  { name: "review_count",      type: "number", required: false },
+  { name: "review_rating",     type: "number", required: false },
+  { name: "review_platform",   type: "text",   required: false },
 ];
 
 async function getAdminToken(pbUrl: string): Promise<string> {
