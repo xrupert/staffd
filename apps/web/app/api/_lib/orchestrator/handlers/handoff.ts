@@ -5,10 +5,11 @@
  * source-document grounding.
  */
 
-import { getAgent } from "@staffd/agents";
+import { getAgent, resolveIndustryToPackId } from "@staffd/agents";
 import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
 import { resolveDepartments } from "../../trial";
-import { bridgingIndustryFor } from "../../industry";
+import { bridgingIndustryFor, resolveBridgingIndustry } from "../../industry";
+import { analyzeOutput } from "../analyzer";
 import { callLLM } from "../llm";
 import { policyFor } from "../policies";
 import { degradedFor } from "../fallbacks";
@@ -114,11 +115,34 @@ HANDOFFS:[{"department":"<dept>","task":"<specific next-step task>","rationale":
   }
 
   const system = `${baseSystem}\n\n${protocol}${renderVaultBlock(vault, { detail: "full" })}${voiceBlock}${memoryBlock}`;
-  const result = await callLLM({
-    intent: "handoff",
-    system,
-    messages: [{ role: "user", content: userMsg }],
-  });
+
+  // W62 — the platform-action axis runs in parallel with the FollowUp LLM
+  // call (zero added wall time; analyzer deadline 4s < handoff deadline 6s).
+  // Never throws — failure yields [] and the FollowUps proceed untouched.
+  // D-19 slim context per Decision 7: pack id + 3 business-profile lines.
+  const analyzerPromise: Promise<import("../action-vocabulary").ActionCandidate[]> =
+    ctx.sourceDoc?.outputExcerpt
+      ? analyzeOutput({
+          output: ctx.sourceDoc.outputExcerpt,
+          prompt: ctx.sourceDoc.prompt ?? "",
+          department: ctx.sourceDoc.department ?? "unknown",
+          industryContext: {
+            pack: resolveIndustryToPackId(resolveBridgingIndustry(vault)),
+            positioning: vault?.positioning,
+            hardNos: vault?.hard_nos,
+            serviceArea: vault?.service_area,
+          },
+        })
+      : Promise.resolve([]);
+
+  const [result, actionCandidates] = await Promise.all([
+    callLLM({
+      intent: "handoff",
+      system,
+      messages: [{ role: "user", content: userMsg }],
+    }),
+    analyzerPromise,
+  ]);
 
   if (!result.ok) {
     return {
@@ -138,7 +162,7 @@ HANDOFFS:[{"department":"<dept>","task":"<specific next-step task>","rationale":
       ok: false,
       intent: "handoff",
       fallback: "upstream_error",
-      degraded: degradedFor("handoff", { sourceDoc: ctx.sourceDoc, unlockedDepts }),
+      degraded: { ...degradedFor("handoff", { sourceDoc: ctx.sourceDoc, unlockedDepts }), actionCandidates },
       vaultCostFlag: retrieval.costFlag,
       latencyMs: result.latencyMs,
       attempts: result.attempts,
@@ -150,6 +174,7 @@ HANDOFFS:[{"department":"<dept>","task":"<specific next-step task>","rationale":
     intent: "handoff",
     decision: { rationale: "Cross-functional next steps." },
     followUps,
+    actionCandidates,
     vaultCostFlag: retrieval.costFlag,
     latencyMs: result.latencyMs,
     attempts: result.attempts,

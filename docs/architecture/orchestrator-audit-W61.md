@@ -40,6 +40,7 @@ this document freezes the audit.
 | File | Why it's direct | Own guardrails |
 |---|---|---|
 | `app/api/_lib/orchestrator/llm.ts` | IS the guardrail wrapper | deadlines, retries, budget, trim ladder |
+| `app/api/_lib/orchestrator/analyzer.ts` | W62 — classifier for the D-21 action vocabulary (SA ruling H5; 9th audited site) | Haiku; 4s deadline; 1 retry; structured JSON output; vocabulary-enforced + threshold-gated server-side; empty-result fallback |
 | `app/api/agent/route.ts` | Specialist execution tier (§5, by design) — the only **true token streaming** call (`messages.stream`) + Groq cost-routing via `pickModel`/`callGroq` | rate limit, trial gate, 8192 max_tokens |
 | `app/api/integrations/muapi/route.ts` | Generation-tier prompt distillation (Decision 7 boundary) | credit pre-flight, 402 |
 | `app/api/prefill/route.ts` | Onboarding extraction (Haiku, tiny scoped helper) | 8s site-fetch timeout |

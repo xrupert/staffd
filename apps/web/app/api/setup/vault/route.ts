@@ -24,6 +24,9 @@ type FieldDef = { name: string; type: string; required?: boolean };
 const DOCUMENTS_AUGMENT: FieldDef[] = [
   { name: "summary", type: "text",   required: false }, // ≤600 chars
   { name: "tokens",  type: "number", required: false },
+  // W62 — validated, threshold-gated platform-action candidates
+  // ([{id, confidence, reason, params?}]) written by /api/handoff/suggest.
+  { name: "action_candidates", type: "json", required: false },
 ];
 
 const EMBEDDINGS_INDEX_FIELDS: FieldDef[] = [

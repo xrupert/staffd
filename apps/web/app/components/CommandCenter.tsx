@@ -317,6 +317,7 @@ export default function CommandCenter() {
     userGoal: string,
     userId: string,
     pbToken: string,
+    documentIdPromise?: Promise<string | undefined>,
   ): Promise<void> {
     try {
       const res = await fetch("/api/handoff/suggest", {
@@ -325,6 +326,7 @@ export default function CommandCenter() {
         body: JSON.stringify({
           userId,
           pbToken,
+          documentId: await documentIdPromise?.catch(() => undefined),
           sourceDoc: {
             department,
             prompt: task,
@@ -362,7 +364,7 @@ export default function CommandCenter() {
     output: string,
     userId: string,
     agentId?: string
-  ) {
+  ): Promise<string | undefined> {
     try {
       let agentName = DEPT_LABELS[department] ?? department;
       if (agentId) {
@@ -391,8 +393,10 @@ export default function CommandCenter() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ docId: rec.id, kind: "document", pbToken: pb.authStore.token }),
       }).catch(() => {});
+      return rec.id;
     } catch (err) {
       console.error("[W49] Command Center document save failed:", err);
+      return undefined;
     }
   }
 
@@ -410,6 +414,7 @@ export default function CommandCenter() {
     // `completedOutput.length > 50` always fails and the handoff fetch
     // never fires — the visible W28 symptom.
     let streamedResult = "";
+    let savedDocIdPromise: Promise<string | undefined> | undefined;
 
     try {
       const activeClientId = typeof window !== "undefined"
@@ -457,7 +462,9 @@ export default function CommandCenter() {
       // W49 (GAP #2) — success path only (Decision 3: failed generations
       // don't persist; the catch below never reaches this line).
       if (streamedResult.trim().length > 0 && userId) {
-        void saveGeneratedDocument(department, task, streamedResult, userId, agentId);
+        // W62 — capture the save promise so the handoff request can carry
+        // the document id (server persists action_candidates onto it).
+        savedDocIdPromise = saveGeneratedDocument(department, task, streamedResult, userId, agentId);
       }
     } catch {
       setMessages((prev) => {
@@ -494,7 +501,7 @@ export default function CommandCenter() {
         completedOutput.length > 50 &&
         !isAgentAskingQuestion(completedOutput)
       ) {
-        void fetchHandoffSuggestions(department, task, completedOutput, userGoal, userId, pbToken);
+        void fetchHandoffSuggestions(department, task, completedOutput, userGoal, userId, pbToken, savedDocIdPromise);
       }
     }
   }

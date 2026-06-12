@@ -17,9 +17,11 @@ import { join, relative } from "path";
 
 const WEB_ROOT = join(__dirname, "..", "..");
 
-/** The audited allowlist — W61 Phase A §A, SA-affirmed (W61′ ruling H1). */
+/** The audited allowlist — W61 Phase A §A, SA-affirmed (W61′ ruling H1).
+ *  W62 added analyzer.ts as the 9th site (SA ruling H5). */
 const SDK_ALLOWLIST = new Set([
   "app/api/_lib/orchestrator/llm.ts",        // the guardrail wrapper
+  "app/api/_lib/orchestrator/analyzer.ts",   // W62 action classifier (Haiku, 4s, 1 retry, vocabulary-enforced)
   "app/api/agent/route.ts",                  // specialist execution tier (§5, by design)
   "app/api/integrations/muapi/route.ts",     // generation tier distillation (§5, by design)
   "app/api/prefill/route.ts",                // §5 exemption 5

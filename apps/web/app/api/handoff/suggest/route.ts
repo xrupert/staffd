@@ -23,8 +23,31 @@
  * 6 s, retries 0. Spec §B5 acceptance #3.
  */
 
-import { pbUrl } from "../../_lib/pb";
+import { adminHeaders, getAdminToken, pbUrl } from "../../_lib/pb";
 import { runOrchestrator } from "../../_lib/orchestrator";
+import type { ActionCandidate } from "../../_lib/orchestrator/types";
+
+/**
+ * W62 — persist the analyzer's action candidates onto the source document
+ * so W63 (UI) and W65 (threading) can read them alongside the work.
+ * Fire-and-forget admin PATCH; an empty array is persisted deliberately
+ * ("analyzed, nothing applies" is a distinct state from "never analyzed").
+ */
+async function persistActionCandidates(documentId: string, candidates: ActionCandidate[]): Promise<void> {
+  try {
+    const token = await getAdminToken();
+    const res = await fetch(`${pbUrl()}/api/collections/documents/records/${encodeURIComponent(documentId)}`, {
+      method: "PATCH",
+      headers: adminHeaders(token),
+      body: JSON.stringify({ action_candidates: candidates }),
+    });
+    if (!res.ok) {
+      console.warn(`[W62] action_candidates persist failed doc=${documentId} status=${res.status}`);
+    }
+  } catch (err) {
+    console.warn("[W62] action_candidates persist failed:", err);
+  }
+}
 
 const OUTPUT_EXCERPT_CHARS = 1200;
 
@@ -90,6 +113,16 @@ export async function POST(req: Request) {
     clientId,
     context: { sourceDoc, query },
   });
+
+  // W62 — when the caller identified the source document, persist the
+  // platform-action candidates onto it (success or parse-degraded — the
+  // analysis axis is independent of the FollowUp parse).
+  if (documentId) {
+    const candidates = response.ok
+      ? response.actionCandidates
+      : response.degraded.actionCandidates;
+    if (candidates) void persistActionCandidates(documentId, candidates);
+  }
 
   return Response.json(response);
 }

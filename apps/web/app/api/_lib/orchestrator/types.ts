@@ -33,6 +33,11 @@ export type FollowUp = {
   locked?: boolean;         // surface as upsell trigger if true
 };
 
+// W62 — the platform-action axis (orthogonal to FollowUps' department
+// axis). Produced by the analyzer alongside intent=handoff.
+import type { ActionCandidate } from "./action-vocabulary";
+export type { ActionCandidate } from "./action-vocabulary";
+
 /**
  * Envelope returned by every handler. Spec §B1: "Same envelope for every
  * intent — consumers branch on `ok`."
@@ -48,6 +53,8 @@ export type OrchestratorResponse =
       intent: OrchestratorIntent;
       decision: OrchestratorDecision;
       followUps?: FollowUp[];
+      /** W62 — validated, threshold-gated platform-action candidates. */
+      actionCandidates?: ActionCandidate[];
       notes?: string;
       vaultCostFlag?: "ok" | "trimmed" | "degraded";
       latencyMs: number;
@@ -63,7 +70,7 @@ export type OrchestratorResponse =
       ok: false;
       intent: OrchestratorIntent;
       fallback: FallbackReason;
-      degraded: OrchestratorDecision & { followUps?: FollowUp[]; notes?: string };
+      degraded: OrchestratorDecision & { followUps?: FollowUp[]; actionCandidates?: ActionCandidate[]; notes?: string };
       vaultCostFlag?: "ok" | "trimmed" | "degraded";
       latencyMs: number;
       attempts: number;
