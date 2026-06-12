@@ -10,6 +10,7 @@ import ActionAffordances from "./ActionAffordances";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
+import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
 import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
@@ -142,6 +143,9 @@ export default function CommandCenter() {
   // scroll position belongs to the user — no auto-follow anywhere.
   const responseStartRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // W64 B2 (D13) — shared schedule_followup modal state.
+  const [followupOpen, setFollowupOpen] = useState(false);
+  const [followupSeed, setFollowupSeed] = useState("");
 
   useEffect(() => {
     setThreadId(loadOrCreateThreadId());
@@ -158,7 +162,73 @@ export default function CommandCenter() {
         setMessages((prev) => [...prev, { role: "assistant", content: msg }])
       );
     },
+    // W64 B2 (D12) — media generates via the same muapi route DeptRoom
+    // uses (credit gates ride along) and renders inline in the thread.
+    generate_image: () => { void generateInlineMedia("image"); },
+    generate_video: () => { void generateInlineMedia("video"); },
+    // W64 B2 (D13) — shared planned-follow-up modal.
+    schedule_followup: (candidate) => {
+      const suggested = typeof candidate.params?.task === "string" ? candidate.params.task : "";
+      setFollowupSeed(
+        suggested.trim() ||
+          `Follow up on this work and produce the next step:\n\n${(lastCompleted?.task ?? lastCompleted?.output ?? "").slice(0, 400)}`
+      );
+      setFollowupOpen(true);
+    },
+    // W64 B2 — W35 one-click: user's chip click IS the consent, so the
+    // direct-execute path (skipConfirm + preselect) routes straight to the
+    // Email Marketer with the completed work as context.
+    draft_email: () => {
+      const sourceOutput = lastCompleted?.output ?? "";
+      if (!sourceOutput.trim()) {
+        console.warn("[W64] draft_email with no completed output — noop");
+        return;
+      }
+      const preview = sourceOutput.length > 1200 ? sourceOutput.slice(0, 1200) + "…" : sourceOutput;
+      void send(
+        `Draft the email announcing this work to our audience:\n\n---\n${preview}\n---`,
+        { skipConfirm: true, preselectDept: "marketing", preselectAgent: "marketing-email-marketer" }
+      );
+    },
   });
+
+  // W64 B2 (D12) — inline media generation for the Command Center thread.
+  // Same /api/integrations/muapi contract as DeptRoom (503 unconfigured,
+  // 402 out of credits, else {url}); result lands as markdown in an
+  // assistant message so ReactMarkdown renders the image inline.
+  async function generateInlineMedia(kind: "image" | "video") {
+    const prompt = lastCompleted?.output ?? "";
+    if (!prompt.trim()) {
+      console.warn(`[W64] generate_${kind} with no completed output — noop`);
+      return;
+    }
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId) return;
+    const label = kind === "image" ? "visual" : "video";
+    setMessages((prev) => [...prev, { role: "assistant", content: `Generating the ${label} — one moment…` }]);
+    try {
+      const res = await fetch("/api/integrations/muapi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, kind, prompt, aspectRatio: "16:9" }),
+      });
+      const data = (await res.json()) as { url?: string; message?: string; error?: string; detail?: string };
+      if (!res.ok || !data.url) {
+        const reason = data.message ?? data.detail ?? data.error ?? `Couldn't generate the ${label} — try again.`;
+        setMessages((prev) => [...prev, { role: "assistant", content: reason }]);
+        return;
+      }
+      const media = kind === "image"
+        ? `![Generated visual](${data.url})`
+        : `Your video is ready: [▶ Watch it here](${data.url})`;
+      setMessages((prev) => [...prev, { role: "assistant", content: media }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: `Couldn't reach the generation service: ${err instanceof Error ? err.message : String(err)}`,
+      }]);
+    }
+  }
 
   // PR-Tranche-2.6.5 (W39) — derived state: is the agent's most recent
   // assistant message a clarifying question? Drives placeholder switch +
@@ -876,6 +946,14 @@ export default function CommandCenter() {
           </div>
         </div>
       </div>
+
+      <ScheduleFollowupModal
+        open={followupOpen}
+        onClose={() => setFollowupOpen(false)}
+        department={lastCompleted?.department ?? "marketing"}
+        agentName={DEPT_LABELS[lastCompleted?.department ?? ""] ?? "Your team"}
+        seedTask={followupSeed}
+      />
     </div>
   );
 }

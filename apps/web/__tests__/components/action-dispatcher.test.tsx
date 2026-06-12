@@ -214,10 +214,8 @@ describe("DepartmentRoom wiring pins (W64 B1)", () => {
     expect(src).toContain("void runExportDocument(output, businessName || undefined");
   });
 
-  it("registers no publish_social / schedule_followup / draft_email handler (B2 scope + D8′)", () => {
+  it("registers no publish_social handler (D8′ — vendor-blocked, hidden, W17 tracker)", () => {
     expect(src).not.toContain("publish_social:");
-    expect(src).not.toContain("schedule_followup:");
-    expect(src).not.toContain("draft_email:");
   });
 
   it("D10'' conditional dedup — static image/video buttons hidden when a dynamic chip covers them", () => {
@@ -242,11 +240,13 @@ describe("DepartmentRoom wiring pins (W64 B1)", () => {
 describe("CommandCenter wiring pins (W64 B1)", () => {
   const src = readFileSync(join(COMPONENTS, "CommandCenter.tsx"), "utf8");
 
-  it("mounts the dispatcher with export_document only (image/video/schedule are B2)", () => {
+  it("mounts the dispatcher with all five handlers — publish_social stays handlerless (D8′)", () => {
     expect(src).toContain("useActionDispatcher({");
     expect(src).toContain("export_document: () => {");
-    expect(src).not.toContain("generate_image:");
-    expect(src).not.toContain("generate_video:");
+    expect(src).toContain('generate_image: () => { void generateInlineMedia("image"); }');
+    expect(src).toContain('generate_video: () => { void generateInlineMedia("video"); }');
+    expect(src).toContain("schedule_followup: (candidate) => {");
+    expect(src).toContain("draft_email: () => {");
     expect(src).not.toContain("publish_social:");
   });
 
@@ -270,6 +270,69 @@ describe("HandoffPanel — additive onCandidates prop (render untouched)", () =>
 
   it("W63 visible-candidates render path preserved", () => {
     expect(src).toContain("const visibleCandidates = actionCandidates");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W64 B2 wiring pins
+// ---------------------------------------------------------------------------
+
+describe("DepartmentRoom B2 pins — schedule + email + remaining dedup", () => {
+  const src = readFileSync(join(COMPONENTS, "DepartmentRoom.tsx"), "utf8");
+
+  it("schedule_followup opens the shared modal, seeded from classifier params or source work (D13)", () => {
+    expect(src).toContain("schedule_followup: (candidate) => {");
+    expect(src).toContain('typeof candidate.params?.task === "string"');
+    expect(src).toContain("setFollowupOpen(true)");
+    expect(src).toContain("<ScheduleFollowupModal");
+  });
+
+  it("draft_email deep-links to marketing via the existing handoff seam, guarded on savedDocId", () => {
+    expect(src).toContain('handoffToDepartment("marketing")');
+    expect(src).toContain("[W64] draft_email needs a saved document — noop");
+  });
+
+  it("D10'' remaining dedup — docx export + schedule static buttons suppress under dynamic chips", () => {
+    expect(src).toContain('{!dynamicActions.has("export_document") && (');
+    expect(src).toContain('{output && !dynamicActions.has("schedule_followup") && (');
+  });
+
+  it("exactly four dedup sites (image/video/export/schedule) — Save PDF stays static-only", () => {
+    expect(src).toContain("window.print()");
+    expect((src.match(/dynamicActions\.has\(/g) ?? []).length).toBe(4);
+  });
+});
+
+describe("CommandCenter B2 pins — inline media + schedule + W35 email", () => {
+  const src = readFileSync(join(COMPONENTS, "CommandCenter.tsx"), "utf8");
+
+  it("inline media uses the same muapi route as DeptRoom (credit gates ride along)", () => {
+    expect(src).toContain('fetch("/api/integrations/muapi"');
+    expect(src).toContain('body: JSON.stringify({ userId, kind, prompt, aspectRatio: "16:9" })');
+  });
+
+  it("D12 — image renders as markdown in the assistant thread; video as a link", () => {
+    expect(src).toContain("![Generated visual](");
+    expect(src).toContain("[▶ Watch it here](");
+  });
+
+  it("media failures land as plain assistant messages — no silent failure", () => {
+    expect(src).toContain("Couldn't generate the ${label} — try again.");
+    expect(src).toContain("Couldn't reach the generation service:");
+  });
+
+  it("schedule_followup opens the shared modal (D13)", () => {
+    expect(src).toContain("setFollowupOpen(true)");
+    expect(src).toContain("<ScheduleFollowupModal");
+  });
+
+  it("draft_email is W35 one-click direct-execute into the Email Marketer", () => {
+    expect(src).toContain('{ skipConfirm: true, preselectDept: "marketing", preselectAgent: "marketing-email-marketer" }');
+  });
+
+  it("draft_email / media noop with a warn when there is no completed output", () => {
+    expect(src).toContain("[W64] draft_email with no completed output — noop");
+    expect(src).toContain("[W64] generate_${kind} with no completed output — noop");
   });
 });
 

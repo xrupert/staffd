@@ -9,6 +9,7 @@ import { exportToDocx } from "./DocExport";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
+import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import { ACTION_UI, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 import VoiceInput from "./VoiceInput";
 import { getQuickActions } from "./agentQuickActions";
@@ -100,6 +101,10 @@ export default function DepartmentRoom({
   }> | null>(null);
   const [handoffLoading, setHandoffLoading] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
+  // W64 B2 (D13) — schedule_followup modal (status:'planned'; distinct from
+  // the status:'review' calendar modal above).
+  const [followupOpen, setFollowupOpen] = useState(false);
+  const [followupSeed, setFollowupSeed] = useState("");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleMsg, setScheduleMsg] = useState("");
@@ -465,6 +470,25 @@ export default function DepartmentRoom({
     generate_video: () => { void generateVideo(); },
     export_document: () => {
       void runExportDocument(output, businessName || undefined, (msg) => setScheduleMsg(msg));
+    },
+    // W64 B2 (D13) — editable planned follow-up; classifier may suggest the
+    // task via params, otherwise seed from the source work.
+    schedule_followup: (candidate) => {
+      const suggested = typeof candidate.params?.task === "string" ? candidate.params.task : "";
+      setFollowupSeed(
+        suggested.trim() ||
+          `Follow up on this work and produce the next step:\n\n${(task || output).slice(0, 400)}`
+      );
+      setFollowupOpen(true);
+    },
+    // W64 B2 — deep-link to marketing with the saved doc as prefill source
+    // (same seam as the "Send to…" handoff buttons).
+    draft_email: () => {
+      if (!savedDocId) {
+        console.warn("[W64] draft_email needs a saved document — noop");
+        return;
+      }
+      handoffToDepartment("marketing");
     },
   });
 
@@ -1360,6 +1384,7 @@ export default function DepartmentRoom({
                   >
                     Save PDF
                   </button>
+                  {!dynamicActions.has("export_document") && (
                   <button
                     onClick={() => void exportToDocx(output, businessName || undefined)}
                     className="text-xs font-semibold transition-colors hover:text-white"
@@ -1374,6 +1399,7 @@ export default function DepartmentRoom({
                   >
                     Download .docx
                   </button>
+                  )}
                   {savedDocId && (
                     <button
                       onClick={() => void copyShareLink()}
@@ -1407,7 +1433,7 @@ export default function DepartmentRoom({
                       Send to…
                     </button>
                   )}
-                  {output && (
+                  {output && !dynamicActions.has("schedule_followup") && (
                     <button
                       onClick={() => {
                         // Default to one week from today
@@ -1857,6 +1883,14 @@ export default function DepartmentRoom({
       )}
 
       {/* Schedule for review modal */}
+      <ScheduleFollowupModal
+        open={followupOpen}
+        onClose={() => setFollowupOpen(false)}
+        department={department}
+        agentName={activeAgent?.name ?? department}
+        seedTask={followupSeed}
+      />
+
       {showSchedule && (
         <div
           className="fixed inset-0 flex items-center justify-center z-50 px-4"
