@@ -8,6 +8,8 @@ import ThreadPickerDrawer, { type HydratedMessage } from "./ThreadPickerDrawer";
 import CommandCenterSuggestions from "./CommandCenterSuggestions";
 import ActionAffordances from "./ActionAffordances";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
+import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
+import { runExportDocument } from "../../lib/action-handlers/export-document";
 import VoiceInput from "./VoiceInput";
 import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
@@ -144,6 +146,19 @@ export default function CommandCenter() {
   useEffect(() => {
     setThreadId(loadOrCreateThreadId());
   }, []);
+
+  // W64 B1 (SA D3′) — wire W63's chips to real actions on this surface.
+  // Export uses the shared docx path with clipboard fallback; failures
+  // surface as a plain assistant message in the thread (Decision 6).
+  // image/video (inline-media render) + schedule + draft_email land in B2.
+  useActionDispatcher({
+    export_document: () => {
+      const content = lastCompleted?.output ?? "";
+      void runExportDocument(content, undefined, (msg) =>
+        setMessages((prev) => [...prev, { role: "assistant", content: msg }])
+      );
+    },
+  });
 
   // PR-Tranche-2.6.5 (W39) — derived state: is the agent's most recent
   // assistant message a clarifying question? Drives placeholder switch +

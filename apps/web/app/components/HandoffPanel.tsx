@@ -55,9 +55,12 @@ type Props = {
   sourceDepartment: string;
   /** Plain output text the prior generation produced — used as the handoff seed. */
   sourceText?: string;
+  /** W64 — reports the raw action candidates upward so the host surface
+   *  can apply D10′′ conditional dedup against its static buttons. */
+  onCandidates?: (candidates: ActionCandidate[]) => void;
 };
 
-export default function HandoffPanel({ documentId, sourceDepartment, sourceText }: Props) {
+export default function HandoffPanel({ documentId, sourceDepartment, sourceText, onCandidates }: Props) {
   const [followUps, setFollowUps] = useState<FollowUp[] | null>(null);
   // W63 — the platform-action axis from the same response.
   const [actionCandidates, setActionCandidates] = useState<ActionCandidate[]>([]);
@@ -93,9 +96,10 @@ export default function HandoffPanel({ documentId, sourceDepartment, sourceText 
         const data = await res.json();
         const items: FollowUp[] = data?.ok ? (data.followUps ?? []) : (data?.degraded?.followUps ?? []);
         setFollowUps(items);
-        setActionCandidates(
-          (data?.ok ? data.actionCandidates : data?.degraded?.actionCandidates) ?? []
-        );
+        const candidates =
+          (data?.ok ? data.actionCandidates : data?.degraded?.actionCandidates) ?? [];
+        setActionCandidates(candidates);
+        onCandidates?.(candidates);
       } catch {
         if (!cancelled) setError("network_error");
       } finally {

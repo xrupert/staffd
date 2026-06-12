@@ -7,6 +7,9 @@ import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
 import { exportToDocx } from "./DocExport";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
+import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
+import { runExportDocument } from "../../lib/action-handlers/export-document";
+import { ACTION_UI, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 import VoiceInput from "./VoiceInput";
 import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
@@ -115,6 +118,10 @@ export default function DepartmentRoom({
   // Thread Picker can recover the dept-specific conversation later.
   const [threadId, setThreadId] = useState<string>("");
   const outputRef = useRef<HTMLDivElement>(null);
+  // W64 (D10′′) — which dynamic action chips are currently rendered (from
+  // HandoffPanel's candidates). Drives conditional dedup of the static
+  // image/video buttons: suppressed only while a matching chip is live.
+  const [dynamicActions, setDynamicActions] = useState<Set<string>>(new Set());
   const rosterRef = useRef<HTMLDivElement>(null);
 
   // Per-department thread storage key. Each dept gets its own thread so
@@ -265,6 +272,7 @@ export default function DepartmentRoom({
 
     setError("");
     setLoading(true);
+    setDynamicActions(new Set()); // W64 D10'' — dedup resets per generation
     setIntegrationStatus("idle");
     setIntegrationMsg("");
     if (!isFollowUp) {
@@ -448,6 +456,17 @@ export default function DepartmentRoom({
       }
     } catch { /* proceed */ }
   }
+
+  // W64 B1 (SA D3′/D2) — the dispatcher wires W63's chips to the SAME
+  // functions the static buttons call. Closures over surface state; no
+  // duplicated backend paths. schedule/draft_email land in B2.
+  useActionDispatcher({
+    generate_image: () => { void generateImage(); },
+    generate_video: () => { void generateVideo(); },
+    export_document: () => {
+      void runExportDocument(output, businessName || undefined, (msg) => setScheduleMsg(msg));
+    },
+  });
 
   async function copyOutput() {
     if (!output) return;
@@ -1452,6 +1471,7 @@ export default function DepartmentRoom({
                         <option value="9:16">Portrait</option>
                         <option value="4:3">4:3</option>
                       </select>
+                      {!dynamicActions.has("generate_image") && (
                       <button
                         onClick={() => void generateImage()}
                         disabled={imageLoading || videoLoading}
@@ -1468,6 +1488,8 @@ export default function DepartmentRoom({
                       >
                         {imageLoading ? "Rendering…" : imageUrl ? "Image ready ✓" : imageError ? "Retry image" : "Generate Image →"}
                       </button>
+                      )}
+                      {!dynamicActions.has("generate_video") && (
                       <button
                         onClick={() => void generateVideo()}
                         disabled={imageLoading || videoLoading}
@@ -1484,6 +1506,7 @@ export default function DepartmentRoom({
                       >
                         {videoLoading ? "Filming…" : videoUrl ? "Video ready ✓" : videoError ? "Retry video" : "Generate Video →"}
                       </button>
+                      )}
                     </>
                   )}
                   {(department === "legal" || department === "sales") && (
@@ -1796,6 +1819,9 @@ export default function DepartmentRoom({
                   documentId={savedDocId}
                   sourceDepartment={department}
                   sourceText={output}
+                  onCandidates={(cands: ActionCandidate[]) =>
+                    setDynamicActions(new Set(cands.filter((c) => !ACTION_UI[c.id]?.hidden).map((c) => c.id)))
+                  }
                 />
               </div>
             )}
