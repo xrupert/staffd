@@ -8,6 +8,7 @@ import ThreadPickerDrawer, { type HydratedMessage } from "./ThreadPickerDrawer";
 import CommandCenterSuggestions from "./CommandCenterSuggestions";
 import ActionAffordances from "./ActionAffordances";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
+import VoiceInput from "./VoiceInput";
 import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 interface Message {
@@ -845,14 +846,19 @@ export default function CommandCenter() {
               </span>
             ) : "Enter to send"}
           </span>
-          <button
-            onClick={() => void send()}
-            disabled={!input.trim() || isWorking}
-            className="btn-primary px-4 py-1.5 rounded-xl text-xs font-semibold text-white"
-            style={{ opacity: !input.trim() || isWorking ? 0.3 : 1, cursor: !input.trim() || isWorking ? "not-allowed" : "pointer" }}
-          >
-            Send →
-          </button>
+          <div className="flex items-center gap-2">
+            {/* W67 — voice input. Hidden automatically on unsupported
+                browsers; text flows through the same Send path as typing. */}
+            <VoiceInput value={input} onChange={setInput} disabled={isWorking} />
+            <button
+              onClick={() => void send()}
+              disabled={!input.trim() || isWorking}
+              className="btn-primary px-4 py-1.5 rounded-xl text-xs font-semibold text-white"
+              style={{ opacity: !input.trim() || isWorking ? 0.3 : 1, cursor: !input.trim() || isWorking ? "not-allowed" : "pointer" }}
+            >
+              Send →
+            </button>
+          </div>
         </div>
       </div>
     </div>

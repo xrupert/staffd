@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
 import { exportToDocx } from "./DocExport";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
+import VoiceInput from "./VoiceInput";
 import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
 import HandoffPanel from "./HandoffPanel";
@@ -1242,17 +1243,22 @@ export default function DepartmentRoom({
                 </button>
               )}
             </div>
-            <button
-              onClick={() => void run()}
-              disabled={!task.trim() || loading}
-              className="btn-primary px-5 py-2 rounded-xl text-sm font-semibold text-white"
-              style={{
-                opacity: !task.trim() || loading ? 0.35 : 1,
-                cursor: !task.trim() || loading ? "not-allowed" : "pointer",
-              }}
-            >
-              {loading ? "Working…" : conversation.length > 0 ? "Reply →" : "Generate →"}
-            </button>
+            <div className="flex items-center gap-2">
+              {/* W67 — voice input. Hidden automatically on unsupported
+                  browsers; text flows through the same run path as typing. */}
+              <VoiceInput value={task} onChange={(v) => { setTask(v); setActiveChip(""); }} disabled={loading} />
+              <button
+                onClick={() => void run()}
+                disabled={!task.trim() || loading}
+                className="btn-primary px-5 py-2 rounded-xl text-sm font-semibold text-white"
+                style={{
+                  opacity: !task.trim() || loading ? 0.35 : 1,
+                  cursor: !task.trim() || loading ? "not-allowed" : "pointer",
+                }}
+              >
+                {loading ? "Working…" : conversation.length > 0 ? "Reply →" : "Generate →"}
+              </button>
+            </div>
           </div>
         </div>
 
