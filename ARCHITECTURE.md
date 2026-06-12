@@ -465,7 +465,7 @@ These domain pipelines call Anthropic directly because they are NOT user-facing 
 
 ### Hard rule going forward
 
-Any new "smart" feature MUST route through `runOrchestrator()`. Direct Anthropic calls outside the 5 domain pipelines above require explicit Senior Architect authorization with documented justification.
+Any new "smart" feature MUST route through `runOrchestrator()`. Direct Anthropic calls outside the 5 domain pipelines above require explicit Senior Architect authorization with documented justification. This rule is mechanically enforced, and the full call-site audit + contracts are recorded, in `docs/architecture/orchestrator-audit-W61.md` (W61′).
 
 ---
 
