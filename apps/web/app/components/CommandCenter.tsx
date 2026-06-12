@@ -7,6 +7,7 @@ import pb from "../../lib/pb";
 import ThreadPickerDrawer, { type HydratedMessage } from "./ThreadPickerDrawer";
 import CommandCenterSuggestions from "./CommandCenterSuggestions";
 import ActionAffordances from "./ActionAffordances";
+import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 interface Message {
@@ -133,7 +134,10 @@ export default function CommandCenter() {
     output: string;
     userGoal: string;
   } | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  // W68 — anchors the TOP of the newest response into view (once, at
+  // generation start, only when it's below the viewport). After that,
+  // scroll position belongs to the user — no auto-follow anywhere.
+  const responseStartRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -177,8 +181,9 @@ export default function CommandCenter() {
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
-  function scrollToBottom() {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  function anchorNewResponse() {
+    // setTimeout lets React commit the new response element first.
+    setTimeout(() => anchorTopIfBelowViewport(responseStartRef.current), 50);
   }
 
   const CONFIRM_WORDS = /^(yes|confirm|confirmed|approved|approve|go|do it|go ahead|sure|yep|yup|ok|okay|sounds good|make it|run it|let'?s go)/i;
@@ -211,7 +216,6 @@ export default function CommandCenter() {
     setMessages(newMessages);
     setInput("");
     setPhase("routing");
-    setTimeout(scrollToBottom, 50);
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -272,6 +276,7 @@ export default function CommandCenter() {
       let assistantText = "";
       // Add placeholder assistant message
       setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+      anchorNewResponse();
 
       while (true) {
         const { done, value } = await reader.read();
@@ -282,7 +287,6 @@ export default function CommandCenter() {
           updated[updated.length - 1] = { role: "assistant", content: assistantText };
           return updated;
         });
-        scrollToBottom();
       }
 
       // Check if response contains a READY action proposal
@@ -306,8 +310,6 @@ export default function CommandCenter() {
       ]);
       setPhase("idle");
     }
-
-    setTimeout(scrollToBottom, 100);
   }
 
   // PR-Tranche-2.6 (W28) — fire the handoff intent after a successful
@@ -413,6 +415,7 @@ export default function CommandCenter() {
     setActionCandidates([]);
     // Add a generating message placeholder
     setMessages((prev) => [...prev, { role: "assistant", content: "", isOutput: true }]);
+    anchorNewResponse();
 
     // PR-Tranche-2.6.3 (W28 fix) — hoist the streamed result to function
     // scope so the `finally` block reads the ACTUAL streamed text instead
@@ -464,7 +467,6 @@ export default function CommandCenter() {
           return updated;
         });
         setOutputBuffer(streamedResult);
-        scrollToBottom();
       }
 
       // W49 (GAP #2) — success path only (Decision 3: failed generations
@@ -483,7 +485,6 @@ export default function CommandCenter() {
     } finally {
       setPhase("done");
       setPendingAction(null);
-      setTimeout(scrollToBottom, 100);
 
       // PR-Tranche-2.6 (W28) — fire handoff suggestions after generation
       // completes. PR-Tranche-2.6.3 fix: read from `streamedResult`
@@ -631,7 +632,11 @@ export default function CommandCenter() {
             if (isExec) return null;
 
             return (
-              <div key={i} className="flex flex-col gap-1">
+              <div
+                key={i}
+                ref={i === messages.length - 1 ? responseStartRef : undefined}
+                className="flex flex-col gap-1"
+              >
                 {msg.isOutput ? (
                   // Generated document output
                   <>
@@ -777,7 +782,7 @@ export default function CommandCenter() {
               />
             </div>
           )}
-          <div ref={bottomRef} />
+
         </div>
       )}
 

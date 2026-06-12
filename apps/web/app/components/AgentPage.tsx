@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import pb from "../../lib/pb";
+import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { exportToDocx } from "./DocExport";
 import DraftEditor from "./DraftEditor";
 
@@ -121,12 +122,13 @@ export default function AgentPage({
       const decoder = new TextDecoder();
       if (!reader) throw new Error("No response stream");
       let result = "";
+      // W68 — single anchor at stream start; no auto-follow after.
+      setTimeout(() => anchorTopIfBelowViewport(outputRef.current), 50);
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         result += decoder.decode(value, { stream: true });
         setOutput(result);
-        outputRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       }
 
       // Auto-save to document library (silent — never blocks the UI)

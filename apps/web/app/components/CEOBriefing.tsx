@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
+import { anchorTopIfBelowViewport } from "../../lib/scroll";
 
 export default function CEOBriefing() {
   const [output, setOutput] = useState("");
@@ -39,12 +40,13 @@ export default function CEOBriefing() {
       if (!reader) throw new Error("No stream");
 
       let result = "";
+      // W68 — single anchor at stream start; no auto-follow after.
+      setTimeout(() => anchorTopIfBelowViewport(outputRef.current), 50);
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         result += decoder.decode(value, { stream: true });
         setOutput(result);
-        outputRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       }
     } catch {
       setOutput("Unable to generate briefing. Please try again.");

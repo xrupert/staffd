@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
 import { exportToDocx } from "./DocExport";
+import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
 import HandoffPanel from "./HandoffPanel";
@@ -340,6 +341,10 @@ export default function DepartmentRoom({
       if (!reader) throw new Error("No response stream");
 
       let result = "";
+      // W68 — single anchor at generation start: bring the TOP of the
+      // output region into view if it's below the viewport. No auto-scroll
+      // during streaming or on completion — position belongs to the user.
+      setTimeout(() => anchorTopIfBelowViewport(outputRef.current), 50);
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -356,7 +361,6 @@ export default function DepartmentRoom({
           }
           return next;
         });
-        outputRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
       }
 
       void saveDocument(finalTask, result, userId);
