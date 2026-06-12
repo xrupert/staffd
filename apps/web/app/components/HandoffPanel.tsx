@@ -14,6 +14,8 @@
 
 import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
+import ActionAffordances from "./ActionAffordances";
+import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 type FollowUp = {
   department: string;
@@ -57,6 +59,8 @@ type Props = {
 
 export default function HandoffPanel({ documentId, sourceDepartment, sourceText }: Props) {
   const [followUps, setFollowUps] = useState<FollowUp[] | null>(null);
+  // W63 — the platform-action axis from the same response.
+  const [actionCandidates, setActionCandidates] = useState<ActionCandidate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,6 +93,9 @@ export default function HandoffPanel({ documentId, sourceDepartment, sourceText 
         const data = await res.json();
         const items: FollowUp[] = data?.ok ? (data.followUps ?? []) : (data?.degraded?.followUps ?? []);
         setFollowUps(items);
+        setActionCandidates(
+          (data?.ok ? data.actionCandidates : data?.degraded?.actionCandidates) ?? []
+        );
       } catch {
         if (!cancelled) setError("network_error");
       } finally {
@@ -107,7 +114,11 @@ export default function HandoffPanel({ documentId, sourceDepartment, sourceText 
     );
   }
 
-  if (error || !followUps || followUps.length === 0) {
+  // W63 — the card renders if EITHER axis has content; silent only when
+  // both are empty (candidates-only is a valid state when the FollowUp
+  // parse degraded but the analyzer succeeded).
+  const visibleCandidates = actionCandidates;
+  if (error || ((!followUps || followUps.length === 0) && visibleCandidates.length === 0)) {
     return null; // silent — no value in showing an empty handoff card
   }
 
@@ -123,7 +134,7 @@ export default function HandoffPanel({ documentId, sourceDepartment, sourceText 
         </p>
       </div>
       <ul className="flex flex-col gap-2">
-        {followUps.slice(0, 3).map((f, i) => {
+        {(followUps ?? []).slice(0, 3).map((f, i) => {
           const href = DEPT_HREFS[f.department] ?? "/dashboard";
           const label = DEPT_LABELS[f.department] ?? f.department;
           const fullHref = `${href}?prefill=${encodeURIComponent(f.task)}&from_doc=${encodeURIComponent(documentId)}`;
@@ -157,6 +168,14 @@ export default function HandoffPanel({ documentId, sourceDepartment, sourceText 
           );
         })}
       </ul>
+
+      {/* W63 — the platform-action axis (W62 candidates) rendered beneath
+          the cross-department FollowUps. Hidden actions never render;
+          empty candidates render nothing. */}
+      <ActionAffordances
+        candidates={visibleCandidates}
+        context={{ department: sourceDepartment, documentId }}
+      />
     </div>
   );
 }

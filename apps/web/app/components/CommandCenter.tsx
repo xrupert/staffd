@@ -6,6 +6,8 @@ import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
 import ThreadPickerDrawer, { type HydratedMessage } from "./ThreadPickerDrawer";
 import CommandCenterSuggestions from "./CommandCenterSuggestions";
+import ActionAffordances from "./ActionAffordances";
+import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 interface Message {
   role: "user" | "assistant";
@@ -120,6 +122,8 @@ export default function CommandCenter() {
   // below the generated output. Fetched fire-and-forget after each
   // generation completes; non-blocking on failure.
   const [followUps, setFollowUps] = useState<HandoffSuggestion[]>([]);
+  // W63 — the platform-action axis from the same handoff response.
+  const [actionCandidates, setActionCandidates] = useState<ActionCandidate[]>([]);
   // Holds the last completed user task + department for downstream handoff
   // requests (the prior task is what `/api/handoff/suggest` uses as
   // sourceDoc.prompt).
@@ -342,10 +346,13 @@ export default function CommandCenter() {
       const data = (await res.json()) as {
         ok?: boolean;
         followUps?: HandoffSuggestion[];
-        degraded?: { followUps?: HandoffSuggestion[] };
+        actionCandidates?: ActionCandidate[];
+        degraded?: { followUps?: HandoffSuggestion[]; actionCandidates?: ActionCandidate[] };
       };
       const suggestions = data.followUps ?? data.degraded?.followUps ?? [];
       setFollowUps(suggestions.slice(0, 3));
+      // W63 — the platform-action axis arrives in the same response.
+      setActionCandidates(data.actionCandidates ?? data.degraded?.actionCandidates ?? []);
     } catch (err) {
       console.warn("[CommandCenter] handoff fetch errored (non-blocking)", err);
     }
@@ -403,6 +410,7 @@ export default function CommandCenter() {
   async function runAgent(department: string, task: string, userId: string, pbToken: string, agentId?: string) {
     setOutputBuffer("");
     setFollowUps([]); // clear any previous handoff suggestions before this run
+    setActionCandidates([]);
     // Add a generating message placeholder
     setMessages((prev) => [...prev, { role: "assistant", content: "", isOutput: true }]);
 
@@ -720,7 +728,7 @@ export default function CommandCenter() {
               Rendered after the message thread; only when phase is done
               (output is complete) and the handoff intent returned
               suggestions. Empty array → renders nothing. */}
-          {phase === "done" && followUps.length > 0 && lastCompleted && (
+          {phase === "done" && (followUps.length > 0 || actionCandidates.length > 0) && lastCompleted && (
             <div className="flex flex-col gap-2 pt-2" style={{ borderTop: "1px solid #1E1E2A" }}>
               <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#7070A0" }}>
                 Next steps
@@ -759,6 +767,14 @@ export default function CommandCenter() {
                   );
                 })}
               </div>
+
+              {/* W63 — the platform-action axis (W62 candidates), rendered
+                  beneath the cross-department chips. D10' coexistence: the
+                  static affordances elsewhere stay untouched until W64. */}
+              <ActionAffordances
+                candidates={actionCandidates}
+                context={{ department: lastCompleted.department }}
+              />
             </div>
           )}
           <div ref={bottomRef} />

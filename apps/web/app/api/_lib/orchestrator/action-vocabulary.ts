@@ -42,6 +42,21 @@ export const ACTION_VOCABULARY: ReadonlyArray<{ id: ActionId; definition: string
 /** Ship-default surfacing gate (W62 Decision 3). Per-action calibration is post-V1 W62.1. */
 export const CONFIDENCE_THRESHOLD = 0.6;
 
+/**
+ * W63 — UI metadata, SA-locked labels (W63 Decision 4). Single source of
+ * truth: the affordance component imports from here; a test pins the set.
+ * `hidden` actions persist as data but never render (W63 Decision 8 —
+ * publish_social stays invisible until W64 decides the handler revive).
+ */
+export const ACTION_UI: Readonly<Record<ActionId, { label: string; icon: string; hidden?: boolean }>> = {
+  generate_image:    { label: "Generate the visual →",   icon: "🖼️" },
+  generate_video:    { label: "Generate the video →",    icon: "🎬" },
+  publish_social:    { label: "Publish to social →",     icon: "📣", hidden: true },
+  schedule_followup: { label: "Schedule a follow-up →",  icon: "🗓️" },
+  draft_email:       { label: "Draft the email →",       icon: "✉️" },
+  export_document:   { label: "Export as document →",    icon: "📄" },
+};
+
 const VALID_IDS = new Set<string>(ACTION_VOCABULARY.map((a) => a.id));
 
 /**
