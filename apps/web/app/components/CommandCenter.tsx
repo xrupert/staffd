@@ -571,6 +571,7 @@ export default function CommandCenter() {
     } finally {
       abortRef.current = null;
       if (aborted) { setPhase("idle"); return; }
+      setPhase("done");
 
       // PR-Tranche-2.6 (W28) — fire handoff suggestions after generation
       // completes. PR-Tranche-2.6.3 fix: read from `streamedResult`

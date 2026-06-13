@@ -8,6 +8,10 @@
  *   D3 — AbortController per-request, wired to Stop button
  *   D4 — AbortError caught silently; phase resets to "idle", no error message
  *
+ * W69.fix pins (6) — regression guard for the missing setPhase("done") on the
+ * natural-completion success path. That omission left phase stuck at "generating"
+ * after every stream, hiding W63 affordance chips entirely.
+ *
  * CC is too stateful to mount in happy-dom; these use the established
  * source-pin pattern (W63/W64/W67).
  */
@@ -141,5 +145,59 @@ describe("W69 D4 — AbortError silent handling", () => {
 
   it("finally block early-returns on abort to skip handoff fetch", () => {
     expect(CC).toContain("if (aborted) { setPhase(\"idle\"); return; }");
+  });
+});
+
+// ── W69.fix regression pins — phase-transition completeness ─────────────────
+describe("W69.fix — phase transition pins (regression guard)", () => {
+  // Locates the finally block by anchoring on the abort-ref null sentinel,
+  // then slices out only the non-abort tail (what runs on natural completion).
+  const finallyStart = CC.indexOf("abortRef.current = null");
+  const finallyBlock = CC.slice(finallyStart, CC.indexOf("fetchHandoffSuggestions", finallyStart) + 60);
+
+  it("R1 — natural completion: setPhase('done') called in finally after abort guard", () => {
+    // The abort guard early-returns, so setPhase("done") after it is the
+    // success-path transition. W69 accidentally dropped this line.
+    expect(CC).toContain('setPhase("done")');
+    // Must appear AFTER the abort guard, not before it.
+    const abortGuardIdx = CC.indexOf('if (aborted) { setPhase("idle"); return; }');
+    const doneIdx = CC.indexOf('setPhase("done")', abortGuardIdx);
+    expect(doneIdx).toBeGreaterThan(abortGuardIdx);
+  });
+
+  it("R2 — natural completion: handoff fetch code is reachable (not behind abort guard)", () => {
+    // The abort guard returns early; fetchHandoffSuggestions must appear
+    // AFTER the guard in the same finally block.
+    const abortGuardIdx = CC.indexOf('if (aborted) { setPhase("idle"); return; }');
+    const fetchIdx = CC.indexOf("fetchHandoffSuggestions", abortGuardIdx);
+    expect(fetchIdx).toBeGreaterThan(abortGuardIdx);
+  });
+
+  it("R3 — abort: setPhase('idle') is called inside the abort-guard branch", () => {
+    expect(finallyBlock).toContain('setPhase("idle")');
+  });
+
+  it("R4 — abort: handoff fetch does NOT fire (early-return precedes fetch call)", () => {
+    // The early return must appear before fetchHandoffSuggestions in the finally.
+    const returnIdx = finallyBlock.indexOf("return;");
+    const fetchIdx = finallyBlock.indexOf("fetchHandoffSuggestions");
+    expect(returnIdx).toBeGreaterThan(-1);
+    expect(fetchIdx).toBeGreaterThan(-1);
+    expect(returnIdx).toBeLessThan(fetchIdx);
+  });
+
+  it("R5 — abort: generation placeholder is removed from messages thread", () => {
+    // Verified by the presence of the slice-to-minus-one call in the catch block.
+    expect(CC).toContain("setMessages((prev) => prev.slice(0, -1))");
+  });
+
+  it("R6 — success: Stop button is only visible during generating phase (disappears on done)", () => {
+    // Stop → button is gated on phase === "generating". Once phase becomes
+    // "done" (R1), the button is no longer rendered.
+    const stopBtnIdx = CC.indexOf("Stop →");
+    const generatingGateIdx = CC.lastIndexOf('phase === "generating"', stopBtnIdx);
+    expect(generatingGateIdx).toBeGreaterThan(0);
+    // The gate must be close enough to the button to be its conditional.
+    expect(stopBtnIdx - generatingGateIdx).toBeLessThan(500);
   });
 });
