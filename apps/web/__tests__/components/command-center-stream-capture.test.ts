@@ -76,7 +76,7 @@ describe("CommandCenter stream capture (W28 fix contract)", () => {
 
   it("pre-fix behavior (stale closure) would NOT fire handoff — regression guard", () => {
     // Simulates pre-fix: finally reads the stale React closure value
-    const reactSideValue = ""; // the stale outputBuffer closure capture
+    const reactSideValue: string = ""; // the stale outputBuffer closure capture
     const wouldFireHandoffPreFix = !!(reactSideValue && reactSideValue.length > 50);
     expect(wouldFireHandoffPreFix).toBe(false);
     // This test pins what the bug looked like. If anyone reverts the hoist,

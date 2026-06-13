@@ -21,12 +21,6 @@ interface Message {
   lockedAlternative?: string;
 }
 
-interface PendingAction {
-  department: string;
-  agentId?: string;
-  task: string;
-  lockedAlternative?: string;
-}
 
 // PR-Tranche-2.6 (W28) — handoff intent response shape (subset; matches
 // FollowUp in apps/web/app/api/_lib/orchestrator/types.ts).
@@ -115,7 +109,6 @@ export default function CommandCenter() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [outputBuffer, setOutputBuffer] = useState("");
   const [lastLockedAlt, setLastLockedAlt] = useState<string | null>(null);
   // Phase 9 — persistent conversation thread. Survives reloads via localStorage
@@ -143,6 +136,8 @@ export default function CommandCenter() {
   // scroll position belongs to the user — no auto-follow anywhere.
   const responseStartRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // W69 — cancel in-flight agent fetch.
+  const abortRef = useRef<AbortController | null>(null);
   // W64 B2 (D13) — shared schedule_followup modal state.
   const [followupOpen, setFollowupOpen] = useState(false);
   const [followupSeed, setFollowupSeed] = useState("");
@@ -259,7 +254,6 @@ export default function CommandCenter() {
       try { window.localStorage.setItem(THREAD_STORAGE_KEY, newThreadId); } catch { /* silent */ }
     }
     setMessages(hydrated.map((m) => ({ role: m.role, content: m.content })));
-    setPendingAction(null);
     setOutputBuffer("");
     setLastLockedAlt(null);
     setPhase("idle");
@@ -271,8 +265,6 @@ export default function CommandCenter() {
     // setTimeout lets React commit the new response element first.
     setTimeout(() => anchorTopIfBelowViewport(responseStartRef.current), 50);
   }
-
-  const CONFIRM_WORDS = /^(yes|confirm|confirmed|approved|approve|go|do it|go ahead|sure|yep|yup|ok|okay|sounds good|make it|run it|let'?s go)/i;
 
   /**
    * PR-Tranche-2.6.4 (W35) — `send()` options.
@@ -312,23 +304,6 @@ export default function CommandCenter() {
     if (options?.skipConfirm && options?.preselectDept) {
       setPhase("generating");
       await runAgent(options.preselectDept, content, userId, pbToken, options.preselectAgent);
-      return;
-    }
-
-    // Check if this is a confirmation message with a pending action
-    if (pendingAction && CONFIRM_WORDS.test(content)) {
-      // User confirmed — execute
-      setPhase("generating");
-      const confirmMessages: Message[] = [
-        ...newMessages,
-        { role: "assistant", content: `EXECUTE:${JSON.stringify(pendingAction)}` },
-      ];
-      setMessages(confirmMessages);
-      // Remember the locked alternative to surface as nudge after generation
-      setLastLockedAlt(pendingAction.lockedAlternative?.trim() ? pendingAction.lockedAlternative : null);
-      // Hotfix A2 — pass the orchestrator-picked agentId so the right
-      // specialist runs (not the dept's first-in-list default).
-      await runAgent(pendingAction.department, pendingAction.task, userId, pbToken, pendingAction.agentId);
       return;
     }
 
@@ -375,18 +350,31 @@ export default function CommandCenter() {
         });
       }
 
-      // Check if response contains a READY action proposal
+      // W69 D1 — auto-execute: when the orchestrator is ready, skip the
+      // confirm gate. Post a routing-transparency coordinator message and
+      // run the agent immediately. AbortController stop is in runAgent.
       const readyMatch = assistantText.match(/READY:(\{.+?\})/s);
       if (readyMatch?.[1]) {
         try {
-          const action = JSON.parse(readyMatch[1]) as PendingAction;
-          setPendingAction(action);
-          setPhase("idle");
+          const action = JSON.parse(readyMatch[1]) as {
+            department: string; task: string; agentId?: string; lockedAlternative?: string;
+          };
+          const deptLabel = DEPT_LABELS[action.department] ?? action.department;
+          const agentLabel = (() => {
+            if (!action.agentId) return deptLabel;
+            const parts = action.agentId.split("-").slice(1);
+            return parts.length
+              ? parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
+              : deptLabel;
+          })();
+          setMessages((prev) => [...prev, { role: "assistant", content: `${deptLabel} \u2192 ${agentLabel} is on it\u2026` }]);
+          setLastLockedAlt(action.lockedAlternative?.trim() ? action.lockedAlternative : null);
+          setPhase("generating");
+          await runAgent(action.department, action.task, userId, pbToken, action.agentId);
         } catch {
           setPhase("idle");
         }
       } else {
-        setPendingAction(null);
         setPhase("idle");
       }
     } catch {
@@ -512,6 +500,11 @@ export default function CommandCenter() {
     // never fires — the visible W28 symptom.
     let streamedResult = "";
     let savedDocIdPromise: Promise<string | undefined> | undefined;
+    let aborted = false;
+
+    // W69 — per-request abort controller wired to the Stop button.
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
       const activeClientId = typeof window !== "undefined"
@@ -520,6 +513,7 @@ export default function CommandCenter() {
       const res = await fetch("/api/agent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           task,
           department,
@@ -562,15 +556,21 @@ export default function CommandCenter() {
         // the document id (server persists action_candidates onto it).
         savedDocIdPromise = saveGeneratedDocument(department, task, streamedResult, userId, agentId);
       }
-    } catch {
-      setMessages((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { role: "assistant", content: "Something went wrong. Try again.", isOutput: false };
-        return updated;
-      });
+    } catch (err) {
+      // W69 — abort is user-initiated: remove the empty placeholder silently.
+      if (err instanceof Error && err.name === "AbortError") {
+        aborted = true;
+        setMessages((prev) => prev.slice(0, -1));
+      } else {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = { role: "assistant", content: "Something went wrong. Try again.", isOutput: false };
+          return updated;
+        });
+      }
     } finally {
-      setPhase("done");
-      setPendingAction(null);
+      abortRef.current = null;
+      if (aborted) { setPhase("idle"); return; }
 
       // PR-Tranche-2.6 (W28) — fire handoff suggestions after generation
       // completes. PR-Tranche-2.6.3 fix: read from `streamedResult`
@@ -605,7 +605,6 @@ export default function CommandCenter() {
     setMessages([]);
     setInput("");
     setPhase("idle");
-    setPendingAction(null);
     setOutputBuffer("");
     setLastLockedAlt(null);
     // PR-Tranche-2.6 (W28) — clear handoff state on explicit reset
@@ -712,7 +711,6 @@ export default function CommandCenter() {
             }
 
             const display = cleanContent(msg.content);
-            const isReady = msg.content.includes("READY:");
             const isExec = msg.content.startsWith("EXECUTE:");
 
             if (isExec) return null;
@@ -790,24 +788,6 @@ export default function CommandCenter() {
                       )}
                       {!display && isWorking && (
                         <span className="inline-block w-0.5 h-3.5 animate-pulse" style={{ background: "#5B21E8", verticalAlign: "middle" }} />
-                      )}
-                      {/* Confirmation prompt */}
-                      {isReady && !isWorking && (
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            onClick={() => void send("yes")}
-                            className="btn-primary px-4 py-1.5 rounded-lg text-xs font-semibold text-white"
-                          >
-                            Yes, run it →
-                          </button>
-                          <button
-                            onClick={reset}
-                            className="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors hover:text-white"
-                            style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#5A5A70" }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
                       )}
                     </div>
                   </div>
@@ -888,17 +868,15 @@ export default function CommandCenter() {
             }
           }}
           placeholder={
-            pendingAction
-              ? "Type yes to confirm, or describe something different…"
-              : messages.length === 0
-                ? "What do you need? — e.g. 'write an invoice for a client' or 'I need to hire a designer'…"
-                : // PR-Tranche-2.6.5 (W39) — when agent's most recent message
-                  // ends in a question, switch placeholder + signal answer mode
-                  agentAwaitingReply
-                  ? "Type your reply…"
-                  : phase === "done"
-                    ? "Refine, follow up, or ask for something else…"
-                    : "Reply…"
+            messages.length === 0
+              ? "What do you need? — e.g. 'write an invoice for a client' or 'I need to hire a designer'…"
+              : // PR-Tranche-2.6.5 (W39) — when agent's most recent message
+                // ends in a question, switch placeholder + signal answer mode
+                agentAwaitingReply
+                ? "Type your reply…"
+                : phase === "done"
+                  ? "Refine, follow up, or ask for something else…"
+                  : "Reply…"
           }
           rows={messages.length === 0 ? 2 : 1}
           disabled={isWorking}
@@ -916,7 +894,18 @@ export default function CommandCenter() {
             {isWorking ? (
               <span className="flex items-center gap-1.5" style={{ color: "#5A5A70" }}>
                 <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
-                {phase === "generating" ? "generating…" : "thinking…"}
+                {phase === "generating" ? (
+                  <>
+                    generating…
+                    <button
+                      onClick={() => abortRef.current?.abort()}
+                      className="ml-1 text-xs font-medium transition-colors hover:text-white"
+                      style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    >
+                      Stop →
+                    </button>
+                  </>
+                ) : "thinking…"}
               </span>
             ) : phase === "done" ? (
               <span style={{ color: "#5A5A70" }}>
