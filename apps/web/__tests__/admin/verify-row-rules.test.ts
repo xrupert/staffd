@@ -242,7 +242,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     expect(body.overall_status).toBe("✅");
     expect(body.gap_count).toBe(0);
     // W47 — 24 = 23-collection baseline + stripe_events idempotency ledger
-    expect(body.collections_checked).toBe(24);
+    // W71 — 26 = 24 + workflows + workflow_tasks (task bus substrate)
+    expect(body.collections_checked).toBe(26);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

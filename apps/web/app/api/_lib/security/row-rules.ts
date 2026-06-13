@@ -171,6 +171,9 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
     systemManaged: true,
     note: "W47 — one row per processed Stripe event id; webhook checks before processing so re-deliveries never double-credit. Admin-token-only access.",
   },
+  // W71 — Task Bus substrate
+  { name: "workflows", rules: USER_OWNED_RULES },
+  { name: "workflow_tasks", rules: USER_OWNED_RULES },
 ];
 
 /** Quick lookup helper. */
