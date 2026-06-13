@@ -100,7 +100,7 @@ export async function GET(req: Request) {
           task:       String(task.input_payload.task ?? JSON.stringify(task.input_payload)),
           department: task.department_id,
           agentId:    task.specialist_id ?? undefined,
-          userId:     task.user_id,
+          userId:     task.user,
           pbToken:    adminToken,
         }),
       });

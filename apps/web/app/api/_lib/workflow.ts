@@ -16,7 +16,7 @@ export type WorkflowTaskStatus =
 export type WorkflowTask = {
   id: string;
   workflow_id: string;
-  user_id: string;
+  user: string;
   specialist_id: string | null;
   department_id: string;
   input_payload: Record<string, unknown>;

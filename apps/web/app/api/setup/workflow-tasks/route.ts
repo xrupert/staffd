@@ -66,14 +66,14 @@ export async function POST() {
     const { token } = (await authRes.json()) as { token: string };
 
     const workflowsResult = await setupCollection(pbUrl, token, "workflows", [
-      { name: "user_id",  type: "text", required: true },
+      { name: "user",     type: "text", required: true },
       { name: "name",     type: "text", required: false },
       { name: "status",   type: "text", required: false },
     ]);
 
     const tasksResult = await setupCollection(pbUrl, token, "workflow_tasks", [
       { name: "workflow_id",            type: "text",   required: true },
-      { name: "user_id",                type: "text",   required: true },
+      { name: "user",                    type: "text",   required: true },
       { name: "specialist_id",          type: "text",   required: false },
       { name: "department_id",          type: "text",   required: true },
       { name: "input_payload",          type: "json",   required: true },

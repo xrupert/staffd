@@ -23,7 +23,7 @@ function makeTask(overrides: Partial<WorkflowTask> = {}): WorkflowTask {
   return {
     id: "task-1",
     workflow_id: "wf-1",
-    user_id: "user-a",
+    user: "user-a",
     specialist_id: null,
     department_id: "marketing",
     input_payload: { task: "write a blog post" },
@@ -312,4 +312,172 @@ describe("W71 T7 — task marked running before agent is invoked", () => {
       callOrder.indexOf("runAgent")
     );
   });
+});
+
+// ── T15: error field populated on failure ─────────────────────────────────
+
+describe("W71 T15 — failure populates error field with err.message", () => {
+  it("error field is set to the thrown error message on agent failure", async () => {
+    const task = makeTask({ id: "task-err", retry_count: 0 });
+    const updates: Array<[string, Partial<WorkflowTask>]> = [];
+
+    await drainTasks(
+      makeDeps({
+        fetchPendingTasks: vi.fn().mockResolvedValue([task]),
+        updateTask: vi.fn().mockImplementation(async (id: string, patch: Partial<WorkflowTask>) => {
+          updates.push([id, patch]);
+        }),
+        runAgent: vi.fn().mockRejectedValue(new Error("agent timed out after 30s")),
+      })
+    );
+
+    const failureUpdate = updates.find(([, p]) => p.error !== undefined);
+    expect(failureUpdate).toBeDefined();
+    expect(failureUpdate![1].error).toBe("agent timed out after 30s");
+  });
+});
+
+// ── T16: cost_actual_tokens from agentResult ──────────────────────────────
+
+describe("W71 T16 — success propagates cost_actual_tokens from AgentResult", () => {
+  it("cost_actual_tokens on the succeeded update equals agentResult.tokensActual", async () => {
+    const task = makeTask({ id: "task-cost" });
+    const updates: Array<[string, Partial<WorkflowTask>]> = [];
+
+    await drainTasks(
+      makeDeps({
+        fetchPendingTasks: vi.fn().mockResolvedValue([task]),
+        updateTask: vi.fn().mockImplementation(async (id: string, patch: Partial<WorkflowTask>) => {
+          updates.push([id, patch]);
+        }),
+        runAgent: vi.fn().mockResolvedValue({ text: "output content", tokensActual: 387 }),
+      })
+    );
+
+    const successUpdate = updates.find(([, p]) => p.status === "succeeded");
+    expect(successUpdate).toBeDefined();
+    expect(successUpdate![1].cost_actual_tokens).toBe(387);
+  });
+});
+
+// ── T17: TRUE PB row-rule enforcement (integration, skipped without creds) ─
+
+const pbConfigured =
+  !!(process.env.NEXT_PUBLIC_POCKETBASE_URL &&
+     process.env.PB_ADMIN_EMAIL &&
+     process.env.PB_ADMIN_PASSWORD);
+
+describe("W71 T17 — TRUE PB row-rule enforcement (integration test)", () => {
+  it.skipIf(!pbConfigured)(
+    "user B with valid PB token cannot read user A's workflow_task (PB enforcement, not mock)",
+    async () => {
+      const pb = process.env.NEXT_PUBLIC_POCKETBASE_URL!;
+
+      // Authenticate as PB superuser
+      const adminRes = await fetch(
+        `${pb}/api/collections/_superusers/auth-with-password`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            identity: process.env.PB_ADMIN_EMAIL,
+            password: process.env.PB_ADMIN_PASSWORD,
+          }),
+        },
+      );
+      expect(adminRes.ok, "Admin auth must succeed before row-rule test can run").toBe(true);
+      const { token: adminToken } = (await adminRes.json()) as { token: string };
+
+      const suffix = Date.now();
+      const userAEmail = `w71-rr-a-${suffix}@staffd.test`;
+      const userBEmail = `w71-rr-b-${suffix}@staffd.test`;
+      const pwd = "T17RowRuleTest!";
+
+      let userAId = "";
+      let userBId = "";
+      let taskId = "";
+
+      try {
+        // Create user A (no email verification needed — admin-created)
+        const resA = await fetch(`${pb}/api/collections/users/records`, {
+          method: "POST",
+          headers: { Authorization: adminToken, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: userAEmail,
+            password: pwd,
+            passwordConfirm: pwd,
+            emailVisibility: false,
+          }),
+        });
+        expect(resA.ok, `Create user A failed: ${resA.status}`).toBe(true);
+        userAId = ((await resA.json()) as { id: string }).id;
+
+        // Create user B
+        const resB = await fetch(`${pb}/api/collections/users/records`, {
+          method: "POST",
+          headers: { Authorization: adminToken, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: userBEmail,
+            password: pwd,
+            passwordConfirm: pwd,
+            emailVisibility: false,
+          }),
+        });
+        expect(resB.ok, `Create user B failed: ${resB.status}`).toBe(true);
+        userBId = ((await resB.json()) as { id: string }).id;
+
+        // Log in as user B → user-level token (row rules apply to user-level tokens)
+        const loginB = await fetch(`${pb}/api/collections/users/auth-with-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identity: userBEmail, password: pwd }),
+        });
+        expect(loginB.ok, "Login as user B failed").toBe(true);
+        const { token: tokenB } = (await loginB.json()) as { token: string };
+
+        // Admin creates a workflow_task owned by user A
+        const createTask = await fetch(`${pb}/api/collections/workflow_tasks/records`, {
+          method: "POST",
+          headers: { Authorization: adminToken, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user: userAId,
+            workflow_id: "",
+            department_id: "marketing",
+            input_payload: { task: "w71 row-rule isolation test" },
+            status: "pending",
+            depends_on: [],
+            retry_count: 0,
+          }),
+        });
+        expect(createTask.ok, `Create task failed: ${createTask.status}`).toBe(true);
+        taskId = ((await createTask.json()) as { id: string }).id;
+
+        // ── THE ASSERTION: user B cannot read user A's record ────────────
+        // PB evaluates: `user = @request.auth.id` → userAId = userBId → false → 404
+        const readAsB = await fetch(
+          `${pb}/api/collections/workflow_tasks/records/${taskId}`,
+          { headers: { Authorization: tokenB } },
+        );
+
+        expect(
+          readAsB.status,
+          "PB must return 404 when USER_OWNED_RULES deny cross-user access. " +
+          "If this is 200, the row rules are NOT applied — run POST /api/setup/workflow-tasks first.",
+        ).toBe(404);
+      } finally {
+        // Always clean up test fixtures, even on failure
+        const h = { Authorization: adminToken };
+        if (taskId) {
+          await fetch(`${pb}/api/collections/workflow_tasks/records/${taskId}`, { method: "DELETE", headers: h }).catch(() => null);
+        }
+        if (userAId) {
+          await fetch(`${pb}/api/collections/users/records/${userAId}`, { method: "DELETE", headers: h }).catch(() => null);
+        }
+        if (userBId) {
+          await fetch(`${pb}/api/collections/users/records/${userBId}`, { method: "DELETE", headers: h }).catch(() => null);
+        }
+      }
+    },
+    30_000, // 30s for real PB network round-trips
+  );
 });

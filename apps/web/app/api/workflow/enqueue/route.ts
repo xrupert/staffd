@@ -46,7 +46,7 @@ export async function POST(req: Request) {
 
   const taskRecord = {
     workflow_id:          body.workflowId ?? "",
-    user_id:              userId,
+    user:                 userId,
     specialist_id:        body.specialistId ?? "",
     department_id:        departmentId,
     input_payload:        inputPayload,
