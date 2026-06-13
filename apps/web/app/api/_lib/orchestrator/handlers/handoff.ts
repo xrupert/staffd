@@ -145,11 +145,15 @@ HANDOFFS:[{"department":"<dept>","task":"<specific next-step task>","rationale":
   ]);
 
   if (!result.ok) {
+    // W63.fix — the analyzer ran in Promise.all regardless of LLM outcome.
+    // The !followUps parse-failure path already spreads actionCandidates into
+    // degraded; this branch was missing the same treatment, silently dropping
+    // candidates when callLLM times out or errors.
     return {
       ok: false,
       intent: "handoff",
       fallback: result.fallback,
-      degraded: degradedFor("handoff", { sourceDoc: ctx.sourceDoc, unlockedDepts }),
+      degraded: { ...degradedFor("handoff", { sourceDoc: ctx.sourceDoc, unlockedDepts }), actionCandidates },
       vaultCostFlag: retrieval.costFlag,
       latencyMs: result.latencyMs,
       attempts: result.attempts,
