@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
+import { useEffectivePlan, isSuperAdminClient, type Plan } from "../../lib/hooks/useEffectivePlan";
+import { signOut } from "../../lib/auth/signOut";
 import CommandCenter from "../components/CommandCenter";
 import DepartmentPicker from "../components/DepartmentPicker";
 import AddDeptModal from "../components/AddDeptModal";
@@ -46,6 +48,11 @@ export default function DashboardPage() {
   const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
   const [upcomingBookings, setUpcomingBookings] = useState<Array<{ id: string; attendee_name: string; start_time: string; duration: number }>>([]);
   const [topupOpen, setTopupOpen] = useState(false);
+
+  const effectivePlan = useEffectivePlan(currentPlan as Plan | null);
+  const isAdmin = isSuperAdminClient(
+    (pb.authStore.record as { email?: string } | null)?.email,
+  );
 
   useEffect(() => {
     if (!pb.authStore.isValid) {
@@ -184,13 +191,13 @@ export default function DashboardPage() {
     "paid-media": "Paid Media", design: "Design", reputation: "Reputation",
   };
 
-  const canAddDept = currentPlan === "growth" || currentPlan === "pro";
+  const canAddDept = effectivePlan === "growth" || effectivePlan === "pro";
 
   return (
     <>
-    {showDeptPicker && currentPlan && (
+    {showDeptPicker && effectivePlan && (
       <DepartmentPicker
-        plan={currentPlan}
+        plan={effectivePlan}
         onComplete={() => {
           setShowDeptPicker(false);
           setCheckoutBanner(null);
@@ -309,7 +316,7 @@ export default function DashboardPage() {
               </button>
             )}
             {/* Plan badge */}
-            {currentPlan && currentPlan !== "starter" && (
+            {effectivePlan && effectivePlan !== "starter" && (
               <button
                 onClick={async () => {
                   const userId = pb.authStore.record?.id ?? "";
@@ -321,7 +328,7 @@ export default function DashboardPage() {
                 style={{ background: "rgba(91,33,232,0.15)", color: "#A07BFF", border: "1px solid rgba(91,33,232,0.3)" }}
                 title="Manage subscription"
               >
-                {PLAN_LABELS[currentPlan] ?? currentPlan}
+                {PLAN_LABELS[effectivePlan] ?? effectivePlan}
               </button>
             )}
             <a href="/dashboard/calendar" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
@@ -330,13 +337,18 @@ export default function DashboardPage() {
             <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
               Library
             </a>
-            {currentPlan === "agency" && (
+            {effectivePlan === "agency" && (
               <a href="/dashboard/clients" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
                 Clients
               </a>
             )}
-            {currentPlan === "agency" && (
+            {effectivePlan === "agency" && (
               <ClientSwitcher />
+            )}
+            {isAdmin && (
+              <a href="/dashboard/admin" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
+                Admin
+              </a>
             )}
             <a href="/dashboard/settings" style={{ textDecoration: "none" }}>
               {initials ? (
@@ -352,7 +364,7 @@ export default function DashboardPage() {
               )}
             </a>
             <button
-              onClick={() => { pb.authStore.clear(); window.location.href = "/"; }}
+              onClick={() => signOut()}
               className="text-sm transition-colors hover:text-white"
               style={{ color: "#5A5A70" }}
             >
@@ -360,6 +372,25 @@ export default function DashboardPage() {
             </button>
           </div>
         </header>
+
+        {/* View-as-plan banner — super-admin only, presentation only */}
+        {isAdmin && effectivePlan && effectivePlan !== currentPlan && (
+          <div
+            className="flex items-center justify-between rounded-xl px-4 py-2.5 mb-4 text-xs"
+            style={{ background: "rgba(91,33,232,0.1)", border: "1px solid rgba(91,33,232,0.3)", color: "#A07BFF" }}
+          >
+            <span>Viewing as <strong>{PLAN_LABELS[effectivePlan] ?? effectivePlan}</strong> — presentation only</span>
+            <button
+              onClick={() => {
+                localStorage.removeItem("staffd_view_as_plan");
+                window.dispatchEvent(new StorageEvent("storage", { key: "staffd_view_as_plan" }));
+              }}
+              style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", fontSize: "12px" }}
+            >
+              Reset
+            </button>
+          </div>
+        )}
 
         {/* Welcome */}
         <div className="mb-8">

@@ -1,5 +1,8 @@
 "use client";
 
+import { useState, useEffect } from "react";
+import { VALID_PLANS, type Plan } from "../../../lib/hooks/useEffectivePlan";
+
 /**
  * /dashboard/admin — super-admin landing page (Decision 74).
  *
@@ -57,6 +60,74 @@ const cardStyle: React.CSSProperties = {
   padding: "20px",
 };
 
+const PLAN_LABELS: Record<Plan, string> = {
+  starter: "Starter",
+  growth: "Growth",
+  pro: "Pro",
+  agency: "Agency",
+};
+
+function ViewAsPlanCard() {
+  const [selected, setSelected] = useState<Plan | "off">("off");
+
+  useEffect(() => {
+    const stored = localStorage.getItem("staffd_view_as_plan") as Plan | null;
+    setSelected(stored && (VALID_PLANS as readonly string[]).includes(stored) ? stored : "off");
+  }, []);
+
+  function pick(value: Plan | "off") {
+    setSelected(value);
+    if (value === "off") {
+      localStorage.removeItem("staffd_view_as_plan");
+    } else {
+      localStorage.setItem("staffd_view_as_plan", value);
+    }
+    window.dispatchEvent(new StorageEvent("storage", { key: "staffd_view_as_plan" }));
+  }
+
+  return (
+    <section className="mb-10">
+      <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#7070A0" }}>
+        View Dashboard As
+      </h2>
+      <div style={{ ...cardStyle, display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+        {(["off", ...VALID_PLANS] as const).map((v) => (
+          <label
+            key={v}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              cursor: "pointer",
+              padding: "6px 14px",
+              borderRadius: "8px",
+              border: selected === v ? "1px solid rgba(91,33,232,0.6)" : "1px solid #2A2A38",
+              background: selected === v ? "rgba(91,33,232,0.15)" : "transparent",
+              color: selected === v ? "#A07BFF" : "#7070A0",
+              fontSize: "12px",
+              fontWeight: 500,
+              transition: "all 0.15s",
+            }}
+          >
+            <input
+              type="radio"
+              name="view-as-plan"
+              value={v}
+              checked={selected === v}
+              onChange={() => pick(v)}
+              style={{ display: "none" }}
+            />
+            {v === "off" ? "Off (use actual plan)" : PLAN_LABELS[v]}
+          </label>
+        ))}
+        <p className="text-xs w-full mt-2" style={{ color: "#5A5A70" }}>
+          Presentation-only — does not affect server-side credits or billing.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 export default function AdminIndexPage() {
   return (
     <main className="min-h-screen" style={{ background: "#09090F" }}>
@@ -104,6 +175,8 @@ export default function AdminIndexPage() {
             ))}
           </div>
         </section>
+
+        <ViewAsPlanCard />
 
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#7070A0" }}>

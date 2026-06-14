@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import pb from "../../lib/pb";
+import { useEffectivePlan, type Plan } from "../../lib/hooks/useEffectivePlan";
 import TopupModal from "./TopupModal";
 
 type CreditState = {
@@ -39,6 +40,7 @@ export default function CreditsWidget() {
   const [state, setState] = useState<CreditState | null>(null);
   const [loading, setLoading] = useState(true);
   const [topupOpen, setTopupOpen] = useState(false);
+  const effectivePlan = useEffectivePlan((state?.plan ?? null) as Plan | null);
 
   const load = useCallback(async () => {
     const userId = pb.authStore.record?.id ?? "";
@@ -96,7 +98,7 @@ export default function CreditsWidget() {
               Credits
             </h3>
             <p className="text-xs" style={{ color: "#5A5A70" }}>
-              {state.plan ? `${state.plan.charAt(0).toUpperCase()}${state.plan.slice(1)} plan` : "Plan"}
+              {effectivePlan ? `${effectivePlan.charAt(0).toUpperCase()}${effectivePlan.slice(1)} plan` : "Plan"}
               {state.ceoAddonActive ? " · CEO add-on" : ""}
             </p>
           </div>

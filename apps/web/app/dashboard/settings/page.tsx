@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../../lib/pb";
+import { signOut } from "../../../lib/auth/signOut";
 import SchedulingSettings from "../../components/SchedulingSettings";
 import ConnectedAccounts from "../../components/ConnectedAccounts";
 import VoiceProfilePanel from "../../components/VoiceProfilePanel";
@@ -75,6 +76,7 @@ export default function SettingsPage() {
       setPasswordMsg({ text: "Password changed. You'll need to sign in again.", ok: true });
       setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
       setTimeout(() => {
+        localStorage.removeItem("staffd_view_as_plan");
         pb.authStore.clear();
         window.location.href = "/auth/login";
       }, 2000);
@@ -286,7 +288,7 @@ export default function SettingsPage() {
           <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Sign out</h2>
           <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>Sign out of your account on this device.</p>
           <button
-            onClick={() => { pb.authStore.clear(); window.location.href = "/"; }}
+            onClick={() => signOut()}
             className="px-4 py-2 rounded-xl text-xs font-semibold transition-colors"
             style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "#EF4444" }}
           >
@@ -364,6 +366,7 @@ function PrivacyControls(): React.JSX.Element {
         return;
       }
       // Success — log out + redirect
+      localStorage.removeItem("staffd_view_as_plan");
       pb.authStore.clear();
       window.location.href = "/?account_deleted=1";
     } catch {

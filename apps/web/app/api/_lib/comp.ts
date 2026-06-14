@@ -11,8 +11,9 @@ const COMP_DOMAINS = new Set<string>([
   "jrw-solutions.com",
 ]);
 
-const COMP_EMAILS = new Set<string>([
-  // Single-address comps go here, e.g. "chris.rupert@cybridagency.com"
+// Super-admin dogfooding overrides — see W71.5
+export const COMP_EMAILS = new Set<string>([
+  "chris.rupert@cybridagency.com",
 ]);
 
 /** Returns true if this email qualifies for an Agency-tier comp. */

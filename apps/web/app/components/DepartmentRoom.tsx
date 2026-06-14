@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import pb from "../../lib/pb";
+import { useEffectivePlan, type Plan } from "../../lib/hooks/useEffectivePlan";
 import { exportToDocx } from "./DocExport";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
@@ -84,6 +85,7 @@ export default function DepartmentRoom({
   const [showTemplates, setShowTemplates] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [currentPlan, setCurrentPlan] = useState("starter");
+  const effectivePlan = useEffectivePlan(currentPlan as Plan | null) ?? currentPlan;
   const [trialRemaining, setTrialRemaining] = useState<number | null>(null);
   const [activeCategory, setActiveCategory] = useState("");
   const [savedDocId, setSavedDocId] = useState<string | null>(null);
@@ -1809,7 +1811,7 @@ export default function DepartmentRoom({
       {showUpgrade && (
         <UpgradeModal
           department={department}
-          currentPlan={currentPlan}
+          currentPlan={effectivePlan}
           onClose={() => setShowUpgrade(false)}
         />
       )}
