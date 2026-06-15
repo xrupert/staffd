@@ -19,7 +19,7 @@
  * only to the delete route, not export.
  */
 
-import { adminHeaders, getAdminToken, pbUrl } from "../../_lib/pb";
+import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 
 type ExportEnvelope = {
   exported_at: string;
@@ -83,7 +83,7 @@ async function fetchUserRows(adminToken: string, collection: string, userId: str
     // may have row rules that filter differently from the user's own token —
     // export should return EVERYTHING the user owns, not just what they can
     // currently see via their token).
-    const filter = `${filterField}="${userId.replace(/"/g, '\\"')}"`;
+    const filter = `${filterField}='${pbEscape(userId)}'`;
     const out: unknown[] = [];
     let page = 1;
     while (page <= 20) {

@@ -6,6 +6,7 @@
  */
 
 import { isCompedUser } from "../_lib/comp";
+import { pbEscape } from "../_lib/pb";
 
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
@@ -27,7 +28,7 @@ async function isAgencyUser(pbUrl: string, token: string, userId: string): Promi
 
   // Otherwise check the subscription record for an active Agency plan
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
     { headers: { Authorization: token } }
   );
   if (!res.ok) return false;
@@ -50,7 +51,7 @@ export async function GET(req: Request) {
     }
 
     const res = await fetch(
-      `${pbUrl}/api/collections/clients/records?filter=(agency_user='${userId}')&sort=name&perPage=200`,
+      `${pbUrl}/api/collections/clients/records?filter=(agency_user='${pbEscape(userId)}')&sort=name&perPage=200`,
       { headers: { Authorization: token } }
     );
     const data = (await res.json()) as { items?: unknown[] };

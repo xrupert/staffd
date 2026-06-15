@@ -12,7 +12,7 @@
  * row includes a human-readable label suitable for tooltip rendering.
  */
 
-import { pbUrl } from "../../../_lib/pb";
+import { pbEscape, pbUrl } from "../../../_lib/pb";
 
 type PatternRow = {
   id?: string;
@@ -63,7 +63,7 @@ export async function GET(req: Request): Promise<Response> {
   const limit = Math.max(1, Math.min(10, Number.parseInt(url.searchParams.get("limit") ?? "3", 10) || 3));
 
   try {
-    const filter = `user="${me.replace(/"/g, '\\"')}"`;
+    const filter = `user='${pbEscape(me)}'`;
     const res = await fetch(
       `${pbUrl()}/api/collections/vault_patterns/records?filter=${encodeURIComponent(filter)}&perPage=200&fields=id,signal,weight,source_id&sort=-weight`,
       { headers: { Authorization: pbToken } },

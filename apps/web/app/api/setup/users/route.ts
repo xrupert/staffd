@@ -20,7 +20,7 @@
  * verify-row-rules tier; never auto-modified.
  */
 
-import { adminHeaders, getAdminToken, pbUrl } from "../../_lib/pb";
+import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 
 const COLLECTION_NAME = "users";
 
@@ -72,7 +72,7 @@ async function flagSuperAdminHidden(token: string): Promise<{
   if (!adminEmail) return { status: "no_admin_email" };
 
   const url = pbUrl();
-  const filter = `email = "${adminEmail.replace(/"/g, '\\"')}"`;
+  const filter = `email = '${pbEscape(adminEmail)}'`;
   const findRes = await fetch(
     `${url}/api/collections/${COLLECTION_NAME}/records?filter=${encodeURIComponent(filter)}&perPage=1&fields=id,email,hidden_from_user_lists`,
     { headers: { Authorization: token } },

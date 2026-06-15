@@ -9,6 +9,8 @@
  *   agency  → no choice needed (all unlocked)
  */
 
+import { pbEscape } from "../../_lib/pb";
+
 const STARTER_DEPARTMENTS = new Set(["marketing", "sales", "legal"]);
 
 // Max extra departments a plan can unlock (beyond starter + auto-includes)
@@ -56,7 +58,7 @@ export async function POST(req: Request) {
 
     // Get current subscription
     const res = await fetch(
-      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
       { headers: { Authorization: token } }
     );
     const data = (await res.json()) as { items?: Array<{ id: string; plan: string }> };

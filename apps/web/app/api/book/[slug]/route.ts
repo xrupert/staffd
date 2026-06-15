@@ -10,6 +10,8 @@
  * Returns the host's public booking metadata for the booking page header.
  */
 
+import { pbEscape } from "../../_lib/pb";
+
 interface AvailabilityRules {
   sun?: [string, string][]; mon?: [string, string][]; tue?: [string, string][];
   wed?: [string, string][]; thu?: [string, string][]; fri?: [string, string][];
@@ -31,8 +33,9 @@ async function getAdminToken(pbUrl: string): Promise<string> {
 }
 
 async function findHostBySlug(pbUrl: string, token: string, slug: string) {
+  const filter = `(booking_slug='${pbEscape(slug)}')`;
   const res = await fetch(
-    `${pbUrl}/api/collections/businesses/records?filter=(booking_slug='${encodeURIComponent(slug)}')&perPage=1`,
+    `${pbUrl}/api/collections/businesses/records?filter=${encodeURIComponent(filter)}&perPage=1`,
     { headers: { Authorization: token } }
   );
   const data = (await res.json()) as {
@@ -121,7 +124,7 @@ export async function POST(
     const dayEnd = new Date(body.start_time);
     dayEnd.setUTCHours(23, 59, 59, 999);
     const filter = encodeURIComponent(
-      `user='${host.user}' && start_time >= '${dayStart.toISOString()}' && start_time <= '${dayEnd.toISOString()}' && status != 'cancelled'`
+      `user='${pbEscape(host.user)}' && start_time >= '${dayStart.toISOString()}' && start_time <= '${dayEnd.toISOString()}' && status != 'cancelled'`
     );
     const existRes = await fetch(
       `${pbUrl}/api/collections/bookings/records?filter=${filter}&perPage=100&fields=start_time,duration`,

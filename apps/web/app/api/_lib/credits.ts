@@ -10,6 +10,7 @@
  */
 
 import { isCompedUser } from "./comp";
+import { pbEscape } from "./pb";
 
 export type CreditKind = "image" | "video";
 
@@ -76,7 +77,7 @@ async function fetchSubscription(
   userId: string
 ): Promise<SubscriptionRecord | null> {
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   if (!res.ok) return null;

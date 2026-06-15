@@ -9,6 +9,7 @@
 
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
+import { pbEscape } from "../../_lib/pb";
 
 function getPrices(): Record<string, string> {
   try {
@@ -41,7 +42,7 @@ async function getOrCreateStripeCustomer(
 ): Promise<string> {
   // Look for an existing subscription record with a Stripe customer ID
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as { items?: Array<{ stripe_customer?: string }> };

@@ -1,0 +1,55 @@
+/**
+ * FC-1c — GET /api/integrations/listmonk?campaign_id=X (email stats read).
+ *
+ * Gives the Email Strategist real campaign performance (sent / views /
+ * clicks / bounces) to learn from, instead of firing drafts blind. 503 when
+ * unconfigured; maps the Listmonk campaign object to a stats summary.
+ */
+
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { GET } from "../../app/api/integrations/listmonk/route";
+
+function req(qs = "?campaign_id=7"): Request {
+  return new Request(`https://staffd.test/api/integrations/listmonk${qs}`);
+}
+
+afterEach(() => vi.unstubAllEnvs());
+
+describe("GET /api/integrations/listmonk (FC-1c)", () => {
+  it("returns 503 when Listmonk is not configured", async () => {
+    vi.stubEnv("LISTMONK_URL", "");
+    vi.stubEnv("LISTMONK_PASSWORD", "");
+    const res = await GET(req());
+    expect(res.status).toBe(503);
+  });
+
+  it("returns 400 when campaign_id is missing", async () => {
+    vi.stubEnv("LISTMONK_URL", "https://lm.example.test");
+    vi.stubEnv("LISTMONK_PASSWORD", "pass");
+    const res = await GET(req(""));
+    expect(res.status).toBe(400);
+  });
+
+  it("maps the campaign object to a stats summary", async () => {
+    vi.stubEnv("LISTMONK_URL", "https://lm.example.test");
+    vi.stubEnv("LISTMONK_PASSWORD", "pass");
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        data: { id: 7, name: "June blast", subject: "Hello", status: "finished", sent: 1000, views: 420, clicks: 85, bounces: 12 },
+      }),
+    })));
+    const res = await GET(req());
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.campaign).toMatchObject({ id: 7, sent: 1000, views: 420, clicks: 85, bounces: 12 });
+  });
+
+  it("returns 502 on an upstream Listmonk error", async () => {
+    vi.stubEnv("LISTMONK_URL", "https://lm.example.test");
+    vi.stubEnv("LISTMONK_PASSWORD", "pass");
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 500, text: async () => "boom" })));
+    const res = await GET(req());
+    expect(res.status).toBe(502);
+  });
+});

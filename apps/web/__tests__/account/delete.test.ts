@@ -16,6 +16,7 @@ vi.mock("../../app/api/_lib/pb", () => ({
   getAdminToken: async () => "fake_admin_token",
   pbUrl: () => "https://pb.example.test",
   adminHeaders: (token: string) => ({ Authorization: token, "Content-Type": "application/json" }),
+  pbEscape: (s: string) => s.replace(/'/g, "\\'"),
 }));
 
 import { POST } from "../../app/api/account/delete/route";

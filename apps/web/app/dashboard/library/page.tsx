@@ -134,7 +134,7 @@ export default function LibraryPage() {
         </div>
 
         {/* Search */}
-        <div className="mb-4">
+        <div className="mb-2">
           <input
             type="text"
             value={search}
@@ -144,6 +144,12 @@ export default function LibraryPage() {
             style={{ background: "#111118", border: "1px solid #2A2A38", color: "#F0F0F8" }}
           />
         </div>
+        <p className="text-xs mb-6" style={{ color: "#5A5A70" }}>
+          Looking by meaning, not just words?{" "}
+          <a href="/dashboard/search" style={{ color: "#A07BFF", textDecoration: "none" }}>
+            Try Smart Search →
+          </a>
+        </p>
 
         {/* Filter chips */}
         <div className="flex flex-wrap gap-2 mb-6">

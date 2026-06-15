@@ -16,7 +16,7 @@
  * and subsequent calls return 401.
  */
 
-import { adminHeaders, getAdminToken, pbUrl } from "../../_lib/pb";
+import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 import { isSuperAdmin, type SuperAdminUser } from "../../_lib/auth/super-admin";
 
 // Mirror of export route's collection list. Order matters loosely: dependent
@@ -68,7 +68,7 @@ async function whoAmI(pbToken: string): Promise<SuperAdminUser | null> {
  * after the user record is gone.
  */
 async function cascadeDelete(adminToken: string, collection: string, userId: string, filterField = "user"): Promise<number> {
-  const filter = `${filterField}="${userId.replace(/"/g, '\\"')}"`;
+  const filter = `${filterField}='${pbEscape(userId)}'`;
   let deleted = 0;
   let page = 1;
   while (page <= 20) {
@@ -100,7 +100,7 @@ async function cascadeDelete(adminToken: string, collection: string, userId: str
 async function cancelStripeSubscription(adminToken: string, userId: string): Promise<{ cancelled: boolean; detail?: string }> {
   // Fetch the user's subscription to get the Stripe subscription id
   try {
-    const filter = `user="${userId.replace(/"/g, '\\"')}"`;
+    const filter = `user='${pbEscape(userId)}'`;
     const res = await fetch(
       `${pbUrl()}/api/collections/subscriptions/records?filter=${encodeURIComponent(filter)}&perPage=1`,
       { headers: { Authorization: adminToken } },

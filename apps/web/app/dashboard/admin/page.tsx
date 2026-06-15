@@ -15,6 +15,7 @@ import { VALID_PLANS, type Plan } from "../../../lib/hooks/useEffectivePlan";
  */
 
 import Image from "next/image";
+import IntegrationsHealthPanel from "../../components/IntegrationsHealthPanel";
 
 const PB_URL = process.env.NEXT_PUBLIC_POCKETBASE_URL ?? "";
 
@@ -175,6 +176,8 @@ export default function AdminIndexPage() {
             ))}
           </div>
         </section>
+
+        <IntegrationsHealthPanel />
 
         <ViewAsPlanCard />
 

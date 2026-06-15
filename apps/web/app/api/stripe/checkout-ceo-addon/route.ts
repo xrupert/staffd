@@ -16,6 +16,7 @@
 
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
+import { pbEscape } from "../../_lib/pb";
 
 const ELIGIBLE_PLANS = new Set(["starter", "growth"]);
 
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
     const adminToken = await getAdminToken(pbUrl);
 
     const subRes = await fetch(
-      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
       { headers: { Authorization: adminToken } }
     );
     const subData = (await subRes.json()) as {

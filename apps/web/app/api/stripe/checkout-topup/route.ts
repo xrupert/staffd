@@ -11,6 +11,7 @@
 
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
+import { pbEscape } from "../../_lib/pb";
 
 // W47 — §3-aligned typed packs. Route translates the pack id into
 // topup_type + credit_count session metadata; the webhook routes by type.
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
     // Reuse the user's stripe_customer if we have one so the user keeps a
     // single Stripe identity across plans + add-ons + top-ups.
     const subRes = await fetch(
-      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
       { headers: { Authorization: adminToken } }
     );
     const subData = (await subRes.json()) as { items?: Array<{ stripe_customer?: string }> };

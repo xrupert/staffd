@@ -8,7 +8,7 @@ import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { enqueue } from "../_lib/vault/queue";
 import { runOrchestrator } from "../_lib/orchestrator";
 import { getVoiceBlock } from "../_lib/vault/voice";
-import { pickModel, callGroq, computeCostUsd } from "../_lib/llm-router";
+import { pickModel, callGroq, computeCostUsd, MODELS } from "../_lib/llm-router";
 import { bridgingIndustryFor } from "../_lib/industry";
 import { trySuperAdminFromToken } from "../_lib/auth/super-admin";
 import { logSuperAdminUsage } from "../_lib/auth/super-admin-logging";
@@ -289,7 +289,7 @@ export async function POST(req: Request) {
     // Phase 3 — model routing. Cheap tier for short-form (captions, replies,
     // taglines). Sonnet always for legal/finance/operations + long-form.
     // Groq Llama only activates for short-form when GROQ_API_KEY is set.
-    const choice = pickModel({ department, agentId, task });
+    let choice = pickModel({ department, agentId, task });
     console.log(`[agent] model_choice provider=${choice.provider} model=${choice.model} dept=${department} task_chars=${task.length} reason="${choice.reason}"`);
 
     // W47 — agent-credit deduction removed: specialist conversations are
@@ -316,39 +316,44 @@ export async function POST(req: Request) {
     const encoder = new TextEncoder();
 
     // ── Groq path (short-form, non-streaming) ───────────────────────────
+    // T1-4 — on Groq failure (outage / rate-limit / network) we DON'T 500.
+    // We fall through to the Anthropic Haiku streaming path below so the
+    // user still gets their work. Groq is a cost optimization, never a
+    // single point of failure for short-form generation.
     if (choice.provider === "groq") {
-      let assistantText = "";
       try {
         const result = await callGroq(choice.model, systemPrompt, task, 8192);
-        assistantText = result.text;
+        const assistantText = result.text;
         const cost = computeCostUsd(choice.model, result.tokensIn, result.tokensOut);
         console.log(`[agent] groq_cost model=${choice.model} in=${result.tokensIn} out=${result.tokensOut} cost_usd=${cost.toFixed(6)}`);
-      } catch (err) {
-        console.warn("[agent] Groq call failed, returning error:", err);
-        return new Response("Something went wrong", { status: 500 });
-      }
 
-      if (userId && assistantText.trim()) {
-        void writeConversationTurnAndEnqueue({
-          threadId, user: userId, client: clientId, department, agentId,
-          role: "assistant", content: assistantText,
+        if (userId && assistantText.trim()) {
+          void writeConversationTurnAndEnqueue({
+            threadId, user: userId, client: clientId, department, agentId,
+            role: "assistant", content: assistantText,
+          });
+        }
+
+        void retrievalCostFlag;
+        const groqStream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(encoder.encode(assistantText));
+            controller.close();
+          },
         });
+        return new Response(groqStream, {
+          headers: {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Cache-Control": "no-cache",
+            "X-Content-Type-Options": "nosniff",
+          },
+        });
+      } catch (err) {
+        // Fall back to Anthropic Haiku (same short-form tier) instead of
+        // failing. Reassign `choice` and drop through to the Anthropic path.
+        console.warn("[agent] Groq call failed, falling back to Anthropic Haiku:", err);
+        choice = { provider: "anthropic", model: MODELS.haiku, family: "haiku", reason: "groq fallback" };
       }
-
-      void retrievalCostFlag;
-      const groqStream = new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(assistantText));
-          controller.close();
-        },
-      });
-      return new Response(groqStream, {
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Cache-Control": "no-cache",
-          "X-Content-Type-Options": "nosniff",
-        },
-      });
     }
 
     // ── Anthropic path (streaming, default) ─────────────────────────────

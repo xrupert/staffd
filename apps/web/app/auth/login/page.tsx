@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import pb from "../../../lib/pb";
+import GoogleAuthButton from "../../components/GoogleAuthButton";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -79,6 +80,7 @@ export default function LoginPage() {
           className="rounded-2xl p-7"
           style={{ background: "#111118", border: "1px solid #2A2A38" }}
         >
+          <GoogleAuthButton label="Sign in with Google" />
           <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2">
               <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6060A0" }}>

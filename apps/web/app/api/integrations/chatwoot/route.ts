@@ -164,3 +164,54 @@ export async function POST(req: Request) {
     return Response.json({ error: "Failed to create support ticket" }, { status: 500 });
   }
 }
+
+/**
+ * GET /api/integrations/chatwoot?status=open  (FC-1b)
+ *
+ * Read side — gives the Customer Service Responder awareness of open
+ * tickets instead of only being able to push replies. Env read inside the
+ * handler so config changes (and tests) take effect without a reload.
+ */
+type CwConversation = {
+  id: number;
+  status?: string;
+  last_activity_at?: number;
+  meta?: { sender?: { name?: string; email?: string } };
+};
+
+export async function GET(req: Request) {
+  const base = (process.env.CHATWOOT_URL ?? "").replace(/\/$/, "");
+  const key = process.env.CHATWOOT_API_KEY ?? "";
+  const acct = process.env.CHATWOOT_ACCOUNT_ID ?? "";
+  if (!base || !key || !acct) return notConfigured();
+
+  const status = new URL(req.url).searchParams.get("status") ?? "open";
+
+  try {
+    const res = await fetch(
+      `${base}/api/v1/accounts/${acct}/conversations?status=${encodeURIComponent(status)}&assignee_type=all`,
+      { headers: { "Content-Type": "application/json", api_access_token: key } }
+    );
+    if (!res.ok) {
+      const text = await res.text();
+      return Response.json({ error: "Chatwoot error", detail: text.slice(0, 300) }, { status: 502 });
+    }
+    const data = (await res.json()) as {
+      data?: { payload?: CwConversation[] };
+      payload?: CwConversation[];
+    };
+    const list = data.data?.payload ?? data.payload ?? [];
+    const conversations = list.map((c) => ({
+      id: c.id,
+      status: c.status ?? null,
+      contact: c.meta?.sender?.name ?? c.meta?.sender?.email ?? "Unknown",
+      email: c.meta?.sender?.email ?? null,
+      lastActivityAt: c.last_activity_at ?? null,
+      url: `${base}/app/accounts/${acct}/conversations/${c.id}`,
+    }));
+    return Response.json({ conversations });
+  } catch (err) {
+    console.error("Chatwoot read error:", err);
+    return Response.json({ error: "Failed to read support tickets" }, { status: 500 });
+  }
+}

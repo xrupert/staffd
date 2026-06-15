@@ -9,6 +9,7 @@
 
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
+import { pbEscape } from "../../_lib/pb";
 
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
@@ -46,7 +47,7 @@ export async function POST(req: Request) {
 
     // Look up Stripe customer ID from PocketBase
     const res = await fetch(
-      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
       { headers: { Authorization: adminToken } }
     );
     const data = (await res.json()) as { items?: Array<{ stripe_customer?: string }> };

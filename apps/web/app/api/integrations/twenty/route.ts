@@ -102,3 +102,75 @@ export async function POST(req: Request) {
     return Response.json({ error: "Failed to create CRM record" }, { status: 500 });
   }
 }
+
+/**
+ * GET /api/integrations/twenty?type=opportunities|contacts  (FC-1a)
+ *
+ * Read side — gives Sales specialists live pipeline / contact awareness.
+ * Env is read inside the handler so configuration changes (and tests) take
+ * effect without a module reload.
+ */
+type TwentyNode = {
+  id: string;
+  name: string | { firstName?: string; lastName?: string };
+  stage?: string;
+  createdAt?: string;
+};
+
+export async function GET(req: Request) {
+  const url = (process.env.TWENTY_API_URL ?? "").replace(/\/$/, "");
+  const key = process.env.TWENTY_API_KEY ?? "";
+  if (!url || !key) {
+    return Response.json(
+      {
+        error: "not_configured",
+        message:
+          "CRM is not set up yet. Deploy Twenty and add TWENTY_API_URL and TWENTY_API_KEY to your environment variables.",
+      },
+      { status: 503 }
+    );
+  }
+
+  const type = new URL(req.url).searchParams.get("type") ?? "opportunities";
+  const isOpp = type !== "contacts";
+  const query = isOpp
+    ? `query { opportunities(first: 25) { edges { node { id name stage createdAt } } } }`
+    : `query { people(first: 25) { edges { node { id name { firstName lastName } createdAt } } } }`;
+
+  try {
+    const res = await fetch(`${url}/graphql`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ query }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      return Response.json({ error: "Twenty error", detail: text.slice(0, 300) }, { status: 502 });
+    }
+    const data = (await res.json()) as {
+      data?: Record<string, { edges?: { node: TwentyNode }[] }>;
+      errors?: { message: string }[];
+    };
+    if (data.errors?.length) {
+      return Response.json({ error: data.errors[0]?.message ?? "Twenty error" }, { status: 502 });
+    }
+    const conn = data.data ? Object.values(data.data)[0] : null;
+    const results = (conn?.edges ?? []).map(({ node }) => {
+      const name =
+        typeof node.name === "object"
+          ? [node.name.firstName, node.name.lastName].filter(Boolean).join(" ")
+          : node.name;
+      return {
+        id: node.id,
+        name,
+        stage: node.stage ?? null,
+        createdAt: node.createdAt ?? null,
+        url: `${url}/objects/${isOpp ? "opportunities" : "people"}/${node.id}`,
+      };
+    });
+    return Response.json({ type: isOpp ? "opportunities" : "contacts", results });
+  } catch (err) {
+    console.error("Twenty read error:", err);
+    return Response.json({ error: "Failed to read CRM" }, { status: 500 });
+  }
+}

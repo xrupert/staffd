@@ -66,6 +66,56 @@ export function cleanForOrchestrator(content: string): string {
 }
 
 /**
+ * T1-3 (W70.2 fix) — condense the conversation history fed to the ROUTING
+ * LLM so it routes the latest user request on its own merits.
+ *
+ * Root cause of the W70.2 regression: follow-up turns replayed two things
+ * that anchored the cheap Haiku router to the PREVIOUS department —
+ *   1. coordinator routing-transparency stubs ("Marketing → Content Creator
+ *      is on it…"), which read as an explicit "active department" signal, and
+ *   2. full prior deliverables (600+ words) that dominated the 512-token
+ *      context window.
+ * Result: turns 2/3 mis-routed back to the established department.
+ *
+ * This condenser, applied only to the /api/orchestrate round-trip:
+ *   • keeps USER messages verbatim (the real routing signal),
+ *   • drops non-deliverable assistant messages (coordinator/status stubs are
+ *     UI protocol, the same class as READY/EXECUTE which we already strip),
+ *   • keeps deliverable (isOutput) assistant messages but truncates them to a
+ *     short excerpt so they provide light context without dominating,
+ *   • strips any READY/EXECUTE markers from retained content, and
+ *   • filters out anything that becomes empty after cleaning.
+ *
+ * Exported for tests.
+ */
+export function condenseForOrchestrator(
+  messages: Array<{ role: "user" | "assistant"; content: string; isOutput?: boolean }>,
+  opts?: { excerptChars?: number },
+): Array<{ role: "user" | "assistant"; content: string }> {
+  const excerptChars = opts?.excerptChars ?? 240;
+  const out: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+  for (const m of messages) {
+    if (m.role === "user") {
+      const content = (m.content ?? "").trim();
+      if (content) out.push({ role: "user", content });
+      continue;
+    }
+    // Assistant. Coordinator/status stubs (not isOutput) are UI affordances —
+    // drop them entirely so they can't anchor the router.
+    if (!m.isOutput) continue;
+
+    const cleaned = cleanForOrchestrator(m.content);
+    if (!cleaned) continue;
+    const excerpt =
+      cleaned.length > excerptChars ? cleaned.slice(0, excerptChars) + "…" : cleaned;
+    out.push({ role: "assistant", content: excerpt });
+  }
+
+  return out;
+}
+
+/**
  * PR-Tranche-2.6.5 (W38 + W39) — detect whether an agent's response ends
  * in a clarifying question (vs. a completed deliverable).
  *
@@ -309,16 +359,13 @@ export default function CommandCenter() {
 
     // Route through orchestrator
     try {
-      // PR-Tranche-2.5 (W26 fix) — strip UI-side protocol markers from
-      // assistant messages before sending. Drop assistant messages that
-      // become empty after cleaning (READY-only stubs). Keep user messages
-      // as-is. Drop final empty placeholders.
-      const cleanedMessages = newMessages
-        .map((m) => ({
-          role: m.role,
-          content: m.role === "assistant" ? cleanForOrchestrator(m.content) : m.content,
-        }))
-        .filter((m) => m.content.length > 0);
+      // T1-3 (W70.2 fix) — condense routing history so the latest user
+      // request drives the decision. Drops coordinator/status stubs (UI
+      // protocol, same class as the READY/EXECUTE markers W26 strips) and
+      // truncates prior deliverables to a short excerpt, so neither anchors
+      // the cheap Haiku router back to the previous department. User
+      // messages stay verbatim.
+      const cleanedMessages = condenseForOrchestrator(newMessages);
       const res = await fetch("/api/orchestrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

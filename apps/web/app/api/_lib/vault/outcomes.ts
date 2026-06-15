@@ -22,7 +22,7 @@
  * reserved for manual / future external callers).
  */
 
-import { adminHeaders, getAdminToken, pbUrl } from "../pb";
+import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../pb";
 import { recordPattern, type PatternSignal } from "./patterns";
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -265,7 +265,7 @@ export async function fetchRecentDecisions(
       .toISOString()
       .replace("T", " ")
       .slice(0, 19);
-    const filterParts = [`user='${userId}'`, `created>='${since}'`];
+    const filterParts = [`user='${pbEscape(userId)}'`, `created>='${since}'`];
     if (!opts?.includeDismissed) filterParts.push(`dismissed!=true`);
     const filter = `(${filterParts.join(" && ")})`;
     const res = await fetch(

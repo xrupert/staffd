@@ -8,6 +8,8 @@
  * Returns 404 if no host has this slug (or scheduling is disabled).
  */
 
+import { pbEscape } from "../../../_lib/pb";
+
 const DAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 
 interface AvailabilityRules {
@@ -90,8 +92,9 @@ export async function GET(
     const token = await getAdminToken(pbUrl);
 
     // Find host by booking slug
+    const hostFilter = `(booking_slug='${pbEscape(slug)}')`;
     const hostRes = await fetch(
-      `${pbUrl}/api/collections/businesses/records?filter=(booking_slug='${encodeURIComponent(slug)}')&perPage=1`,
+      `${pbUrl}/api/collections/businesses/records?filter=${encodeURIComponent(hostFilter)}&perPage=1`,
       { headers: { Authorization: token } }
     );
     const hostData = (await hostRes.json()) as {
@@ -129,7 +132,7 @@ export async function GET(
     const dayStart = new Date(`${dateStr}T00:00:00Z`).toISOString();
     const dayEnd = new Date(`${dateStr}T23:59:59Z`).toISOString();
     const filter = encodeURIComponent(
-      `user='${host.user}' && start_time >= '${dayStart}' && start_time <= '${dayEnd}' && status != 'cancelled'`
+      `user='${pbEscape(host.user)}' && start_time >= '${dayStart}' && start_time <= '${dayEnd}' && status != 'cancelled'`
     );
     const bookingsRes = await fetch(
       `${pbUrl}/api/collections/bookings/records?filter=${filter}&perPage=100&fields=start_time,duration`,

@@ -12,6 +12,7 @@
 
 import Stripe from "stripe";
 import { addTopupCredits, type CreditKind } from "../../_lib/credits";
+import { pbEscape } from "../../_lib/pb";
 
 // Returns 200 for all events even on processing errors —
 // otherwise Stripe will retry and we may double-process.
@@ -65,7 +66,7 @@ async function wasEventProcessed(
   eventId: string
 ): Promise<boolean> {
   const res = await fetch(
-    `${pbUrl}/api/collections/stripe_events/records?filter=(event_id='${eventId}')&perPage=1`,
+    `${pbUrl}/api/collections/stripe_events/records?filter=(event_id='${pbEscape(eventId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   if (!res.ok) return false; // ledger unavailable — process rather than drop
@@ -109,7 +110,7 @@ async function upsertSubscriptionForUser(
 
   // Find existing record
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as { items?: Array<{ id: string }> };
@@ -140,7 +141,7 @@ async function updateSubscriptionByCustomer(
 
   // Find subscription by stripe_customer field
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${stripeCustomerId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${pbEscape(stripeCustomerId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as { items?: Array<{ id: string }> };
@@ -166,7 +167,7 @@ async function addDeptAddonForUser(
   const headers = { Authorization: adminToken, "Content-Type": "application/json" };
 
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as {
@@ -203,7 +204,7 @@ async function addPackAddonForUser(
 ) {
   const headers = { Authorization: adminToken, "Content-Type": "application/json" };
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as {
@@ -239,7 +240,7 @@ async function removePackAddonByStripeSubId(
 ) {
   const headers = { Authorization: adminToken, "Content-Type": "application/json" };
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${stripeCustomerId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${pbEscape(stripeCustomerId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as {
@@ -279,7 +280,7 @@ async function setCeoAddonForUser(
 ) {
   const headers = { Authorization: adminToken, "Content-Type": "application/json" };
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${userId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as { items?: Array<{ id: string }> };
@@ -301,7 +302,7 @@ async function clearCeoAddonByStripeSubId(
 ) {
   const headers = { Authorization: adminToken, "Content-Type": "application/json" };
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${stripeCustomerId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${pbEscape(stripeCustomerId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as { items?: Array<{ id: string; ceo_addon_sub?: string }> };
@@ -326,7 +327,7 @@ async function removeDeptAddonByStripeSubId(
   const headers = { Authorization: adminToken, "Content-Type": "application/json" };
 
   const res = await fetch(
-    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${stripeCustomerId}')&perPage=1`,
+    `${pbUrl}/api/collections/subscriptions/records?filter=(stripe_customer='${pbEscape(stripeCustomerId)}')&perPage=1`,
     { headers: { Authorization: adminToken } }
   );
   const data = (await res.json()) as {
