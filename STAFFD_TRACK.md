@@ -243,6 +243,7 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post-FC-1 (read integrations) | 512/513 | +10 read-integration tests, 1 skipped |
 | Post-MX-8 (integrations health) | 517/518 | +5 classifier tests, 1 skipped |
 | Post-FC-2a (CRM + campaign actions) | 518/519 | vocabulary 6→8 (SA-auth), +1 wiring test, pins updated |
+| Post routing fix (vertical pollution) | 523/524 | +5 routablePacksFor tests |
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---

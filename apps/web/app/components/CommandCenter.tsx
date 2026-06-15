@@ -142,6 +142,28 @@ export function isAgentAskingQuestion(text: string): boolean {
   return phrasings.test(tail);
 }
 
+/**
+ * Gate for fetching post-generation action affordances.
+ *
+ * Specialists frequently finish a deliverable and then OFFER to do more
+ * ("…want me to build the full sequence?"). That trailing question must NOT
+ * suppress the affordances — the work IS done.
+ *
+ * The gate is only a cost optimization: the W62 analyzer already returns no
+ * candidates for a non-deliverable, so the worst case of fetching too eagerly
+ * is one wasted call (→ no buttons anyway). So we only short-circuit the
+ * clearly-pointless case: a SHORT response that is essentially just a
+ * clarifying question. Anything substantial goes to the analyzer, which is the
+ * real filter. Exported for tests.
+ */
+const DELIVERABLE_MIN_CHARS = 400;
+export function shouldFetchAffordances(output: string): boolean {
+  const text = (output ?? "").trim();
+  if (text.length <= 50) return false;
+  if (text.length >= DELIVERABLE_MIN_CHARS) return true;
+  return !isAgentAskingQuestion(text);
+}
+
 function loadOrCreateThreadId(): string {
   if (typeof window === "undefined") return "";
   try {
@@ -699,11 +721,10 @@ export default function CommandCenter() {
       // PR-Tranche-2.6.5 (W38) — skip handoff fetch when agent is asking
       // a clarifying question. Handoff suggestions are nonsense if the
       // work isn't done — the user needs to answer first.
-      if (
-        completedOutput &&
-        completedOutput.length > 50 &&
-        !isAgentAskingQuestion(completedOutput)
-      ) {
+      // A finished deliverable that ends with a friendly "want me to do
+      // more?" must still surface its action affordances — only a short, pure
+      // clarifying question (no work done yet) skips the handoff fetch.
+      if (shouldFetchAffordances(completedOutput)) {
         void fetchHandoffSuggestions(department, task, completedOutput, userGoal, userId, pbToken, savedDocIdPromise);
       }
     }
