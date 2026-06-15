@@ -50,11 +50,13 @@ beforeEach(() => {
 const BASE = { prompt: "write instagram ad copy", department: "marketing" };
 
 describe("action vocabulary (W62)", () => {
-  it("is locked at exactly 6 actions — growth requires explicit SA authorization", () => {
-    expect(ACTION_VOCABULARY).toHaveLength(6);
+  it("is locked at exactly 8 actions — growth requires explicit SA authorization", () => {
+    // FC-2 (SA-authorized 2026-06-15): +send_to_crm, +send_email_campaign.
+    expect(ACTION_VOCABULARY).toHaveLength(8);
     expect(ACTION_VOCABULARY.map((a) => a.id).sort()).toEqual([
       "draft_email", "export_document", "generate_image",
       "generate_video", "publish_social", "schedule_followup",
+      "send_email_campaign", "send_to_crm",
     ]);
   });
 

@@ -82,6 +82,10 @@
 ### W72 status
 - **BLOCKED** on W71.fix PB reconciliation completing first
 
+### ✅ INTEGRATIONS VERIFIED LIVE (2026-06-15)
+Confirmed green in production via the admin health panel: **Twenty 🟢 · Chatwoot 🟢 · Listmonk 🟢 · Docuseal 🟢**.
+(Twenty URL fixed to server origin; Listmonk migrated to an API user token.) All read routes + write routes now have working credentials in prod.
+
 ### ⚠️ DEPLOYMENT STATUS (2026-06-15)
 **Everything built this session is LOCAL and uncommitted** — landing redesign, T1-1→T1-8, pbEscape
 standardization, Smart Search, Google OAuth, FC-1 read integrations, integrations health-check.
@@ -118,7 +122,8 @@ To test the integrations in prod (and to demo any of this), these changes must b
 | FC-1b | Read integration: Chatwoot (`GET /api/integrations/chatwoot?status=open`) | 6h | ✅ 2026-06-15 | — | GET added; conversation payload→flat list w/ deep links. +3 tests. |
 | FC-1c | Read integration: Listmonk campaign stats (`GET /api/integrations/listmonk?campaign_id=X`) | 8h | ✅ 2026-06-15 | — | GET added; campaign→stats summary (sent/views/clicks/bounces). +4 tests. |
 | FC-1d | Wire reads into agent context via `AgentCapability` (auto-inject pipeline/tickets/stats into prompts when agent declares `reads_crm`/`reads_support_history`/`reads_email_campaigns`) | 8h | ⬜ FOLLOW-UP | FC-1a/b/c | Touches `/api/agent` (§5-sensitive) — deferred for careful design. Read APIs above are usable now by UI / action candidates. |
-| FC-2 | Action candidates UI (panel below DepartmentRoom output; buttons → existing integration write routes) | 14h | ⬜ | FC-1a/b/c | `DepartmentRoom.tsx`, `action_candidates` field on documents |
+| FC-2a | Action vocabulary +2 integration actions (`send_to_crm`→Twenty, `send_email_campaign`→Listmonk) wired in CommandCenter | 7h | ✅ 2026-06-15 | FC-1 | SA-authorized vocabulary growth (6→8); updated 3 locked pins; zero-input handlers fire to connected write routes w/ result message. +1 wiring test. |
+| FC-2b | Remaining 2 integration actions (`open_support_ticket`→Chatwoot, `send_for_signature`→Docuseal) — need a shared recipient-email modal; + wire useActionDispatcher into DepartmentRoom (HandoffPanel already renders affordances there) | 10h | ⬜ FOLLOW-UP | FC-2a | `DepartmentRoom.tsx`, new `ActionRecipientModal` |
 | FC-3 | W63: Outcome auto-ingestion (post-write integration call → create `vault_decisions` record) | 5h | ⬜ | — | `/api/integrations/*/route.ts`, `vault_decisions` collection |
 | FC-4 | Google OAuth (enable PB OAuth2 provider + "Continue with Google" button in login UI) | 6h | ✅ 2026-06-15 (code) / ⬜ **OPERATOR: enable Google in PB admin** | — | New shared `GoogleAuthButton.tsx` on login + signup; `authWithOAuth2`; new user → onboarding, returning → dashboard. Graceful "not enabled yet" message until PB config. +2 tests, browser-verified. |
 | FC-5a | Autopilot: data reader worker (reads Stripe MRR + connected integration data → brief struct) | 10h | ⬜ | MS-A | `/api/worker/autopilot/route.ts` (new) |
@@ -237,6 +242,7 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post-FC-4 (Google OAuth) | 502/503 | +2 oauth-route tests, 1 skipped |
 | Post-FC-1 (read integrations) | 512/513 | +10 read-integration tests, 1 skipped |
 | Post-MX-8 (integrations health) | 517/518 | +5 classifier tests, 1 skipped |
+| Post-FC-2a (CRM + campaign actions) | 518/519 | vocabulary 6→8 (SA-auth), +1 wiring test, pins updated |
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---

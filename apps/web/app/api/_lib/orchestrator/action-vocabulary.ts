@@ -17,7 +17,11 @@ export type ActionId =
   | "publish_social"     // data-only in V1 — publish handler is 410; W64 decides revive (ruling H3)
   | "schedule_followup"
   | "draft_email"
-  | "export_document";
+  | "export_document"
+  // FC-2 — integration platform actions (SA-authorized 2026-06-15). Each maps
+  // to a connected write route: Twenty / Listmonk / Chatwoot / Docuseal.
+  | "send_to_crm"
+  | "send_email_campaign";
 
 export type ActionCandidate = {
   id: ActionId;
@@ -37,6 +41,8 @@ export const ACTION_VOCABULARY: ReadonlyArray<{ id: ActionId; definition: string
   { id: "schedule_followup", definition: "The work implies a time-based next touch (campaign sequence, renewal, post timing, reminder)." },
   { id: "draft_email",       definition: "The work should be announced or distributed by email (launch, newsletter-worthy content, customer notice)." },
   { id: "export_document",   definition: "The work is a formal document the user will share outside STAFFD (contract, proposal, report, plan)." },
+  { id: "send_to_crm",       definition: "The work identifies a lead, prospect, or deal worth tracking in the CRM (qualified opportunity, outreach target, new account)." },
+  { id: "send_email_campaign", definition: "The work is email content ready to be sent as a campaign to a subscriber list (newsletter, launch announcement, broadcast)." },
 ];
 
 /** Ship-default surfacing gate (W62 Decision 3). Per-action calibration is post-V1 W62.1. */
@@ -55,6 +61,8 @@ export const ACTION_UI: Readonly<Record<ActionId, { label: string; icon: string;
   schedule_followup: { label: "Schedule a follow-up →",  icon: "🗓️" },
   draft_email:       { label: "Draft the email →",       icon: "✉️" },
   export_document:   { label: "Export as document →",    icon: "📄" },
+  send_to_crm:         { label: "Add to CRM →",            icon: "📇" },
+  send_email_campaign: { label: "Send as campaign →",      icon: "📧" },
 };
 
 const VALID_IDS = new Set<string>(ACTION_VOCABULARY.map((a) => a.id));

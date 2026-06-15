@@ -235,7 +235,67 @@ export default function CommandCenter() {
         { skipConfirm: true, preselectDept: "marketing", preselectAgent: "marketing-email-marketer" }
       );
     },
+    // FC-2 (SA-authorized) — integration platform actions. Fire to the
+    // connected write routes (Twenty / Listmonk); the result surfaces as a
+    // thread message with a deep link. No recipient input needed: CRM gets
+    // an opportunity derived from the task, Listmonk gets a reviewable draft.
+    send_to_crm: () => { void sendToCrm(); },
+    send_email_campaign: () => { void sendEmailCampaign(); },
   });
+
+  // FC-2 — push a finished artifact to Twenty as an opportunity. Name is
+  // derived from the task; the output rides along as notes. Result (or a
+  // friendly failure) lands in the thread.
+  async function sendToCrm() {
+    const output = lastCompleted?.output ?? "";
+    const task = lastCompleted?.task ?? "";
+    if (!output.trim()) { console.warn("[FC-2] send_to_crm with no completed output — noop"); return; }
+    const name = task.trim().slice(0, 80) || "New opportunity from STAFFD";
+    setMessages((prev) => [...prev, { role: "assistant", content: "Adding this to your CRM…" }]);
+    try {
+      const res = await fetch("/api/integrations/twenty", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "opportunity", name, notes: output.slice(0, 1000) }),
+      });
+      const data = (await res.json()) as { success?: boolean; crmUrl?: string; message?: string; error?: string };
+      if (!res.ok || !data.success) {
+        setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't add to your CRM — try again." }]);
+        return;
+      }
+      const link = data.crmUrl ? ` [View in CRM](${data.crmUrl})` : "";
+      setMessages((prev) => [...prev, { role: "assistant", content: `Added to your CRM as an opportunity.${link}` }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't reach the CRM: ${err instanceof Error ? err.message : String(err)}` }]);
+    }
+  }
+
+  // FC-2 — turn a finished artifact into a Listmonk draft campaign (subject
+  // from the task, body from the output). Always a DRAFT — the user reviews
+  // + sends from Listmonk, so this is safe to fire on a click.
+  async function sendEmailCampaign() {
+    const output = lastCompleted?.output ?? "";
+    const task = lastCompleted?.task ?? "";
+    if (!output.trim()) { console.warn("[FC-2] send_email_campaign with no completed output — noop"); return; }
+    const subject = task.trim().slice(0, 120) || "New campaign from STAFFD";
+    setMessages((prev) => [...prev, { role: "assistant", content: "Creating an email campaign draft…" }]);
+    try {
+      const res = await fetch("/api/integrations/listmonk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject, body: output }),
+      });
+      const data = (await res.json()) as { success?: boolean; campaignUrl?: string; message?: string; error?: string };
+      if (!res.ok || !data.success) {
+        setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't create the campaign — try again." }]);
+        return;
+      }
+      const link = data.campaignUrl ? ` [Review the draft](${data.campaignUrl})` : "";
+      setMessages((prev) => [...prev, { role: "assistant", content: `Created a draft campaign for your review.${link}` }]);
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't reach email: ${err instanceof Error ? err.message : String(err)}` }]);
+    }
+  }
 
   // W64 B2 (D12) — inline media generation for the Command Center thread.
   // Same /api/integrations/muapi contract as DeptRoom (503 unconfigured,

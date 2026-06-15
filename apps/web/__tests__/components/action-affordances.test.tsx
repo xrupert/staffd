@@ -40,6 +40,8 @@ describe("ACTION_UI — locked label set (W63 Decision 4)", () => {
       schedule_followup: { label: "Schedule a follow-up →",  icon: "🗓️" },
       draft_email:       { label: "Draft the email →",       icon: "✉️" },
       export_document:   { label: "Export as document →",    icon: "📄" },
+      send_to_crm:         { label: "Add to CRM →",          icon: "📇" },
+      send_email_campaign: { label: "Send as campaign →",    icon: "📧" },
     });
   });
 });
@@ -60,8 +62,8 @@ describe("ActionAffordances (W63)", () => {
       .map((id) => ({ id, confidence: 0.9, reason: `reason for ${id}` }));
     const { container } = render(<ActionAffordances candidates={all} context={CTX} />);
     const buttons = Array.from(container.querySelectorAll("button"));
-    // 6 in vocabulary, 1 hidden → 5 rendered.
-    expect(buttons).toHaveLength(5);
+    // 8 in vocabulary, 1 hidden (publish_social) → 7 rendered.
+    expect(buttons).toHaveLength(7);
     for (const b of buttons) {
       expect(b.getAttribute("title")).toMatch(/^reason for /);
     }
@@ -145,6 +147,16 @@ describe("mount wiring + invariants (W63)", () => {
     expect(src).toContain("(followUps.length > 0 || actionCandidates.length > 0)");
     // T3.0 invariant — still no credit strings.
     expect(src).not.toMatch(/agent.{0,5}credit|credits remaining/i);
+  });
+
+  it("CommandCenter wires the FC-2 integration handlers (no dead buttons)", () => {
+    const src = readFileSync(join(WEB, "app", "components", "CommandCenter.tsx"), "utf8");
+    // Both new vocabulary actions have a registered dispatcher handler.
+    expect(src).toMatch(/send_to_crm:\s*\(\)\s*=>/);
+    expect(src).toMatch(/send_email_campaign:\s*\(\)\s*=>/);
+    // Handlers hit the connected write routes.
+    expect(src).toContain("/api/integrations/twenty");
+    expect(src).toContain("/api/integrations/listmonk");
   });
 
   it("D10' coexistence — DepartmentRoom static affordances untouched", () => {
