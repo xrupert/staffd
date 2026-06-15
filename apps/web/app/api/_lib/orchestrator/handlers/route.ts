@@ -85,6 +85,23 @@ function pickAgentForDept(
   return pool[0]?.id;
 }
 
+/**
+ * Auto-route vertical gate. Comped/super-admin accounts have EVERY pack
+ * active (trial.ts); without this, every vertical specialist competes in the
+ * auto-router and an unrelated one can win an out-of-vertical task (a
+ * real-estate "Listing Promoter" answering a junk-removal proposal). Only the
+ * user's RESOLVED industry pack (when active) is offered to the auto-router;
+ * otherwise generic specialists only. Explicit pack access via dept pages is
+ * unaffected — this narrows AUTO-routing alone. Exported for tests.
+ */
+export function routablePacksFor(
+  userIndustry: IndustryPack | null | undefined,
+  activePacks: ReadonlyArray<string>,
+): string[] {
+  if (userIndustry && activePacks.includes(userIndustry)) return [userIndustry];
+  return [];
+}
+
 export async function handleRoute(req: OrchestratorRequest): Promise<OrchestratorResponse> {
   const policy = policyFor("route");
   const ctx = (req.context ?? {}) as RouteContext;
@@ -109,6 +126,10 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   // behavior preserved.
   // W59 (Decision 8) — boost resolution honors the structured category too.
   const userIndustry = resolveIndustryToPackId(resolveBridgingIndustry(vault));
+  // Only the user's industry pack (when active) joins the AUTO-route pool —
+  // see routablePacksFor. Keeps unrelated verticals out of auto-routing for
+  // comped/all-packs accounts.
+  const routablePacks = routablePacksFor(userIndustry, activePacks);
 
   // Hotfix bundle A1 — build the full roster of available specialists across
   // unlocked departments so the LLM can pick the right one BY NAME, not just
@@ -117,7 +138,7 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   // Creator who then recommended SEMrush/Ahrefs.
   const rosterByDept: Record<string, Array<{ id: string; name: string; description: string; tags: string[] }>> = {};
   for (const d of unlockedDepts) {
-    const agents = getDepartmentAgents(d as Department, { activePacks });
+    const agents = getDepartmentAgents(d as Department, { activePacks: routablePacks });
     rosterByDept[d] = agents.map((a) => ({
       id: a.id,
       name: a.name,
@@ -226,11 +247,11 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
   if (agentId) {
     const candidate = getAgent(agentId);
     const inDept = candidate && candidate.department === dept &&
-      (!candidate.pack || activePacks.includes(candidate.pack));
+      (!candidate.pack || routablePacks.includes(candidate.pack));
     if (!inDept) agentId = undefined;
   }
   if (!agentId) {
-    agentId = pickAgentForDept(dept, message, activePacks, userIndustry);
+    agentId = pickAgentForDept(dept, message, routablePacks, userIndustry);
   }
 
   return {
