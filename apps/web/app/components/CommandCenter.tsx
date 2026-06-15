@@ -12,6 +12,7 @@ import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
+import ActionRecipientModal, { type RecipientKind } from "./ActionRecipientModal";
 import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 interface Message {
@@ -213,6 +214,10 @@ export default function CommandCenter() {
   // W64 B2 (D13) — shared schedule_followup modal state.
   const [followupOpen, setFollowupOpen] = useState(false);
   const [followupSeed, setFollowupSeed] = useState("");
+  // FC-2b — recipient modal for the two integration actions that need an
+  // email (Chatwoot ticket / Docuseal signature).
+  const [recipientModal, setRecipientModal] = useState<{ kind: RecipientKind } | null>(null);
+  const [recipientBusy, setRecipientBusy] = useState(false);
 
   useEffect(() => {
     setThreadId(loadOrCreateThreadId());
@@ -263,6 +268,15 @@ export default function CommandCenter() {
     // an opportunity derived from the task, Listmonk gets a reviewable draft.
     send_to_crm: () => { void sendToCrm(); },
     send_email_campaign: () => { void sendEmailCampaign(); },
+    // FC-2b — these need a recipient email, so they open the modal first.
+    open_support_ticket: () => {
+      if (!(lastCompleted?.output ?? "").trim()) { console.warn("[FC-2] open_support_ticket with no output — noop"); return; }
+      setRecipientModal({ kind: "support" });
+    },
+    send_for_signature: () => {
+      if (!(lastCompleted?.output ?? "").trim()) { console.warn("[FC-2] send_for_signature with no output — noop"); return; }
+      setRecipientModal({ kind: "signature" });
+    },
   });
 
   // FC-2 — push a finished artifact to Twenty as an opportunity. Name is
@@ -316,6 +330,61 @@ export default function CommandCenter() {
       setMessages((prev) => [...prev, { role: "assistant", content: `Created a draft campaign for your review.${link}` }]);
     } catch (err) {
       setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't reach email: ${err instanceof Error ? err.message : String(err)}` }]);
+    }
+  }
+
+  // FC-2b — the recipient modal collected an email; fire the Chatwoot or
+  // Docuseal write and surface the result (or a friendly failure).
+  async function submitRecipientAction(recipient: { name: string; email: string }) {
+    const modal = recipientModal;
+    if (!modal) return;
+    const output = lastCompleted?.output ?? "";
+    const task = lastCompleted?.task ?? "";
+    if (!output.trim()) { setRecipientModal(null); return; }
+    setRecipientBusy(true);
+    try {
+      if (modal.kind === "support") {
+        const res = await fetch("/api/integrations/chatwoot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            customerName: recipient.name || "Customer",
+            customerEmail: recipient.email,
+            subject: task.slice(0, 120),
+            reply: output,
+          }),
+        });
+        const data = (await res.json()) as { success?: boolean; conversationUrl?: string; message?: string; error?: string };
+        if (!res.ok || !data.success) {
+          setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't open the support ticket — try again." }]);
+        } else {
+          const link = data.conversationUrl ? ` [Open the conversation](${data.conversationUrl})` : "";
+          setMessages((prev) => [...prev, { role: "assistant", content: `Opened a support ticket with this reply.${link}` }]);
+        }
+      } else {
+        const res = await fetch("/api/integrations/docuseal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: task.slice(0, 120) || "Document for signature",
+            documentContent: output,
+            signerEmail: recipient.email,
+            signerName: recipient.name,
+          }),
+        });
+        const data = (await res.json()) as { success?: boolean; signingUrl?: string; message?: string; error?: string };
+        if (!res.ok || !data.success) {
+          setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't send for signature — try again." }]);
+        } else {
+          const link = data.signingUrl ? ` [Signing link](${data.signingUrl})` : "";
+          setMessages((prev) => [...prev, { role: "assistant", content: `Sent to ${recipient.email} for signature.${link}` }]);
+        }
+      }
+    } catch (err) {
+      setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't reach the service: ${err instanceof Error ? err.message : String(err)}` }]);
+    } finally {
+      setRecipientBusy(false);
+      setRecipientModal(null);
     }
   }
 
@@ -1071,6 +1140,14 @@ export default function CommandCenter() {
         department={lastCompleted?.department ?? "marketing"}
         agentName={DEPT_LABELS[lastCompleted?.department ?? ""] ?? "Your team"}
         seedTask={followupSeed}
+      />
+
+      <ActionRecipientModal
+        open={recipientModal !== null}
+        kind={recipientModal?.kind ?? "support"}
+        busy={recipientBusy}
+        onClose={() => { if (!recipientBusy) setRecipientModal(null); }}
+        onSubmit={(r) => { void submitRecipientAction(r); }}
       />
     </div>
   );

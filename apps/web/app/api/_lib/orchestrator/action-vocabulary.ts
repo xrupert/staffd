@@ -21,7 +21,9 @@ export type ActionId =
   // FC-2 — integration platform actions (SA-authorized 2026-06-15). Each maps
   // to a connected write route: Twenty / Listmonk / Chatwoot / Docuseal.
   | "send_to_crm"
-  | "send_email_campaign";
+  | "send_email_campaign"
+  | "open_support_ticket"
+  | "send_for_signature";
 
 export type ActionCandidate = {
   id: ActionId;
@@ -43,6 +45,8 @@ export const ACTION_VOCABULARY: ReadonlyArray<{ id: ActionId; definition: string
   { id: "export_document",   definition: "The work is a formal document the user will share outside STAFFD (contract, proposal, report, plan)." },
   { id: "send_to_crm",       definition: "The work identifies a lead, prospect, or deal worth tracking in the CRM (qualified opportunity, outreach target, new account)." },
   { id: "send_email_campaign", definition: "The work is email content ready to be sent as a campaign to a subscriber list (newsletter, launch announcement, broadcast)." },
+  { id: "open_support_ticket", definition: "The work is a customer-service reply that should become a support ticket / conversation in the support inbox." },
+  { id: "send_for_signature",  definition: "The work is a contract or agreement that needs a signature (NDA, MSA, proposal acceptance, engagement letter, SOW)." },
 ];
 
 /** Ship-default surfacing gate (W62 Decision 3). Per-action calibration is post-V1 W62.1. */
@@ -63,6 +67,8 @@ export const ACTION_UI: Readonly<Record<ActionId, { label: string; icon: string;
   export_document:   { label: "Export as document →",    icon: "📄" },
   send_to_crm:         { label: "Add to CRM →",            icon: "📇" },
   send_email_campaign: { label: "Send as campaign →",      icon: "📧" },
+  open_support_ticket: { label: "Open support ticket →",   icon: "🎫" },
+  send_for_signature:  { label: "Send for signature →",    icon: "✍️" },
 };
 
 const VALID_IDS = new Set<string>(ACTION_VOCABULARY.map((a) => a.id));

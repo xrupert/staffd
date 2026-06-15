@@ -123,7 +123,8 @@ To test the integrations in prod (and to demo any of this), these changes must b
 | FC-1c | Read integration: Listmonk campaign stats (`GET /api/integrations/listmonk?campaign_id=X`) | 8h | ✅ 2026-06-15 | — | GET added; campaign→stats summary (sent/views/clicks/bounces). +4 tests. |
 | FC-1d | Wire reads into agent context via `AgentCapability` (auto-inject pipeline/tickets/stats into prompts when agent declares `reads_crm`/`reads_support_history`/`reads_email_campaigns`) | 8h | ⬜ FOLLOW-UP | FC-1a/b/c | Touches `/api/agent` (§5-sensitive) — deferred for careful design. Read APIs above are usable now by UI / action candidates. |
 | FC-2a | Action vocabulary +2 integration actions (`send_to_crm`→Twenty, `send_email_campaign`→Listmonk) wired in CommandCenter | 7h | ✅ 2026-06-15 | FC-1 | SA-authorized vocabulary growth (6→8); updated 3 locked pins; zero-input handlers fire to connected write routes w/ result message. +1 wiring test. |
-| FC-2b | Remaining 2 integration actions (`open_support_ticket`→Chatwoot, `send_for_signature`→Docuseal) — need a shared recipient-email modal; + wire useActionDispatcher into DepartmentRoom (HandoffPanel already renders affordances there) | 10h | ⬜ FOLLOW-UP | FC-2a | `DepartmentRoom.tsx`, new `ActionRecipientModal` |
+| FC-2b | `open_support_ticket`→Chatwoot + `send_for_signature`→Docuseal, with a shared recipient-email modal, wired in CommandCenter | 7h | ✅ 2026-06-15 | FC-2a | Vocabulary 8→10 (pins updated); new `ActionRecipientModal`; handlers POST to chatwoot/docuseal w/ result message. Wiring test extended. |
+| FC-2c | Wire `useActionDispatcher` into DepartmentRoom (HandoffPanel already renders affordances there, but clicks have no handlers) | 4h | ⬜ FOLLOW-UP | FC-2a/b | `DepartmentRoom.tsx` |
 | FC-3 | W63: Outcome auto-ingestion (post-write integration call → create `vault_decisions` record) | 5h | ⬜ | — | `/api/integrations/*/route.ts`, `vault_decisions` collection |
 | FC-4 | Google OAuth (enable PB OAuth2 provider + "Continue with Google" button in login UI) | 6h | ✅ 2026-06-15 (code) / ⬜ **OPERATOR: enable Google in PB admin** | — | New shared `GoogleAuthButton.tsx` on login + signup; `authWithOAuth2`; new user → onboarding, returning → dashboard. Graceful "not enabled yet" message until PB config. +2 tests, browser-verified. |
 | FC-5a | Autopilot: data reader worker (reads Stripe MRR + connected integration data → brief struct) | 10h | ⬜ | MS-A | `/api/worker/autopilot/route.ts` (new) |
@@ -244,6 +245,8 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post-MX-8 (integrations health) | 517/518 | +5 classifier tests, 1 skipped |
 | Post-FC-2a (CRM + campaign actions) | 518/519 | vocabulary 6→8 (SA-auth), +1 wiring test, pins updated |
 | Post routing fix (vertical pollution) | 523/524 | +5 routablePacksFor tests |
+| Post affordance-gate fix | 528/529 | +5 shouldFetchAffordances tests — buttons no longer suppressed by a trailing offer question |
+| Post FC-2b (support + signature actions) | 528/529 | vocabulary 8→10 (SA-auth), recipient modal, pins + wiring test updated |
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---

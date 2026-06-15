@@ -42,6 +42,8 @@ describe("ACTION_UI — locked label set (W63 Decision 4)", () => {
       export_document:   { label: "Export as document →",    icon: "📄" },
       send_to_crm:         { label: "Add to CRM →",          icon: "📇" },
       send_email_campaign: { label: "Send as campaign →",    icon: "📧" },
+      open_support_ticket: { label: "Open support ticket →", icon: "🎫" },
+      send_for_signature:  { label: "Send for signature →",  icon: "✍️" },
     });
   });
 });
@@ -62,8 +64,8 @@ describe("ActionAffordances (W63)", () => {
       .map((id) => ({ id, confidence: 0.9, reason: `reason for ${id}` }));
     const { container } = render(<ActionAffordances candidates={all} context={CTX} />);
     const buttons = Array.from(container.querySelectorAll("button"));
-    // 8 in vocabulary, 1 hidden (publish_social) → 7 rendered.
-    expect(buttons).toHaveLength(7);
+    // 10 in vocabulary, 1 hidden (publish_social) → 9 rendered.
+    expect(buttons).toHaveLength(9);
     for (const b of buttons) {
       expect(b.getAttribute("title")).toMatch(/^reason for /);
     }
@@ -157,6 +159,11 @@ describe("mount wiring + invariants (W63)", () => {
     // Handlers hit the connected write routes.
     expect(src).toContain("/api/integrations/twenty");
     expect(src).toContain("/api/integrations/listmonk");
+    // FC-2b — the two recipient-email actions are wired + hit their routes.
+    expect(src).toMatch(/open_support_ticket:\s*\(\)\s*=>/);
+    expect(src).toMatch(/send_for_signature:\s*\(\)\s*=>/);
+    expect(src).toContain("/api/integrations/chatwoot");
+    expect(src).toContain("/api/integrations/docuseal");
   });
 
   it("D10' coexistence — DepartmentRoom static affordances untouched", () => {
