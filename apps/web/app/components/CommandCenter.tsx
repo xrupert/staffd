@@ -223,7 +223,7 @@ export default function CommandCenter() {
     setThreadId(loadOrCreateThreadId());
   }, []);
 
-  // W80.1 — a Cockpit card chip can deep-link here with ?ask=<prompt> to seed
+  // W80.1 — a Front Desk card chip can deep-link here with ?ask=<prompt> to seed
   // the input (surface→specialist). We pre-fill (not auto-send) so the user
   // reviews first, then the existing orchestrator routes it. URL is cleaned
   // so a refresh doesn't re-seed.

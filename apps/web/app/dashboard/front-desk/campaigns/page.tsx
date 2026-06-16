@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * /dashboard/cockpit/campaigns — Email Campaigns native surface (W80.2).
+ * /dashboard/front-desk/campaigns — Email Campaigns native surface (W80.2).
  *
  * List / detail / compose over the operator's email tool, in STAFFD's shell.
  * No vendor name appears anywhere. Super-admin gated; the write route is
@@ -230,7 +230,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="relative z-10 w-full max-w-3xl mx-auto px-6 py-8">
         <header className="mb-8 flex items-center justify-between">
           <a href="/dashboard"><Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} /></a>
-          <a href="/dashboard/cockpit" className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Cockpit</a>
+          <a href="/dashboard/front-desk" className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Front Desk</a>
         </header>
         {children}
       </div>

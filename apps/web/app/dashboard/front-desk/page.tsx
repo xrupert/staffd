@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * /dashboard/cockpit — Operations Home / "Cockpit" (W80.1).
+ * /dashboard/front-desk — Operations Home / "Front Desk" (W80.1).
  *
- * NOTE: routed to /cockpit, not /operations — /dashboard/operations is the
- * Operations *department* room (Standard #9). SA can rename the label.
+ * NOTE: routed to /front-desk, not /operations — /dashboard/operations is the
+ * Operations *department* room (Standard #9). Old /cockpit URL 301-redirects.
  *
  * One surface aggregating the operator's connected tools into STAFFD's shell:
  * email campaigns, sales pipeline, support inbox, site analytics — each a
@@ -40,7 +40,7 @@ const cardStyle: React.CSSProperties = {
 type CardState = { summary: string; connected: boolean; loading: boolean };
 const INITIAL: CardState = { summary: "", connected: true, loading: true };
 
-export default function CockpitHome() {
+export default function FrontDeskHome() {
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [email, setEmail] = useState<CardState>(INITIAL);
   const [pipeline, setPipeline] = useState<CardState>(INITIAL);
@@ -101,7 +101,7 @@ export default function CockpitHome() {
         </header>
 
         <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#5B21E8" }}>Cockpit</p>
+          <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#5B21E8" }}>Front Desk</p>
           <h1 className="font-bold mb-2" style={{ color: "#F0F0F8", fontSize: "1.75rem", letterSpacing: "-0.02em" }}>Your business, in one place.</h1>
           <p className="text-sm" style={{ color: "#7070A0", lineHeight: 1.6 }}>Campaigns, pipeline, support, and traffic — with your staff one click away on each.</p>
         </div>
@@ -123,7 +123,7 @@ export default function CockpitHome() {
             </div>
 
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-              <OpsCardView title="Email Campaigns" icon="📧" card="email" state={email} drill={{ href: "/dashboard/cockpit/campaigns", label: "Open campaigns →" }} />
+              <OpsCardView title="Email Campaigns" icon="📧" card="email" state={email} drill={{ href: "/dashboard/front-desk/campaigns", label: "Open campaigns →" }} />
               <OpsCardView title="Sales Pipeline" icon="📇" card="pipeline" state={pipeline} />
               <OpsCardView title="Support Inbox" icon="🎫" card="inbox" state={inbox} />
               <OpsCardView title="Site Analytics" icon="📈" card="analytics" state={analytics} />
