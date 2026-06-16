@@ -16,6 +16,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   ACTION_VOCABULARY,
+  CONFIDENCE_THRESHOLD,
   validateCandidates,
   type ActionCandidate,
 } from "./action-vocabulary";
@@ -106,8 +107,21 @@ export async function analyzeOutput(input: AnalyzeInput): Promise<ActionCandidat
       const block = msg.content[0];
       const text = block?.type === "text" ? block.text : "";
       const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) return [];
-      return validateCandidates(JSON.parse(jsonMatch[0]));
+      if (!jsonMatch) {
+        console.warn(`[W62-analyzer] no JSON array in response dept=${input.department} text="${text.slice(0, 200)}"`);
+        return [];
+      }
+      const rawParsed = JSON.parse(jsonMatch[0]) as unknown;
+      const candidates = validateCandidates(rawParsed);
+      // W70.1 observability — make "no buttons" diagnosable from the logs:
+      // the model's raw output (incl. confidences) vs what survived the
+      // threshold. An empty `kept` with a non-empty `raw` means the work
+      // mapped weakly (below threshold); an empty `raw` means the model
+      // judged it non-actionable; a parse miss is logged above.
+      console.log(
+        `[W62-analyzer] dept=${input.department} kept=${candidates.length}/${Array.isArray(rawParsed) ? rawParsed.length : 0} threshold=${CONFIDENCE_THRESHOLD} raw=${JSON.stringify(rawParsed).slice(0, 400)}`
+      );
+      return candidates;
     } catch (err) {
       if (attempt === ANALYZER_RETRIES) {
         console.warn("[W62-analyzer] classification failed (returning no candidates):", err);
