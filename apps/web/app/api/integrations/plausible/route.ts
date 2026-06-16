@@ -11,8 +11,10 @@
  * one upstream pair. 503 if unconfigured; 502 on upstream error (the card
  * degrades to an empty state).
  *
- * Env: PLAUSIBLE_API_KEY, PLAUSIBLE_SITE_ID, PLAUSIBLE_URL (default
- * https://plausible.io). Read in-handler so config/tests take effect live.
+ * Env: PLAUSIBLE_API_KEY, PLAUSIBLE_SITE_ID, and the install base URL —
+ * NEXT_PUBLIC_PLAUSIBLE_URL (already set; the CE install) or an optional
+ * server-only PLAUSIBLE_API_URL override; falls back to https://plausible.io.
+ * Read in-handler so config/tests take effect live.
  */
 
 import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
@@ -38,7 +40,14 @@ export async function GET(req: Request) {
     return toAuthErrorResponse(err);
   }
 
-  const base = (process.env.PLAUSIBLE_URL ?? "https://plausible.io").replace(/\/$/, "");
+  // Operator runs Plausible Community Edition (self-hosted), not Cloud.
+  // NEXT_PUBLIC_PLAUSIBLE_URL already points at the CE install; an optional
+  // server-only PLAUSIBLE_API_URL can override it. Falls back to Cloud.
+  const base = (
+    process.env.PLAUSIBLE_API_URL ??
+    process.env.NEXT_PUBLIC_PLAUSIBLE_URL ??
+    "https://plausible.io"
+  ).replace(/\/$/, "");
   const key = process.env.PLAUSIBLE_API_KEY ?? "";
   const site = process.env.PLAUSIBLE_SITE_ID ?? "";
   if (!key || !site) {

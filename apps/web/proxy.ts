@@ -2,7 +2,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { checkSetupAuth, SETUP_SECRET_HEADER } from "./app/api/_lib/setup-auth";
 
 /**
- * Edge middleware (T1-8) — gates all /api/setup/* routes behind ADMIN_SECRET.
+ * Proxy (T1-8) — gates all /api/setup/* routes behind ADMIN_SECRET.
+ *
+ * (Next.js 16 renamed the `middleware` file convention to `proxy`; this is
+ * the same gate, migrated to clear the deprecation warning.)
  *
  * Setup routes run idempotent schema migrations against production
  * PocketBase. A single enforcement point here means the gate can never be
@@ -11,7 +14,7 @@ import { checkSetupAuth, SETUP_SECRET_HEADER } from "./app/api/_lib/setup-auth";
  *
  * Operators run setup with:  curl -X POST -H "x-setup-secret: $ADMIN_SECRET" .../api/setup/<name>
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const result = checkSetupAuth({
     provided: req.headers.get(SETUP_SECRET_HEADER),
     expected: process.env.ADMIN_SECRET,

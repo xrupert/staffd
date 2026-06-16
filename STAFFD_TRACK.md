@@ -254,6 +254,14 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post MS-A (Stripe read connector) | 541/542 | +4 connector tests — live MRR / active-sub pulse |
 | Post MS-A widget + FC-3 | 543/544 | pulse widget (admin); +2 outcome-ingestion tests (Twenty/Docuseal → vault) |
 | Post FC-3b + MX-7 | 543/544 | all 4 integration outcomes recorded; Settings → Manage billing (Stripe portal) |
+| Post W80.1 + W80.1a (Cockpit) | 553/554 | Operations Home at /dashboard/cockpit (super-admin), 4 read-cards + augment chips + calendar strip; Plausible read (cached); operator reads gated super-admin; landing brand-voice fix. +10 tests |
+
+### W80 — DIRECT-SERVICE UX (operator-scoped, decision b)
+- W80 Part 2 thinking: chat + would-be doc. W80 spike: `docs/architecture/direct-service-capability-spike-W80.md` (`791d2f9`).
+- **W80.1 ✅** Operations Home → **`/dashboard/cockpit`** (renamed from `/operations` — collides with Operations dept, Standard #9). Super-admin nav "Cockpit". Cards: Email/Pipeline/Inbox/Analytics. Augmentation chip → Command Center via `?ask=`.
+- **W80.1a ✅** Plausible read `/api/integrations/plausible` (5-min cache, super-admin). **⚠️ OPERATOR: set `PLAUSIBLE_API_KEY` + `PLAUSIBLE_SITE_ID` in Vercel** or the Analytics card shows "Not connected yet".
+- **Security:** FC-1 reads (Twenty/Chatwoot/Listmonk) + Plausible + Stripe connector now **super-admin gated** (were exposing operator data). Reopens to all under **W91 per-user creds**.
+- **Pending:** operator smoke screenshot (super-admin, prod); SA ratify Cockpit name; FC-2c (DepartmentRoom action handlers); Chatwoot native inbox (deferred per spike).
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---
