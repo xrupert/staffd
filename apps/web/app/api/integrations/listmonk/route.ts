@@ -97,9 +97,13 @@ type LmCampaign = {
   subject?: string;
   status?: string;
   sent?: number;
+  to_send?: number;
   views?: number;
   clicks?: number;
   bounces?: number;
+  send_at?: string | null;
+  created_at?: string;
+  body?: string;
 };
 
 export async function GET(req: Request) {
@@ -124,15 +128,38 @@ export async function GET(req: Request) {
     );
   }
 
-  const campaignId = new URL(req.url).searchParams.get("campaign_id");
+  const params = new URL(req.url).searchParams;
+  const campaignId = params.get("campaign_id");
+  const resource = params.get("resource");
+  const limit = Math.min(50, Math.max(1, Number.parseInt(params.get("limit") ?? "5", 10) || 5));
   const auth = Buffer.from(`${user}:${pass}`).toString("base64");
   const headers = { Authorization: `Basic ${auth}` };
 
-  // W80.1 — no campaign_id → LIST mode (recent campaigns for the Operations
-  // Home card). With campaign_id → DETAIL mode (stats for one campaign).
+  // W80.2 — recipient lists, for the compose view's audience picker.
+  if (resource === "lists") {
+    try {
+      const res = await fetch(`${base}/api/lists?page=1&per_page=100`, { headers });
+      if (!res.ok) {
+        return Response.json({ error: "Listmonk error", detail: (await res.text()).slice(0, 300) }, { status: 502 });
+      }
+      const data = (await res.json()) as { data?: { results?: { id?: number; name?: string; subscriber_count?: number }[] } };
+      const lists = (data.data?.results ?? []).map((l) => ({
+        id: l.id ?? null,
+        name: l.name ?? null,
+        subscribers: l.subscriber_count ?? 0,
+      }));
+      return Response.json({ lists });
+    } catch (err) {
+      console.error("Listmonk lists error:", err);
+      return Response.json({ error: "Failed to load lists" }, { status: 502 });
+    }
+  }
+
+  // W80.1/W80.2 — no campaign_id → LIST mode (enriched for the native surface:
+  // recipients + dates + open rate). With campaign_id → DETAIL mode.
   if (!campaignId) {
     try {
-      const res = await fetch(`${base}/api/campaigns?page=1&per_page=5&order_by=created_at&order=DESC`, { headers });
+      const res = await fetch(`${base}/api/campaigns?page=1&per_page=${limit}&order_by=created_at&order=DESC`, { headers });
       if (!res.ok) {
         return Response.json({ error: "Listmonk error", detail: (await res.text()).slice(0, 300) }, { status: 502 });
       }
@@ -142,8 +169,12 @@ export async function GET(req: Request) {
         name: c.name ?? null,
         status: c.status ?? null,
         sent: c.sent ?? 0,
+        toSend: c.to_send ?? 0,
         views: c.views ?? 0,
         clicks: c.clicks ?? 0,
+        openRate: c.sent && c.sent > 0 ? Math.round(((c.views ?? 0) / c.sent) * 100) : 0,
+        sendAt: c.send_at ?? null,
+        createdAt: c.created_at ?? null,
       }));
       return Response.json({ campaigns });
     } catch (err) {
@@ -169,13 +200,87 @@ export async function GET(req: Request) {
         subject: c.subject ?? null,
         status: c.status ?? null,
         sent: c.sent ?? 0,
+        toSend: c.to_send ?? 0,
         views: c.views ?? 0,
         clicks: c.clicks ?? 0,
         bounces: c.bounces ?? 0,
+        openRate: c.sent && c.sent > 0 ? Math.round(((c.views ?? 0) / c.sent) * 100) : 0,
+        sendAt: c.send_at ?? null,
+        preview: typeof c.body === "string" ? c.body.slice(0, 2000) : "",
       },
     });
   } catch (err) {
     console.error("Listmonk read error:", err);
     return Response.json({ error: "Failed to read campaign" }, { status: 500 });
+  }
+}
+
+/**
+ * PUT /api/integrations/listmonk  (W80.2) — send or schedule a campaign.
+ * Body: { campaignId, action: "send" | "schedule" | "pause" | "cancel", sendAt? }
+ *
+ * Listmonk drives sends via campaign status. "send" → running; "schedule"
+ * sets send_at then status "scheduled". Super-admin gated. Records a vault
+ * outcome on a real send.
+ */
+export async function PUT(req: Request) {
+  try {
+    await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
+  }
+
+  const base = (process.env.LISTMONK_URL ?? "").replace(/\/$/, "");
+  const user = process.env.LISTMONK_USERNAME ?? "listmonk";
+  const pass = process.env.LISTMONK_PASSWORD ?? "";
+  if (!base || !pass) {
+    return Response.json({ error: "not_configured", message: "Email isn't set up yet." }, { status: 503 });
+  }
+
+  const body = (await req.json().catch(() => null)) as
+    | { campaignId?: number | string; action?: string; sendAt?: string; userId?: string }
+    | null;
+  const campaignId = body?.campaignId;
+  const action = body?.action;
+  if (!campaignId || !action) {
+    return Response.json({ error: "campaignId and action are required" }, { status: 400 });
+  }
+
+  const STATUS: Record<string, string> = { send: "running", schedule: "scheduled", pause: "paused", cancel: "cancelled" };
+  const status = STATUS[action];
+  if (!status) {
+    return Response.json({ error: "unsupported action" }, { status: 400 });
+  }
+
+  const auth = Buffer.from(`${user}:${pass}`).toString("base64");
+  const headers = { "Content-Type": "application/json", Authorization: `Basic ${auth}` };
+
+  try {
+    // Schedule first sets send_at on the campaign before flipping status.
+    if (action === "schedule" && body?.sendAt) {
+      await fetch(`${base}/api/campaigns/${encodeURIComponent(String(campaignId))}`, {
+        method: "PUT", headers, body: JSON.stringify({ send_at: body.sendAt }),
+      });
+    }
+    const res = await fetch(`${base}/api/campaigns/${encodeURIComponent(String(campaignId))}/status`, {
+      method: "PUT", headers, body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      return Response.json({ error: "Listmonk error", detail: (await res.text()).slice(0, 300) }, { status: 502 });
+    }
+
+    if (action === "send" && body?.userId) {
+      void recordDecision({
+        userId: body.userId,
+        decision_kind: "campaign_sent",
+        title: `Sent an email campaign`,
+        source_kind: "listmonk",
+        source_id: String(campaignId),
+      });
+    }
+    return Response.json({ success: true, status });
+  } catch (err) {
+    console.error("Listmonk status error:", err);
+    return Response.json({ error: "Failed to update campaign" }, { status: 502 });
   }
 }

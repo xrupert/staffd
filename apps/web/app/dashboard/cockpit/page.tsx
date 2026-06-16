@@ -123,7 +123,7 @@ export default function CockpitHome() {
             </div>
 
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
-              <OpsCardView title="Email Campaigns" icon="📧" card="email" state={email} />
+              <OpsCardView title="Email Campaigns" icon="📧" card="email" state={email} drill={{ href: "/dashboard/cockpit/campaigns", label: "Open campaigns →" }} />
               <OpsCardView title="Sales Pipeline" icon="📇" card="pipeline" state={pipeline} />
               <OpsCardView title="Support Inbox" icon="🎫" card="inbox" state={inbox} />
               <OpsCardView title="Site Analytics" icon="📈" card="analytics" state={analytics} />
@@ -135,8 +135,11 @@ export default function CockpitHome() {
   );
 }
 
-function OpsCardView({ title, icon, card, state }: { title: string; icon: string; card: OpsCard; state: CardState }) {
-  const askHref = `/dashboard?ask=${encodeURIComponent(buildSpecialistPrompt(card, state.summary))}`;
+function OpsCardView({ title, icon, card, state, drill }: { title: string; icon: string; card: OpsCard; state: CardState; drill?: { href: string; label: string } }) {
+  // A card with a native surface (e.g. Email Campaigns) drills in; the rest
+  // seed the Command Center with a specialist prompt (surface→specialist).
+  const href = drill ? drill.href : `/dashboard?ask=${encodeURIComponent(buildSpecialistPrompt(card, state.summary))}`;
+  const label = drill ? drill.label : "Have your specialist take this →";
   return (
     <div style={cardStyle}>
       <div className="flex items-center gap-2 mb-2">
@@ -146,9 +149,9 @@ function OpsCardView({ title, icon, card, state }: { title: string; icon: string
       <p className="text-xs mb-4" style={{ color: state.connected ? "#9090A8" : "#5A5A70", lineHeight: 1.5, minHeight: "32px" }}>
         {state.loading ? "Loading…" : state.summary}
       </p>
-      {state.connected && !state.loading && (
-        <a href={askHref} className="text-xs px-3 py-1.5 rounded-lg inline-block transition-colors hover:text-white" style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.30)", color: "#A07BFF", textDecoration: "none" }}>
-          Have your specialist take this →
+      {(drill || (state.connected && !state.loading)) && (
+        <a href={href} className="text-xs px-3 py-1.5 rounded-lg inline-block transition-colors hover:text-white" style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.30)", color: "#A07BFF", textDecoration: "none" }}>
+          {label}
         </a>
       )}
     </div>

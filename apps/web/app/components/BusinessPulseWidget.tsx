@@ -97,7 +97,7 @@ export default function BusinessPulseWidget() {
         </div>
       )}
       <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>
-        Live from STAFFD&apos;s Stripe (annual plans normalized to monthly). Operator-only.
+        Live from your billing (annual plans normalized to monthly). Operator-only.
       </p>
     </section>
   );

@@ -58,3 +58,23 @@ const PROMPTS: Record<OpsCard, (summary: string) => string> = {
 export function buildSpecialistPrompt(card: OpsCard, summary: string): string {
   return PROMPTS[card](summary || "(no data yet)");
 }
+
+// ── W80.2 Email Campaigns ──────────────────────────────────────────────────
+
+/** User-facing campaign status — no vendor terms (BRAND_VOICE). */
+export function campaignStatusLabel(status: string | null | undefined): string {
+  switch (status) {
+    case "scheduled": return "Scheduled";
+    case "running": return "Sending";
+    case "finished": return "Sent";
+    case "paused": return "Paused";
+    case "cancelled": return "Cancelled";
+    default: return "Draft";
+  }
+}
+
+/** Compose "Make this smart →" — hands the draft to the email specialist. */
+export function buildCampaignSmartPrompt(subject: string, body: string): string {
+  const draft = `Subject: ${subject?.trim() || "(no subject yet)"}\n\n${(body?.trim() || "(empty)").slice(0, 1500)}`;
+  return `Sharpen this email campaign for me — give me a stronger subject line, tighter body copy, and the best time to send it.\n\n---\n${draft}\n---`;
+}

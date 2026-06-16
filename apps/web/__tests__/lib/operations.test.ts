@@ -9,6 +9,8 @@ import {
   summarizeInbox,
   summarizeAnalytics,
   buildSpecialistPrompt,
+  campaignStatusLabel,
+  buildCampaignSmartPrompt,
 } from "../../lib/operations";
 
 describe("Operations summaries", () => {
@@ -47,5 +49,26 @@ describe("buildSpecialistPrompt", () => {
 
   it("handles an empty summary gracefully", () => {
     expect(buildSpecialistPrompt("email", "")).toContain("(no data yet)");
+  });
+});
+
+describe("campaign helpers (W80.2)", () => {
+  it("campaignStatusLabel maps to user-facing terms (no vendor jargon)", () => {
+    expect(campaignStatusLabel("finished")).toBe("Sent");
+    expect(campaignStatusLabel("running")).toBe("Sending");
+    expect(campaignStatusLabel("scheduled")).toBe("Scheduled");
+    expect(campaignStatusLabel(null)).toBe("Draft");
+    expect(campaignStatusLabel("weird")).toBe("Draft");
+  });
+
+  it("buildCampaignSmartPrompt embeds subject + body for the specialist", () => {
+    const p = buildCampaignSmartPrompt("Big sale", "Body copy here");
+    expect(p).toContain("Big sale");
+    expect(p).toContain("Body copy here");
+    expect(p).toMatch(/subject line/i);
+  });
+
+  it("buildCampaignSmartPrompt handles an empty draft", () => {
+    expect(buildCampaignSmartPrompt("", "")).toContain("(no subject yet)");
   });
 });
