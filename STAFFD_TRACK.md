@@ -144,7 +144,7 @@ To test the integrations in prod (and to demo any of this), these changes must b
 
 | ID | Item | Hours | Status | Depends On | Key Files |
 |---|---|---|---|---|---|
-| MS-A | Stripe read connector (`/api/connectors/stripe`) | 6h | ✅ 2026-06-16 | — | GET returns active-sub count + MRR (annual→monthly normalized) from live Stripe. +4 tests. UI pulse widget = follow-up. |
+| MS-A | Stripe read connector (`/api/connectors/stripe`) + admin pulse widget | 6h | ✅ 2026-06-16 | — | GET (super-admin gated) returns active-sub count + MRR (annual→monthly normalized) from STAFFD's live Stripe. `BusinessPulseWidget` on `/dashboard/admin`. +4 tests. NOTE: reads STAFFD's OWN revenue (operator metric), not per-customer. |
 | MS-B1 | Voice input: Web Speech API capture + Whisper fallback (client-side, CommandCenter) | 12h | ⬜ | — | `CommandCenter.tsx`, new `/api/voice/transcribe/route.ts` |
 | MS-B2 | Voice output: Elevenlabs response playback (wire `voice_profile` collection to response stream) | 16h | ⬜ | MS-B1 | `/api/agent/route.ts`, `voice_profile` collection, `ELEVENLABS_API_KEY` (new env var) |
 | MS-C1 | Marketplace Phase 1: internal pack builder tool (Cybrid Agency creates packs via UI) | 20h | ⬜ | — | `packages/agents/` pack schema, new `/dashboard/admin/packs` page |

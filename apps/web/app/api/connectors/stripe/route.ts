@@ -11,6 +11,7 @@
  */
 
 import Stripe from "stripe";
+import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
 
 type SubItem = {
   quantity?: number;
@@ -32,7 +33,15 @@ function monthlyCents(item: SubItem): number {
   return amount; // month (or unknown → treat as monthly)
 }
 
-export async function GET(_req: Request) {
+export async function GET(req: Request) {
+  // This exposes STAFFD's OWN revenue (the operator's Stripe), so it is
+  // super-admin only — never a per-customer metric.
+  try {
+    await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
+  }
+
   const key = process.env.STRIPE_SECRET_KEY ?? "";
   if (!key) {
     return Response.json(

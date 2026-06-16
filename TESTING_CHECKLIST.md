@@ -98,6 +98,7 @@
 - 🔲 "Admin" nav entry visible only to super-admin (✅ built; needs `NEXT_PUBLIC_ADMIN_EMAIL` — done).
 - 🔲 "View Dashboard As" plan switcher changes presentation only (not real credits/billing).
 - 🔲 Multi-Tenant Security + Vault Metrics panels load.
+- 🔲 **STAFFD Pulse widget** (admin) — shows STAFFD's live MRR + active subscription count from Stripe (super-admin gated; operator metric, not per-customer). Non-admin / unauth → "Super-admin only".
 - 🔲 Setup routes: `curl -X POST -H "x-setup-secret: $ADMIN_SECRET" .../api/setup/<name>` works; **without the header → 503** (✅ fail-closed verified live once).
 
 ## 12. Agency / multi-tenant (🔲)

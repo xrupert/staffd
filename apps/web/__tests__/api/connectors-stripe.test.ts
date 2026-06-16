@@ -17,6 +17,13 @@ vi.mock("stripe", () => ({
   },
 }));
 
+// Super-admin gate — resolve so the functional MRR tests exercise the route.
+// The gate's own 401/403 behavior is covered by the super-admin module tests.
+vi.mock("../../app/api/_lib/auth/super-admin", () => ({
+  requireSuperAdmin: vi.fn(async () => ({ id: "admin", email: "admin@staffd.com" })),
+  toAuthErrorResponse: () => Response.json({ error: "forbidden" }, { status: 403 }),
+}));
+
 import { GET } from "../../app/api/connectors/stripe/route";
 
 function req(): Request {
