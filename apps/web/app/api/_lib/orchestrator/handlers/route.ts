@@ -86,6 +86,28 @@ function pickAgentForDept(
 }
 
 /**
+ * Deterministic department hints for unambiguous requests. The Haiku router
+ * occasionally mis-routes obvious cases (an NDA → Marketing); a high-precision
+ * keyword match injects a STRONG SIGNAL into the routing prompt for the clear
+ * cases, while ambiguous requests return null and stay the LLM's call.
+ * Exported for tests. High precision over recall — only obvious keywords.
+ */
+const DEPT_KEYWORD_HINTS: ReadonlyArray<[string, RegExp]> = [
+  ["legal", /\b(nda|non[-\s]?disclosure|contract|agreement|terms of service|privacy policy|waiver|indemnif|engagement letter|statement of work|\bsow\b|msa|cease and desist|licensing terms)\b/i],
+  ["finance", /\b(invoice|profit and loss|p&l|bookkeep|balance sheet|accounts payable|accounts receivable|cash flow|expense report|quarterly taxes|budget forecast)\b/i],
+  ["hr", /\b(job posting|job description|onboarding plan|performance review|employee handbook|offer letter|interview questions|30[-\s]?60[-\s]?90)\b/i],
+  ["operations", /\b(sop|standard operating procedure|process documentation|runbook)\b/i],
+];
+
+export function suggestDepartmentFromKeywords(message: string): string | null {
+  const m = (message ?? "").toLowerCase();
+  for (const [dept, re] of DEPT_KEYWORD_HINTS) {
+    if (re.test(m)) return dept;
+  }
+  return null;
+}
+
+/**
  * Auto-route vertical gate. Comped/super-admin accounts have EVERY pack
  * active (trial.ts); without this, every vertical specialist competes in the
  * auto-router and an unrelated one can win an out-of-vertical task (a
@@ -167,11 +189,19 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   const agent = getAgent(policy.systemAgentId);
   const baseSystem = agent?.systemPrompt ?? "You are the STAFFD Command Center coordinator.";
 
+  // Deterministic department hint for unambiguous requests (NDA → legal,
+  // invoice → finance, …). Injected as a strong signal only when the hinted
+  // dept is unlocked; ambiguous requests carry no hint and stay the LLM's call.
+  const deptHint = suggestDepartmentFromKeywords(message);
+  const hintLine = deptHint && unlockedDepts.includes(deptHint)
+    ? `\n\nSTRONG SIGNAL: this request clearly matches the ${deptHint.toUpperCase()} department — route to ${deptHint} and pick that department's best-fit specialist, unless the text plainly points elsewhere.`
+    : "";
+
   const protocol = `
 You are routing a user request to a SPECIFIC SPECIALIST on the user's staff.
 
 UNLOCKED DEPARTMENTS: ${unlockedDepts.join(", ")}
-LOCKED (do not route here, but you may name in lockedAlternative): ${lockedDepts.join(", ") || "(none)"}
+LOCKED (do not route here, but you may name in lockedAlternative): ${lockedDepts.join(", ") || "(none)"}${hintLine}
 
 AVAILABLE SPECIALISTS (you MUST pick one of these agentId values):
 ${rosterText}
