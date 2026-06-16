@@ -319,7 +319,7 @@ export default function CommandCenter() {
       const res = await fetch("/api/integrations/listmonk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, body: output }),
+        body: JSON.stringify({ subject, body: output, userId: pb.authStore.record?.id }),
       });
       const data = (await res.json()) as { success?: boolean; campaignUrl?: string; message?: string; error?: string };
       if (!res.ok || !data.success) {
@@ -352,6 +352,7 @@ export default function CommandCenter() {
             customerEmail: recipient.email,
             subject: task.slice(0, 120),
             reply: output,
+            userId: pb.authStore.record?.id,
           }),
         });
         const data = (await res.json()) as { success?: boolean; conversationUrl?: string; message?: string; error?: string };

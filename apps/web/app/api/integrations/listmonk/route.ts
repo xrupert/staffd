@@ -4,6 +4,8 @@
  * Returns 503 with setup instructions when not yet configured.
  */
 
+import { recordDecision } from "../../_lib/vault/outcomes";
+
 const LISTMONK_URL = process.env.LISTMONK_URL ?? "";
 const LISTMONK_USER = process.env.LISTMONK_USERNAME ?? "listmonk";
 const LISTMONK_PASS = process.env.LISTMONK_PASSWORD ?? "";
@@ -21,10 +23,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { subject, body, listIds } = (await req.json()) as {
+    const { subject, body, listIds, userId } = (await req.json()) as {
       subject: string;
       body: string;
       listIds?: number[];
+      userId?: string; // FC-3b — when present, the outcome is recorded to the vault
     };
 
     if (!subject?.trim() || !body?.trim()) {
@@ -57,6 +60,18 @@ export async function POST(req: Request) {
     }
 
     const data = (await res.json()) as { data?: { id: number; uuid: string } };
+
+    // FC-3b — record the drafted campaign as a vault outcome (fire-and-forget).
+    if (userId) {
+      void recordDecision({
+        userId,
+        decision_kind: "campaign_drafted",
+        title: `Drafted email campaign "${subject}"`,
+        source_kind: "listmonk",
+        source_id: data.data?.id ? String(data.data.id) : undefined,
+      });
+    }
+
     return Response.json({
       success: true,
       campaignId: data.data?.id,

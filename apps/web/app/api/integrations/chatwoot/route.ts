@@ -15,6 +15,8 @@
  * before the customer sees it.
  */
 
+import { recordDecision } from "../../_lib/vault/outcomes";
+
 const CHATWOOT_URL  = (process.env.CHATWOOT_URL ?? "").replace(/\/$/, "");
 const CHATWOOT_KEY  = process.env.CHATWOOT_API_KEY ?? "";
 const CHATWOOT_ACCT = process.env.CHATWOOT_ACCOUNT_ID ?? "";
@@ -96,11 +98,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { customerName, customerEmail, subject, reply } = (await req.json()) as {
+    const { customerName, customerEmail, subject, reply, userId } = (await req.json()) as {
       customerName: string;
       customerEmail: string;
       subject?: string;
       reply: string;
+      userId?: string; // FC-3b — when present, the outcome is recorded to the vault
     };
 
     if (!customerName?.trim() || !customerEmail?.trim() || !reply?.trim()) {
@@ -153,6 +156,17 @@ export async function POST(req: Request) {
         private: false,
       }),
     });
+
+    // FC-3b — record the opened support ticket as a vault outcome.
+    if (userId) {
+      void recordDecision({
+        userId,
+        decision_kind: "support_ticket_opened",
+        title: `Opened a support ticket for ${customerName}`,
+        source_kind: "chatwoot",
+        source_id: String(conv.id),
+      });
+    }
 
     return Response.json({
       success: true,
