@@ -108,6 +108,23 @@ export function suggestDepartmentFromKeywords(message: string): string | null {
 }
 
 /**
+ * Make the keyword hint authoritative. The router occasionally ignores the
+ * prompt-level hint (an NDA still landed on Marketing), so for an unambiguous
+ * match we OVERRIDE the LLM's department — but only when the hinted dept is
+ * unlocked (never grant entitlement). No hint / locked hint → keep the LLM's
+ * pick. High precision (only obvious keywords) keeps this from fighting a
+ * correct nuanced choice. Exported for tests.
+ */
+export function resolveRoutedDept(
+  llmDept: string,
+  deptHint: string | null,
+  unlockedDepts: ReadonlyArray<string>,
+): string {
+  if (deptHint && unlockedDepts.includes(deptHint)) return deptHint;
+  return llmDept;
+}
+
+/**
  * Auto-route vertical gate. Comped/super-admin accounts have EVERY pack
  * active (trial.ts); without this, every vertical specialist competes in the
  * auto-router and an unrelated one can win an out-of-vertical task (a
@@ -272,7 +289,10 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
   // Hotfix bundle A4 — validate the LLM-picked agentId. If invalid or
   // missing, fall back to the smart keyword picker (NOT the first-in-list
   // default — that's what caused the SEMrush bug).
-  const dept = parsed.decision.department!;
+  // Authoritative dept override for unambiguous keyword matches. When this
+  // changes the dept, the LLM's agentId (from the wrong dept) fails the
+  // inDept check below and pickAgentForDept re-picks within the right dept.
+  const dept = resolveRoutedDept(parsed.decision.department!, deptHint, unlockedDepts);
   let agentId = parsed.decision.agentId;
   if (agentId) {
     const candidate = getAgent(agentId);
@@ -287,7 +307,7 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
   return {
     ok: true,
     intent: "route",
-    decision: { ...parsed.decision, agentId },
+    decision: { ...parsed.decision, department: dept, agentId },
     notes: parsed.lockedAlternative ? `lockedAlternative:${parsed.lockedAlternative}` : undefined,
     vaultCostFlag: retrieval.costFlag,
     latencyMs: result.latencyMs,

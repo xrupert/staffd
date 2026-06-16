@@ -31,7 +31,12 @@ function anthropicClient(): Anthropic {
 }
 
 const ANALYZER_MODEL = "claude-haiku-4-5-20251001";
-const ANALYZER_DEADLINE_MS = 4_000;
+// W70.1 — production logs showed the analyzer hitting analyzer_deadline on
+// longer deliverables (e.g. a full NDA) at the old 4s cap, returning no
+// candidates → no action buttons. Bumped 4s→7s (big headroom for Haiku on a
+// 4k-char artifact) while keeping the 1 retry for transient errors. Worst
+// case ~14s stays under the platform's 15s function limit.
+const ANALYZER_DEADLINE_MS = 7_000;
 const ANALYZER_RETRIES = 1;
 const ANALYZER_MAX_TOKENS = 512;
 const OUTPUT_CHAR_CAP = 4_000;

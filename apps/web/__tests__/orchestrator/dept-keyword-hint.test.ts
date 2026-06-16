@@ -17,7 +17,7 @@ vi.mock("@anthropic-ai/sdk", () => ({
   },
 }));
 
-import { suggestDepartmentFromKeywords } from "../../app/api/_lib/orchestrator/handlers/route";
+import { suggestDepartmentFromKeywords, resolveRoutedDept } from "../../app/api/_lib/orchestrator/handlers/route";
 
 describe("suggestDepartmentFromKeywords", () => {
   it("routes an NDA / contract request to legal", () => {
@@ -43,5 +43,26 @@ describe("suggestDepartmentFromKeywords", () => {
     expect(suggestDepartmentFromKeywords("write today's social post for my business")).toBeNull();
     expect(suggestDepartmentFromKeywords("help me with SEO")).toBeNull();
     expect(suggestDepartmentFromKeywords("give me some ideas")).toBeNull();
+  });
+});
+
+describe("resolveRoutedDept (authoritative override)", () => {
+  const UNLOCKED = ["marketing", "sales", "legal", "hr", "finance", "operations"];
+
+  it("overrides the LLM pick when an unlocked keyword hint exists", () => {
+    // The NDA bug: LLM said marketing, keyword hint says legal → legal wins.
+    expect(resolveRoutedDept("marketing", "legal", UNLOCKED)).toBe("legal");
+  });
+
+  it("keeps the LLM pick when there is no hint", () => {
+    expect(resolveRoutedDept("marketing", null, UNLOCKED)).toBe("marketing");
+  });
+
+  it("does NOT override to a locked department (no entitlement)", () => {
+    expect(resolveRoutedDept("marketing", "legal", ["marketing", "sales"])).toBe("marketing");
+  });
+
+  it("is a no-op when the hint already matches the LLM pick", () => {
+    expect(resolveRoutedDept("legal", "legal", UNLOCKED)).toBe("legal");
   });
 });

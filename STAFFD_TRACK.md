@@ -247,6 +247,8 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post routing fix (vertical pollution) | 523/524 | +5 routablePacksFor tests |
 | Post affordance-gate fix | 528/529 | +5 shouldFetchAffordances tests — buttons no longer suppressed by a trailing offer question |
 | Post FC-2b (support + signature actions) | 528/529 | vocabulary 8→10 (SA-auth), recipient modal, pins + wiring test updated |
+| Post analyzer observability (W70.1) | 528/529 | analyzer logs raw vs kept candidates — "no buttons" now diagnosable |
+| Post dept keyword hint | 533/534 | +5 suggestDepartmentFromKeywords tests — NDA→Legal etc. no longer mis-route |
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---
