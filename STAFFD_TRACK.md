@@ -144,7 +144,7 @@ To test the integrations in prod (and to demo any of this), these changes must b
 
 | ID | Item | Hours | Status | Depends On | Key Files |
 |---|---|---|---|---|---|
-| MS-A | Stripe read connector (`/api/connectors/stripe?report=mrr_this_week`) | 6h | ⬜ | — | New `/api/connectors/stripe/route.ts`; uses existing `STRIPE_SECRET_KEY` |
+| MS-A | Stripe read connector (`/api/connectors/stripe`) | 6h | ✅ 2026-06-16 | — | GET returns active-sub count + MRR (annual→monthly normalized) from live Stripe. +4 tests. UI pulse widget = follow-up. |
 | MS-B1 | Voice input: Web Speech API capture + Whisper fallback (client-side, CommandCenter) | 12h | ⬜ | — | `CommandCenter.tsx`, new `/api/voice/transcribe/route.ts` |
 | MS-B2 | Voice output: Elevenlabs response playback (wire `voice_profile` collection to response stream) | 16h | ⬜ | MS-B1 | `/api/agent/route.ts`, `voice_profile` collection, `ELEVENLABS_API_KEY` (new env var) |
 | MS-C1 | Marketplace Phase 1: internal pack builder tool (Cybrid Agency creates packs via UI) | 20h | ⬜ | — | `packages/agents/` pack schema, new `/dashboard/admin/packs` page |
@@ -249,6 +249,8 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post FC-2b (support + signature actions) | 528/529 | vocabulary 8→10 (SA-auth), recipient modal, pins + wiring test updated |
 | Post analyzer observability (W70.1) | 528/529 | analyzer logs raw vs kept candidates — "no buttons" now diagnosable |
 | Post dept keyword hint | 533/534 | +5 suggestDepartmentFromKeywords tests — NDA→Legal etc. no longer mis-route |
+| Post analyzer-timeout + dept-override | 537/538 | analyzer 4s→7s (logs showed analyzer_deadline → empty); +4 resolveRoutedDept tests — keyword hint now AUTHORITATIVE |
+| Post MS-A (Stripe read connector) | 541/542 | +4 connector tests — live MRR / active-sub pulse |
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---
