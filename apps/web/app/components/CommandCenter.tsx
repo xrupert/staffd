@@ -223,6 +223,20 @@ export default function CommandCenter() {
     setThreadId(loadOrCreateThreadId());
   }, []);
 
+  // W80.1 — a Cockpit card chip can deep-link here with ?ask=<prompt> to seed
+  // the input (surface→specialist). We pre-fill (not auto-send) so the user
+  // reviews first, then the existing orchestrator routes it. URL is cleaned
+  // so a refresh doesn't re-seed.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const ask = new URLSearchParams(window.location.search).get("ask");
+    if (ask) {
+      setInput(ask);
+      window.history.replaceState({}, "", window.location.pathname);
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, []);
+
   // W64 B1 (SA D3′) — wire W63's chips to real actions on this surface.
   // Export uses the shared docx path with clipboard fallback; failures
   // surface as a plain assistant message in the thread (Decision 6).

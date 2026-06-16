@@ -7,6 +7,12 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
+// GET is super-admin gated (W80.1) — resolve the gate so the read tests run.
+vi.mock("../../app/api/_lib/auth/super-admin", () => ({
+  requireSuperAdmin: vi.fn(async () => ({ id: "admin", email: "admin@staffd.com" })),
+  toAuthErrorResponse: () => Response.json({ error: "forbidden" }, { status: 403 }),
+}));
+
 import { GET } from "../../app/api/integrations/chatwoot/route";
 
 function req(qs = "?status=open"): Request {

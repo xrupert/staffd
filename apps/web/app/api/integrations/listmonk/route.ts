@@ -5,6 +5,7 @@
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";
+import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
 
 const LISTMONK_URL = process.env.LISTMONK_URL ?? "";
 const LISTMONK_USER = process.env.LISTMONK_USERNAME ?? "listmonk";
@@ -102,6 +103,13 @@ type LmCampaign = {
 };
 
 export async function GET(req: Request) {
+  // Operator-private email data — super-admin only (W80.1).
+  try {
+    await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
+  }
+
   const base = (process.env.LISTMONK_URL ?? "").replace(/\/$/, "");
   const user = process.env.LISTMONK_USERNAME ?? "listmonk";
   const pass = process.env.LISTMONK_PASSWORD ?? "";
@@ -117,15 +125,36 @@ export async function GET(req: Request) {
   }
 
   const campaignId = new URL(req.url).searchParams.get("campaign_id");
-  if (!campaignId) {
-    return Response.json({ error: "campaign_id is required" }, { status: 400 });
-  }
-
   const auth = Buffer.from(`${user}:${pass}`).toString("base64");
+  const headers = { Authorization: `Basic ${auth}` };
+
+  // W80.1 — no campaign_id → LIST mode (recent campaigns for the Operations
+  // Home card). With campaign_id → DETAIL mode (stats for one campaign).
+  if (!campaignId) {
+    try {
+      const res = await fetch(`${base}/api/campaigns?page=1&per_page=5&order_by=created_at&order=DESC`, { headers });
+      if (!res.ok) {
+        return Response.json({ error: "Listmonk error", detail: (await res.text()).slice(0, 300) }, { status: 502 });
+      }
+      const data = (await res.json()) as { data?: { results?: LmCampaign[] } };
+      const campaigns = (data.data?.results ?? []).map((c) => ({
+        id: c.id ?? null,
+        name: c.name ?? null,
+        status: c.status ?? null,
+        sent: c.sent ?? 0,
+        views: c.views ?? 0,
+        clicks: c.clicks ?? 0,
+      }));
+      return Response.json({ campaigns });
+    } catch (err) {
+      console.error("Listmonk list error:", err);
+      return Response.json({ error: "Failed to list campaigns" }, { status: 502 });
+    }
+  }
 
   try {
     const res = await fetch(`${base}/api/campaigns/${encodeURIComponent(campaignId)}`, {
-      headers: { Authorization: `Basic ${auth}` },
+      headers,
     });
     if (!res.ok) {
       const text = await res.text();

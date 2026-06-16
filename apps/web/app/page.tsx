@@ -53,7 +53,7 @@ const FEATURES = [
   {
     icon: "🔗",
     title: "Integrations",
-    body: "Your staff sends contracts to DocuSeal for e-signatures, creates CRM entries in Twenty, fires off email campaigns via Listmonk, and opens support tickets in Chatwoot — without leaving STAFFD.",
+    body: "Your staff sends contracts for e-signature, creates CRM records, fires off email campaigns, and opens support tickets — all without leaving STAFFD.",
   },
 ];
 

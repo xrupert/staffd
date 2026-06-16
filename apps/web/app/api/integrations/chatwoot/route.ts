@@ -16,6 +16,7 @@
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";
+import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
 
 const CHATWOOT_URL  = (process.env.CHATWOOT_URL ?? "").replace(/\/$/, "");
 const CHATWOOT_KEY  = process.env.CHATWOOT_API_KEY ?? "";
@@ -194,6 +195,13 @@ type CwConversation = {
 };
 
 export async function GET(req: Request) {
+  // Operator-private support data — super-admin only (W80.1).
+  try {
+    await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
+  }
+
   const base = (process.env.CHATWOOT_URL ?? "").replace(/\/$/, "");
   const key = process.env.CHATWOOT_API_KEY ?? "";
   const acct = process.env.CHATWOOT_ACCOUNT_ID ?? "";

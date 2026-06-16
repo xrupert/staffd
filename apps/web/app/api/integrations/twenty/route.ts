@@ -5,6 +5,7 @@
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";
+import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
 
 const TWENTY_URL = process.env.TWENTY_API_URL ?? "";
 const TWENTY_KEY = process.env.TWENTY_API_KEY ?? "";
@@ -133,6 +134,14 @@ type TwentyNode = {
 };
 
 export async function GET(req: Request) {
+  // Operator-private CRM data — super-admin only (W80.1). Reopens to all
+  // plans under per-user credentials (W91).
+  try {
+    await requireSuperAdmin(req);
+  } catch (err) {
+    return toAuthErrorResponse(err);
+  }
+
   const url = (process.env.TWENTY_API_URL ?? "").replace(/\/$/, "");
   const key = process.env.TWENTY_API_KEY ?? "";
   if (!url || !key) {

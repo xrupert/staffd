@@ -7,6 +7,12 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
+// GET is super-admin gated (W80.1) — resolve the gate so the read tests run.
+vi.mock("../../app/api/_lib/auth/super-admin", () => ({
+  requireSuperAdmin: vi.fn(async () => ({ id: "admin", email: "admin@staffd.com" })),
+  toAuthErrorResponse: () => Response.json({ error: "forbidden" }, { status: 403 }),
+}));
+
 import { GET } from "../../app/api/integrations/listmonk/route";
 
 function req(qs = "?campaign_id=7"): Request {
@@ -23,11 +29,20 @@ describe("GET /api/integrations/listmonk (FC-1c)", () => {
     expect(res.status).toBe(503);
   });
 
-  it("returns 400 when campaign_id is missing", async () => {
+  it("returns a recent-campaigns LIST when no campaign_id (W80.1 Operations Home)", async () => {
     vi.stubEnv("LISTMONK_URL", "https://lm.example.test");
     vi.stubEnv("LISTMONK_PASSWORD", "pass");
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ data: { results: [
+        { id: 7, name: "June blast", status: "finished", sent: 1000, views: 420, clicks: 85 },
+      ] } }),
+    })));
     const res = await GET(req(""));
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.campaigns).toHaveLength(1);
+    expect(data.campaigns[0]).toMatchObject({ id: 7, name: "June blast", sent: 1000 });
   });
 
   it("maps the campaign object to a stats summary", async () => {

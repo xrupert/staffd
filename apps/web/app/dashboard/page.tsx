@@ -346,6 +346,11 @@ export default function DashboardPage() {
               <ClientSwitcher />
             )}
             {isAdmin && (
+              <a href="/dashboard/cockpit" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
+                Cockpit
+              </a>
+            )}
+            {isAdmin && (
               <a href="/dashboard/admin" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
                 Admin
               </a>
