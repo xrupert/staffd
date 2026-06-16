@@ -24,6 +24,8 @@ export default function SettingsPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [passwordMsg, setPasswordMsg] = useState<{ text: string; ok: boolean } | null>(null);
+  const [openingBilling, setOpeningBilling] = useState(false);
+  const [billingMsg, setBillingMsg] = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
     if (!pb.authStore.isValid) { window.location.href = "/auth/login"; return; }
@@ -31,6 +33,28 @@ export default function SettingsPage() {
     setName((record?.name as string) ?? "");
     setEmail((record?.email as string) ?? "");
   }, []);
+
+  // MX-7 — open the Stripe customer portal for self-service billing
+  // (update card, change plan, cancel). Redirects to the hosted portal.
+  async function openBilling() {
+    setOpeningBilling(true);
+    setBillingMsg(null);
+    try {
+      const userId = pb.authStore.record?.id ?? "";
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (res.ok && data.url) { window.location.href = data.url; return; }
+      setBillingMsg({ text: data.error ?? "Couldn't open billing — try again.", ok: false });
+    } catch {
+      setBillingMsg({ text: "Couldn't reach billing right now.", ok: false });
+    } finally {
+      setOpeningBilling(false);
+    }
+  }
 
   async function saveProfile() {
     if (!name.trim()) { setProfileMsg({ text: "Name is required.", ok: false }); return; }
@@ -210,6 +234,34 @@ export default function SettingsPage() {
         <SchedulingSettings />
 
         {/* Connected social accounts */}
+        {/* Billing section (MX-7) — self-service via Stripe customer portal */}
+        <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
+          <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Billing</h2>
+          <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>
+            Manage your plan, update your payment method, view invoices, or cancel — in Stripe&apos;s secure portal.
+          </p>
+          {billingMsg && (
+            <div
+              className="px-4 py-3 rounded-xl text-xs mb-4"
+              style={{
+                background: billingMsg.ok ? "rgba(34,197,94,0.08)" : "rgba(239,68,68,0.08)",
+                border: `1px solid ${billingMsg.ok ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+                color: billingMsg.ok ? "#22C55E" : "#EF4444",
+              }}
+            >
+              {billingMsg.text}
+            </div>
+          )}
+          <button
+            onClick={() => void openBilling()}
+            disabled={openingBilling}
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold text-white btn-primary"
+            style={{ opacity: openingBilling ? 0.6 : 1 }}
+          >
+            {openingBilling ? "Opening…" : "Manage billing →"}
+          </button>
+        </section>
+
         <ConnectedAccounts />
 
         {/* Password section */}

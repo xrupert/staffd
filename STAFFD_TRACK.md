@@ -168,7 +168,7 @@ To test the integrations in prod (and to demo any of this), these changes must b
 | MX-4 | Document search UI: "search my vault" page using Qdrant semantic search already built | 8h | ✅ 2026-06-15 | NEW `POST /api/vault/search` (whoAmI-secured — userId from token, not body) + `/dashboard/search` page + Library entry point. Closes the pricing-page "Smart Search" promise. +5 tests, browser-verified render. |
 | MX-5 | Push notification opt-in UI: Settings toggle to subscribe/unsubscribe device | 4h | ⬜ | `/dashboard/settings/page.tsx`, `/api/push/subscribe`, `/api/push/unsubscribe` |
 | MX-6 | Mobile responsiveness audit: dashboard + DepartmentRoom on 390px viewport | 8h | ⬜ | `dashboard/page.tsx`, `DepartmentRoom.tsx` |
-| MX-7 | Stripe customer portal: confirm `/api/stripe/portal` is linked in Settings UI | 1h | ⬜ | `/dashboard/settings/page.tsx` |
+| MX-7 | Stripe customer portal: confirm `/api/stripe/portal` is linked in Settings UI | 1h | ✅ 2026-06-16 | Was missing — added a Billing section to `/dashboard/settings` with a "Manage billing →" button → Stripe customer portal (plan/card/invoices/cancel). |
 | MX-8 | Integrations health-check (read-only auth probes for Twenty/Chatwoot/Listmonk/Docuseal) + live admin panel | 3h | ✅ 2026-06-15 | `GET /api/admin/integrations-health` (super-admin gated) + `IntegrationsHealthPanel` on `/dashboard/admin`. The one-click "are my integrations wired?" test. +5 tests. **Needs deploy to read prod creds.** |
 
 **Missing total: ~39h**
@@ -253,6 +253,7 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post analyzer-timeout + dept-override | 537/538 | analyzer 4s→7s (logs showed analyzer_deadline → empty); +4 resolveRoutedDept tests — keyword hint now AUTHORITATIVE |
 | Post MS-A (Stripe read connector) | 541/542 | +4 connector tests — live MRR / active-sub pulse |
 | Post MS-A widget + FC-3 | 543/544 | pulse widget (admin); +2 outcome-ingestion tests (Twenty/Docuseal → vault) |
+| Post FC-3b + MX-7 | 543/544 | all 4 integration outcomes recorded; Settings → Manage billing (Stripe portal) |
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---
