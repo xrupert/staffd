@@ -111,7 +111,14 @@
 ---
 
 ## Known open items to resolve before demo
-1. **W70.1 — analyzer returns zero action candidates** → blocks the integration buttons end-to-end. Top priority to investigate live (needs a logged-in session + analyzer logs).
+1. **W70.1 — analyzer returns zero action candidates** → gates whether ANY action button appears. Now **instrumented + diagnosable** (commit `e17db83`).
+   **Diagnostic procedure (live):**
+   - **Sharp test:** generate an artifact that maps *cleanly* to an action — e.g. Legal → "draft an NDA for a contractor" (→ expect **✍️ Send for signature** + **📄 Export**), or Marketing → "write a product launch newsletter" (→ expect **📧 Send as campaign**). If buttons appear here, the pipeline works and the earlier cold-email simply didn't map (that's correct behavior).
+   - **If buttons still don't appear**, read the Vercel runtime log for the `[W62-analyzer]` line right after the generation:
+     - `kept=0/3 ... raw=[...,"confidence":0.5,...]` → mapped weakly, below the 0.6 threshold → consider lowering threshold or sharpening the action definitions.
+     - `kept=0/0 ... raw=[]` → the model judged the work non-actionable (expected for templates / informational work).
+     - `no JSON array in response ...` → a format/parse issue in the analyzer → real bug, fix the prompt/parse.
+   - Where: Vercel → project → **Logs** (or Deployments → Functions) → filter `[W62-analyzer]`.
 2. **FC-2b** — Chatwoot "Open support ticket" + Docuseal "Send for signature" buttons (recipient modal) — in progress.
 3. **Demo account industry** — set it so routing is maximally on-target.
 
