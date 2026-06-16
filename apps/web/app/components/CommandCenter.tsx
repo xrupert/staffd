@@ -292,7 +292,7 @@ export default function CommandCenter() {
       const res = await fetch("/api/integrations/twenty", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "opportunity", name, notes: output.slice(0, 1000) }),
+        body: JSON.stringify({ type: "opportunity", name, notes: output.slice(0, 1000), userId: pb.authStore.record?.id }),
       });
       const data = (await res.json()) as { success?: boolean; crmUrl?: string; message?: string; error?: string };
       if (!res.ok || !data.success) {
@@ -370,6 +370,7 @@ export default function CommandCenter() {
             documentContent: output,
             signerEmail: recipient.email,
             signerName: recipient.name,
+            userId: pb.authStore.record?.id,
           }),
         });
         const data = (await res.json()) as { success?: boolean; signingUrl?: string; message?: string; error?: string };

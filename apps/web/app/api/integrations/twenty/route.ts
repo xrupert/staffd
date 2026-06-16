@@ -4,6 +4,8 @@
  * Returns 503 with setup instructions when not yet configured.
  */
 
+import { recordDecision } from "../../_lib/vault/outcomes";
+
 const TWENTY_URL = process.env.TWENTY_API_URL ?? "";
 const TWENTY_KEY = process.env.TWENTY_API_KEY ?? "";
 
@@ -46,12 +48,13 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { type, name, email, notes, stage } = (await req.json()) as {
+    const { type, name, email, notes, stage, userId } = (await req.json()) as {
       type: "contact" | "opportunity";
       name: string;
       email?: string;
       notes?: string;
       stage?: string;
+      userId?: string; // FC-3 — when present, the outcome is recorded to the vault
     };
 
     if (!name?.trim()) {
@@ -91,6 +94,18 @@ export async function POST(req: Request) {
     const record = data.data
       ? Object.values(data.data)[0]
       : null;
+
+    // FC-3 — close the loop: a lead/opportunity in the CRM is a real outcome
+    // the CEO brief should see. Fire-and-forget; never blocks the response.
+    if (userId) {
+      void recordDecision({
+        userId,
+        decision_kind: "lead_added",
+        title: `Added "${name}" to the CRM`,
+        source_kind: "twenty",
+        source_id: record?.id ? String(record.id) : undefined,
+      });
+    }
 
     return Response.json({
       success: true,

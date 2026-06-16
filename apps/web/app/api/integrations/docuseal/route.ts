@@ -4,6 +4,8 @@
  * Returns 503 with setup instructions when not yet configured.
  */
 
+import { recordDecision } from "../../_lib/vault/outcomes";
+
 const DOCUSEAL_URL = process.env.DOCUSEAL_URL ?? "";
 const DOCUSEAL_KEY = process.env.DOCUSEAL_API_KEY ?? "";
 
@@ -20,11 +22,12 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { name, documentContent, signerEmail, signerName } = (await req.json()) as {
+    const { name, documentContent, signerEmail, signerName, userId } = (await req.json()) as {
       name: string;
       documentContent: string;
       signerEmail: string;
       signerName?: string;
+      userId?: string; // FC-3 — when present, the outcome is recorded to the vault
     };
 
     if (!name?.trim() || !documentContent?.trim() || !signerEmail?.trim()) {
@@ -63,6 +66,19 @@ export async function POST(req: Request) {
     }
 
     const data = (await res.json()) as { id?: number; slug?: string };
+
+    // FC-3 — a document sent for signature is a real business event; record it
+    // so the CEO brief reflects momentum. Fire-and-forget.
+    if (userId) {
+      void recordDecision({
+        userId,
+        decision_kind: "contract_sent_for_signature",
+        title: `Sent "${name}" for signature`,
+        source_kind: "docuseal",
+        source_id: data.id ? String(data.id) : undefined,
+      });
+    }
+
     return Response.json({
       success: true,
       submissionId: data.id,

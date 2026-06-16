@@ -125,7 +125,8 @@ To test the integrations in prod (and to demo any of this), these changes must b
 | FC-2a | Action vocabulary +2 integration actions (`send_to_crm`→Twenty, `send_email_campaign`→Listmonk) wired in CommandCenter | 7h | ✅ 2026-06-15 | FC-1 | SA-authorized vocabulary growth (6→8); updated 3 locked pins; zero-input handlers fire to connected write routes w/ result message. +1 wiring test. |
 | FC-2b | `open_support_ticket`→Chatwoot + `send_for_signature`→Docuseal, with a shared recipient-email modal, wired in CommandCenter | 7h | ✅ 2026-06-15 | FC-2a | Vocabulary 8→10 (pins updated); new `ActionRecipientModal`; handlers POST to chatwoot/docuseal w/ result message. Wiring test extended. |
 | FC-2c | Wire `useActionDispatcher` into DepartmentRoom (HandoffPanel already renders affordances there, but clicks have no handlers) | 4h | ⬜ FOLLOW-UP | FC-2a/b | `DepartmentRoom.tsx` |
-| FC-3 | W63: Outcome auto-ingestion (post-write integration call → create `vault_decisions` record) | 5h | ⬜ | — | `/api/integrations/*/route.ts`, `vault_decisions` collection |
+| FC-3 | W63: Outcome auto-ingestion (post-write integration call → create `vault_decisions` record) | 5h | ✅ 2026-06-16 (Twenty+Docuseal) | — | Twenty→`lead_added`, Docuseal→`contract_sent_for_signature` recorded on success (userId-gated, fire-and-forget) via `recordDecision`. +2 tests. |
+| FC-3b | Same for Listmonk (`campaign_drafted`) + Chatwoot (`support_ticket_opened`) | 2h | ⬜ FOLLOW-UP | FC-3 | `/api/integrations/listmonk`, `/chatwoot` |
 | FC-4 | Google OAuth (enable PB OAuth2 provider + "Continue with Google" button in login UI) | 6h | ✅ 2026-06-15 (code) / ⬜ **OPERATOR: enable Google in PB admin** | — | New shared `GoogleAuthButton.tsx` on login + signup; `authWithOAuth2`; new user → onboarding, returning → dashboard. Graceful "not enabled yet" message until PB config. +2 tests, browser-verified. |
 | FC-5a | Autopilot: data reader worker (reads Stripe MRR + connected integration data → brief struct) | 10h | ⬜ | MS-A | `/api/worker/autopilot/route.ts` (new) |
 | FC-5b | Autopilot: W71 task queue builder (brief struct → enqueue W71 tasks per dept) | 10h | ⬜ | FC-5a, T1-1 | `lib/workflow.ts`, `/api/workflow/enqueue/route.ts` |
@@ -251,6 +252,7 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post dept keyword hint | 533/534 | +5 suggestDepartmentFromKeywords tests — NDA→Legal etc. no longer mis-route |
 | Post analyzer-timeout + dept-override | 537/538 | analyzer 4s→7s (logs showed analyzer_deadline → empty); +4 resolveRoutedDept tests — keyword hint now AUTHORITATIVE |
 | Post MS-A (Stripe read connector) | 541/542 | +4 connector tests — live MRR / active-sub pulse |
+| Post MS-A widget + FC-3 | 543/544 | pulse widget (admin); +2 outcome-ingestion tests (Twenty/Docuseal → vault) |
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---
