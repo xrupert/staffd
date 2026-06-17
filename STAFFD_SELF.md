@@ -29,12 +29,19 @@ review_platform: ""
 
 # STAFFD Self-Knowledge (canonical Vault source)
 
-This file is the **canonical brand identity** for the STAFFD operator account.
-The Vault loader (`apps/web/app/api/_lib/vault/staffd-self.ts`) parses the YAML
-frontmatter above and injects it as the operator's Business Vault — overriding
-anything typed into the Settings → Business Vault form for the super-admin
-account. Canonical source wins; the operator can't drift STAFFD's own brand
-voice by editing a form.
+This file is the **canonical, human-editable brand identity** for the STAFFD
+operator account. The Vault loader injects this content as the operator's
+Business Vault — overriding anything typed into the Settings → Business Vault
+form for the super-admin account. Canonical source wins; the operator can't
+drift STAFFD's own brand voice by editing a form.
+
+> **SYNC CONTRACT (important):** the runtime loader
+> (`apps/web/app/api/_lib/vault/staffd-self.ts`) does **not** read this file at
+> runtime — an earlier fs-based version 500'd on Vercel serverless. Instead it
+> embeds a **verbatim mirror** of the YAML frontmatter above as a string
+> constant (`SELF_FRONTMATTER`) and parses that. **If you edit the frontmatter
+> here, copy the same change into `staffd-self.ts`.** This file stays the
+> ratifiable human source of truth; the constant is what ships.
 
 **This file consolidates content that also lives in:**
 - `BRAND_VOICE.md` — the full voice & vocabulary guide (word choices, tone,

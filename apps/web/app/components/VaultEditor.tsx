@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
+import { isSuperAdminClient } from "../../lib/hooks/useEffectivePlan";
 
 type FieldDef = { name: string; label: string; multiline?: boolean; placeholder?: string };
 
@@ -72,8 +73,12 @@ export default function VaultEditor() {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // W91.5 — the operator's Vault is auto-populated from STAFFD's canonical
+  // brand identity; manual edits to these fields are ignored server-side.
+  const [isOperator, setIsOperator] = useState(false);
 
   useEffect(() => {
+    setIsOperator(isSuperAdminClient((pb.authStore.record as { email?: string } | null)?.email));
     void (async () => {
       try {
         const userId = pb.authStore.record?.id ?? "";
@@ -155,6 +160,12 @@ export default function VaultEditor() {
       <p className="text-xs mb-5" style={{ color: "#9090A8" }}>
         The more your staff knows, the sharper the work. Every field is optional.
       </p>
+
+      {isOperator && (
+        <div className="rounded-xl px-4 py-3 mb-5 text-xs" style={{ background: "rgba(91,33,232,0.08)", border: "1px solid rgba(91,33,232,0.3)", color: "#A07BFF" }}>
+          Your Vault is auto-populated from STAFFD&apos;s canonical brand identity. Manual edits to these fields are ignored for the operator account.
+        </div>
+      )}
 
       <div className="flex flex-col gap-6">
         {CATEGORIES.map((cat) => (
