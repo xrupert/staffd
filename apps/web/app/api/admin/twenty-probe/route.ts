@@ -75,7 +75,7 @@ export async function GET(req: Request) {
     findings.E_objectMetadataId = objId;
     if (objId) {
       findings.E_create_field = await gql(base, "/metadata", key,
-        `mutation Create($input: CreateFieldInput!) { createOneField(input: $input) { id name type } }`,
+        `mutation Create($input: CreateOneFieldMetadataInput!) { createOneField(input: $input) { id name type } }`,
         { input: { field: { name: FIELD, label: "STAFFD Customer Id", type: "TEXT", objectMetadataId: objId } } });
     } else {
       findings.E_create_field = { skipped: "no objectMetadataId resolved from step D" };
