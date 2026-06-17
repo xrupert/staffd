@@ -256,14 +256,18 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post FC-3b + MX-7 | 543/544 | all 4 integration outcomes recorded; Settings → Manage billing (Stripe portal) |
 | Post W80.1 + W80.1a (Cockpit) | 553/554 | Operations Home at /dashboard/cockpit (super-admin), 4 read-cards + augment chips + calendar strip; Plausible read (cached); operator reads gated super-admin; landing brand-voice fix. +10 tests |
 | Post W80.2 (Email Campaigns native) | 564/565 | /dashboard/cockpit/campaigns list/detail/compose; Listmonk lists read + send/schedule PUT; +11 tests. Plus Plausible CE URL fix + middleware→proxy migration. |
+| Post Cockpit→Front Desk rename | 564/565 | route + nav + 301 redirect; no test delta (rename only) |
+| Post W80.3 (Site Analytics native) | 577/578 | /dashboard/front-desk/analytics: range toggles + headline + breakdowns + inline-SVG trend; Plausible route gains ?view=deep (2-tier range-keyed cache); +13 tests |
 
 ### W80 — DIRECT-SERVICE UX (operator-scoped, decision b)
 - W80 Part 2 thinking: chat + would-be doc. W80 spike: `docs/architecture/direct-service-capability-spike-W80.md` (`791d2f9`).
 - **W80.1 ✅** Operations Home → **`/dashboard/cockpit`** (renamed from `/operations` — collides with Operations dept, Standard #9). Super-admin nav "Cockpit". Cards: Email/Pipeline/Inbox/Analytics. Augmentation chip → Command Center via `?ask=`.
 - **W80.1a ✅** Plausible read `/api/integrations/plausible` (5-min cache, super-admin). **⚠️ OPERATOR: set `PLAUSIBLE_API_KEY` + `PLAUSIBLE_SITE_ID` in Vercel** or the Analytics card shows "Not connected yet".
 - **Security:** FC-1 reads (Twenty/Chatwoot/Listmonk) + Plausible + Stripe connector now **super-admin gated** (were exposing operator data). Reopens to all under **W91 per-user creds**.
-- **W80.2 ✅** Email Campaigns native depth → `/dashboard/cockpit/campaigns` (list/detail/compose). Listmonk gains lists read (`?resource=lists`), enriched list (recipients/dates/open-rate), send/schedule (`PUT`). Compose has "✨ Make this smart →" (→ Command Center). Cockpit Email card now drills in. +11 tests (564 floor). No vendor names in rendered UI (proven via grep). Pulse widget "Stripe" → "your billing".
-- **Pending:** operator smoke screenshots (campaigns list + compose, super-admin prod); SA ratify Cockpit name; W80.3 Analytics native or next; FC-2c (DepartmentRoom action handlers); Chatwoot native inbox (deferred per spike).
+- **W80.2 ✅** Email Campaigns native depth → `/dashboard/front-desk/campaigns` (list/detail/compose). Listmonk gains lists read (`?resource=lists`), enriched list (recipients/dates/open-rate), send/schedule (`PUT`). Compose has "✨ Make this smart →" (→ Command Center). Email card now drills in. +11 tests (564 floor). No vendor names in rendered UI (proven via grep). Pulse widget "Stripe" → "your billing".
+- **Rename ✅** Cockpit → **Front Desk** across all user-facing surfaces (`cc0cf9d`). Route `/dashboard/cockpit`(+sub) → `/dashboard/front-desk`; 301 redirect in `next.config.js`. Zero `cockpit/Cockpit` in user-facing copy (one redirect docstring only).
+- **W80.3 ✅** Site Analytics native depth → **`/dashboard/front-desk/analytics`** (`fd94520`). Range toggles (Today/7d/30d), headline (visitors/pageviews/bounce/avg-visit), source/page/country top-5 breakdowns, inline-SVG visitor trend (no chart dep — Standard #9). "✨ Make sense of this →" → analytics specialist via `?ask=`. Front Desk Analytics card drills in. Plausible route extended with `?view=deep&range=` — single auth/cache substrate; 2-tier cache (5-min headline+timeseries / 15-min breakdowns), keyed by range. +13 tests (577 floor). Verified live in prod with operator data (7d=21 / 30d=88 visitors). **READ SUBSTRATE COMPLETE.**
+- **Pending:** operator smoke (live-browser click-through on prod, super-admin); SA ratify Front Desk name; **W72 (L4 workflow object) next tranche — await SA dispatch**; FC-2c (DepartmentRoom action handlers); Chatwoot native inbox (deferred per spike).
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---
