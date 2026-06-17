@@ -182,6 +182,13 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   // W95.3 — per-customer upload session ledger (cold-start CSV/document
   // ingestion). USER_OWNED so each owner sees only their own upload history.
   { name: "upload_sessions", rules: USER_OWNED_RULES },
+  // W95.3.4 — operator migration audit log (every in-app setup-route run).
+  {
+    name: "admin_migration_log",
+    rules: ADMIN_ONLY_RULES,
+    systemManaged: true,
+    note: "W95.3.4 — operator-only audit of in-app PB migrations. Admin-token-only (super-admin route gate + ADMIN_ONLY rule tier). No customer rows.",
+  },
 ];
 
 /** Quick lookup helper. */

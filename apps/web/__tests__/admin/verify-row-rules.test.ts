@@ -163,7 +163,8 @@ describe("GET /api/admin/verify-row-rules", () => {
         name === "orphan_decisions" ||
         name === "super_admin_audit_log" ||
         name === "super_admin_usage_log" ||
-        name === "stripe_events"
+        name === "stripe_events" ||
+        name === "admin_migration_log"
       ) {
         // Decision 73 / 74 + W47 — ADMIN_ONLY pattern (all-null), systemManaged
         return {
@@ -246,7 +247,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W91 — 27 = 26 + user_integrations (per-user vendor credentials)
     // W95.1 — 28 = 27 + contacts (STAFFD-native Model B3 contacts)
     // W95.3 — 29 = 28 + upload_sessions (per-customer cold-start upload ledger)
-    expect(body.collections_checked).toBe(29);
+    // W95.3.4 — 30 = 29 + admin_migration_log (operator migration audit log)
+    expect(body.collections_checked).toBe(30);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 
