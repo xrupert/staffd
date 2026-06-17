@@ -12,6 +12,7 @@ import { getAdminToken, pbEscape, pbUrl } from "../../../_lib/pb";
 import { requireSuperAdmin, toAuthErrorResponse } from "../../../_lib/auth/super-admin";
 import { logSuperAdminAccess } from "../../../_lib/auth/super-admin-logging";
 import { classifyUser, lastActivityProxy } from "../../../_lib/usage";
+import { effectivePlan } from "../../../_lib/comp";
 
 type RouteContext = { params: Promise<{ userId: string }> };
 
@@ -79,7 +80,7 @@ export async function GET(req: Request, { params }: RouteContext) {
 
   return Response.json({
     ok: true,
-    user: { id: user.id, email: user.email, type: classifyUser(user.email, me.email), plan: (sub?.plan as string) || "none", created: user.created, lastActivity },
+    user: { id: user.id, email: user.email, type: classifyUser(user.email, me.email), plan: effectivePlan(user.email, sub?.plan as string | undefined, me.email), created: user.created, lastActivity },
     counts: {
       documents,
       threads,

@@ -14,6 +14,7 @@
 
 import { getAdminToken, pbUrl } from "../../_lib/pb";
 import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
+import { effectivePlan } from "../../_lib/comp";
 import {
   classifyUser,
   lastActivityProxy,
@@ -116,7 +117,9 @@ export async function GET(req: Request) {
     const type = classifyUser(u.email, adminEmail);
     byType[type]++;
     const sub = subByUser.get(u.id);
-    const plan = (sub?.plan as string) || "none";
+    // W92.1 — display the EFFECTIVE tier: comp/operator accounts operate at
+    // Agency even though their stored plan is still "starter".
+    const plan = effectivePlan(u.email, sub?.plan as string | undefined, adminEmail);
     byPlan[plan] = (byPlan[plan] ?? 0) + 1;
     const last = lastActivityProxy(lastByUser.get(u.id) ?? []);
     activity[activityBucket(last, now)]++;

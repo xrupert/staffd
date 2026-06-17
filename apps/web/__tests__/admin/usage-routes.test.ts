@@ -53,7 +53,7 @@ function stubPb(now = "2026-06-16T00:00:00Z") {
     ] });
     if (u.includes("/subscriptions/records")) return json({ items: [
       { user: "u1", plan: "growth", active_until: "2026-09-01T00:00:00Z", image_credits_used: 5, video_credits_used: 0, agent_credits_topup: 0 },
-      { user: "u2", plan: "agency", active_until: "2026-06-20T00:00:00Z", image_credits_used: 2, video_credits_used: 1, agent_credits_topup: 10 },
+      { user: "u2", plan: "starter", active_until: "2026-06-20T00:00:00Z", image_credits_used: 2, video_credits_used: 1, agent_credits_topup: 10 }, // comp user: stored "starter", effective "agency"
     ] });
     if (u.includes("/documents/records")) return json({ items: [
       { user: "u1", department: "marketing", agent_name: "Copywriter", created: recent },
@@ -102,10 +102,15 @@ describe("GET /api/admin/usage", () => {
     // Tab 1 — Users
     expect(d.users.total).toBe(3);
     expect(d.users.byType).toMatchObject({ "super-admin": 1, comp: 1, customer: 1 });
-    expect(d.users.byPlan).toMatchObject({ growth: 1, agency: 1 });
+    // W92.1 — effective plan: the customer keeps "growth"; the comp user (u2)
+    // and the operator both render as "agency" (stored plan ignored for comp).
+    expect(d.users.byPlan).toMatchObject({ growth: 1, agency: 2 });
     expect(d.users.churn.expiring).toBeGreaterThanOrEqual(1); // u2 active_until within 14d
     const operatorRow = d.users.roster.find((r: { id: string }) => r.id === "admin");
     expect(operatorRow.type).toBe("super-admin");
+    expect(operatorRow.plan).toBe("agency"); // W92.1 — operator shows effective Agency tier
+    const compRow = d.users.roster.find((r: { email: string }) => r.email.includes("jrw-solutions"));
+    expect(compRow.plan).toBe("agency"); // comp user shows Agency, not stored "starter"
     // Tab 2 — Departments
     expect(d.departments.byDept.find((x: { department: string }) => x.department === "marketing").count).toBe(2);
     expect(d.departments.specialists[0]).toHaveProperty("agent_name");

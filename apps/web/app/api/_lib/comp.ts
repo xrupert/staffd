@@ -27,6 +27,29 @@ export function isCompedEmail(email: string | null | undefined): boolean {
 }
 
 /**
+ * W92.1 — the EFFECTIVE plan tier a user actually operates at.
+ *
+ * Comp accounts (and the super-admin) sign up via the normal path, so their
+ * stored `subscriptions.plan` stays "starter" — but at runtime they're granted
+ * Agency features + 100x credits. Anywhere we DISPLAY a tier (e.g. the W92
+ * usage dashboard) must reflect the effective tier, not the stale stored one.
+ *
+ * Comp is by email (isCompedEmail, which already includes the operator); an
+ * explicit `adminEmail` match is also honored for robustness. Everyone else
+ * gets their stored plan (or "none" when unset).
+ */
+export function effectivePlan(
+  email: string | null | undefined,
+  storedPlan: string | null | undefined,
+  adminEmail?: string | null,
+): string {
+  const e = (email ?? "").trim().toLowerCase();
+  const admin = (adminEmail ?? "").trim().toLowerCase();
+  if (isCompedEmail(email) || (admin && e === admin)) return "agency";
+  return (storedPlan ?? "").trim() || "none";
+}
+
+/**
  * Looks up the user's email in PocketBase and returns whether they get the
  * Agency comp. Pass an admin token. Returns false on any error or missing user.
  */
