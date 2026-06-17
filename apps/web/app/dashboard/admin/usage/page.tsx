@@ -23,7 +23,7 @@ type Usage = {
   users: { total: number; byType: Record<string, number>; byPlan: Record<string, number>; activity: Record<string, number>; churn: { expired: number; expiring: number }; roster: Roster[] };
   departments: { byDept: { department: string; count: number; lastAt: string }[]; specialists: { agent_name: string; department: string; count: number }[] };
   integrations: { health: { key: string; label: string; connected: boolean }[]; outcomes: { decision_kind: string; count: number }[]; note: string };
-  workflows: { byStatus: Record<string, number>; taskSuccess: { succeeded: number; total: number; rate: number }; recentTransitions: { detail: string; at: string; user: string }[]; velocity7d: { date: string; count: number }[] };
+  workflows: { byStatus: Record<string, number>; taskSuccess: { succeeded: number; total: number; rate: number }; recentTransitions: { detail: string; at: string; user: string }[]; velocity7d: { date: string; count: number }[]; mirrorRetry: Record<string, number> };
 };
 type Detail = { user: { id: string; email: string; type: string; plan: string; created: string; lastActivity: string | null }; counts: { documents: number; threads: number; workflows: number; imageCredits: number; videoCredits: number; agentCreditsTopup: number }; outcomes: { decision_kind: string; count: number }[] };
 
@@ -227,6 +227,17 @@ function WorkflowsTab({ d }: { d: Usage["workflows"] }) {
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#6060A0" }}>Task success rate</p>
         <p className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.5rem" }}>{d.taskSuccess.rate}% <span className="text-xs font-normal" style={{ color: "#5A5A70" }}>({d.taskSuccess.succeeded}/{d.taskSuccess.total} tasks)</span></p>
+      </div>
+      {/* W95.2 — vendor mirror-retry health (Model B3 mirror discipline) */}
+      <div style={card}>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Vendor mirror retries</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <Stat label="Pending" value={d.mirrorRetry?.pending ?? 0} />
+          <Stat label="Retrying" value={d.mirrorRetry?.retrying ?? 0} />
+          <Stat label="Succeeded" value={d.mirrorRetry?.succeeded ?? 0} />
+          <Stat label="Failed" value={d.mirrorRetry?.failed ?? 0} />
+        </div>
+        <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>Re-syncs of STAFFD-native records to the operator-shared vendor backends. Failed = exhausted 3 retries — needs attention.</p>
       </div>
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Transition velocity · last 7 days</p>

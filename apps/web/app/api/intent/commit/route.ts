@@ -74,6 +74,31 @@ export async function POST(req: Request) {
     body: JSON.stringify({ twenty_record_id: twentyId ?? "", twenty_mirror_status: mirrorStatus, last_mirror_attempt: new Date().toISOString() }),
   });
 
+  // W95.2 — on mirror failure, enqueue a W71 task so the retry worker (the
+  // workflow-drain extension) re-attempts the vendor mirror. No silent drift.
+  if (mirrorStatus === "error") {
+    void fetch(`${pb}/api/collections/workflow_tasks/records`, {
+      method: "POST",
+      headers: adminHeaders(token),
+      body: JSON.stringify({
+        workflow_id: "",
+        user: me.id,
+        specialist_id: "mirror_retry_worker", // synthetic — handled in workflow-drain, not a real specialist
+        department_id: "system",
+        input_payload: { vendor: "twenty", record_id: record.id, fields: { name, email: fields.email ?? "", phone: fields.phone ?? "" } },
+        output_payload: null,
+        status: "pending",
+        depends_on: [],
+        retry_count: 0,
+        error: "",
+        started_at: "",
+        completed_at: "",
+        cost_estimate_tokens: 0,
+        cost_actual_tokens: 0,
+      }),
+    }).catch(() => {});
+  }
+
   // 3. Vault enrichment — every confirmed action sharpens the staff.
   void recordDecision({
     userId: me.id,

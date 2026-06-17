@@ -24,6 +24,7 @@ import type {
   ReconcileDeps,
 } from "../../_lib/workflow";
 import { logWorkflowTransition } from "../../_lib/auth/super-admin-logging";
+import { TwentyClient } from "../../_lib/integrations/twenty/client";
 
 const TASKS_PER_TICK = 10;
 
@@ -107,6 +108,23 @@ export async function GET(req: Request) {
     },
 
     runAgent: async (task: WorkflowTask) => {
+      // W95.2 — mirror-retry tasks are NOT agent work. Re-attempt the vendor
+      // mirror (currently Twenty contacts) and patch the STAFFD-native row on
+      // success. Throwing lets W71's retry/exhaustion handle repeated failure.
+      if (task.specialist_id === "mirror_retry_worker") {
+        const p = task.input_payload as { vendor?: string; record_id?: string; fields?: { name?: string; email?: string; phone?: string } };
+        if (p.vendor === "twenty" && p.record_id && p.fields?.name) {
+          const twentyId = await TwentyClient.forCustomer(task.user).createPerson({ name: p.fields.name, email: p.fields.email, phone: p.fields.phone });
+          if (!twentyId) throw new Error("twenty mirror retry failed");
+          await fetch(`${pb}/api/collections/contacts/records/${p.record_id}`, {
+            method: "PATCH", headers: authHeaders,
+            body: JSON.stringify({ twenty_record_id: twentyId, twenty_mirror_status: "synced", last_mirror_attempt: new Date().toISOString() }),
+          });
+          return { text: `mirrored:${twentyId}`, tokensActual: 0 };
+        }
+        throw new Error("unsupported mirror-retry payload");
+      }
+
       const res = await fetch(`${baseUrl}/api/agent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

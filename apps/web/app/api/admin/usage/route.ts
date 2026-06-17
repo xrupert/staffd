@@ -156,6 +156,14 @@ export async function GET(req: Request) {
   // ── Tab 4: Workflows ──
   const byStatus: Record<string, number> = { pending: 0, running: 0, completed: 0, failed: 0, partial: 0 };
   for (const w of workflows) byStatus[w.status] = (byStatus[w.status] ?? 0) + 1;
+
+  // W95.2 — vendor mirror-retry health (Model B3 mirror discipline). Capped scan.
+  const mirrorTasks = await listItems<{ status?: string }>(
+    `${pb}/api/collections/workflow_tasks/records?filter=${encodeURIComponent(`specialist_id = "mirror_retry_worker"`)}&perPage=200&fields=status`,
+    token,
+  );
+  const mirrorRetry: Record<string, number> = { pending: 0, retrying: 0, succeeded: 0, failed: 0 };
+  for (const t of mirrorTasks) { const s = (t.status as string) || "pending"; mirrorRetry[s] = (mirrorRetry[s] ?? 0) + 1; }
   const recentTransitions = transitions.map((t) => ({ detail: t.operation_detail ?? "", at: t.created ?? "", user: t.user ?? "" }));
   // Transition velocity over the last 7 days (bucketed by day).
   const velocity7d: { date: string; count: number }[] = [];
@@ -173,6 +181,7 @@ export async function GET(req: Request) {
       taskSuccess: { succeeded: taskSucceeded, total: taskTotal, rate: taskSuccessRate(taskSucceeded, taskTotal) },
       recentTransitions,
       velocity7d,
+      mirrorRetry,
     },
     meta: { generatedAt: now.toISOString(), caps: { USER_CAP, DOC_CAP, CONVO_CAP, WF_CAP, DECISION_CAP } },
   });

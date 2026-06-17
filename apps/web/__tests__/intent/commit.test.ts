@@ -73,6 +73,23 @@ describe("POST /api/intent/commit", () => {
     expect((await res.json()).twenty_mirror_status).toBe("error");
   });
 
+  it("W95.2 — enqueues a mirror_retry_worker task (tenant-scoped) when the Twenty mirror fails", async () => {
+    tc.createPerson.mockResolvedValue(null); // mirror error
+    await POST(req({ intent_type: "create_contact", fields: { name: "Jane Doe", email: "j@x.com", phone: "555" } }));
+    const enqueue = calls.find((c) => c.url.includes("/workflow_tasks/records") && c.method === "POST");
+    expect(enqueue).toBeDefined();
+    const body = enqueue!.body as { specialist_id: string; user: string; department_id: string; input_payload: { vendor: string; record_id: string; fields: Record<string, string> } };
+    expect(body.specialist_id).toBe("mirror_retry_worker");
+    expect(body.user).toBe("userA"); // retry stays scoped to the same tenant
+    expect(body.input_payload).toMatchObject({ vendor: "twenty", record_id: "c-1", fields: { name: "Jane Doe", email: "j@x.com", phone: "555" } });
+  });
+
+  it("W95.2 — does NOT enqueue a retry task when the mirror succeeds", async () => {
+    tc.createPerson.mockResolvedValue("tw-1"); // synced
+    await POST(req({ intent_type: "create_contact", fields: { name: "Jane Doe" } }));
+    expect(calls.some((c) => c.url.includes("/workflow_tasks/records") && c.method === "POST")).toBe(false);
+  });
+
   it("401 when unauthenticated", async () => {
     who.user = null;
     expect((await POST(req({ intent_type: "create_contact", fields: { name: "X" } }))).status).toBe(401);
