@@ -23,7 +23,6 @@ import pb from "../../../lib/pb";
 import {
   buildSpecialistPrompt,
   summarizeEmail,
-  summarizePipeline,
   summarizeInbox,
   summarizeAnalytics,
   frontDeskEmptyStates,
@@ -72,9 +71,22 @@ export default function FrontDeskHome() {
     if (!authed) return;
 
     void loadCard("/api/integrations/listmonk", setEmail, (d) => summarizeEmail(d as never));
-    void loadCard("/api/integrations/twenty?type=opportunities", setPipeline, (d) => summarizePipeline(d as never));
     void loadCard("/api/integrations/chatwoot?status=open", setInbox, (d) => summarizeInbox(d as never));
     void loadCard("/api/integrations/plausible", setAnalytics, (d) => summarizeAnalytics(d as never));
+
+    // W95.1 — Sales Pipeline reads STAFFD-native contacts (Model B3 source of
+    // truth), not the vendor backend. Empty (total 0) → the "no contacts yet"
+    // empty state; otherwise count + latest name.
+    void (async () => {
+      try {
+        const res = await fetch(`/api/contacts?pbToken=${encodeURIComponent(pb.authStore.token)}`);
+        if (!res.ok) { setPipeline({ summary: "", connected: false, loading: false }); return; }
+        const d = (await res.json()) as { total: number; recentName: string | null };
+        if (!d.total) { setPipeline({ summary: "", connected: false, loading: false }); return; }
+        const latest = d.recentName ? ` · latest ${d.recentName}` : "";
+        setPipeline({ summary: `${d.total} contact${d.total === 1 ? "" : "s"}${latest}.`, connected: true, loading: false });
+      } catch { setPipeline({ summary: "", connected: false, loading: false }); }
+    })();
 
     // Calendar contextual strip — today's bookings (existing substrate).
     void (async () => {

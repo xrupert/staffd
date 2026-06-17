@@ -13,6 +13,7 @@ import { runExportDocument } from "../../lib/action-handlers/export-document";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
 import ActionRecipientModal, { type RecipientKind } from "./ActionRecipientModal";
+import ConfirmActionModal, { type IntentResult } from "./ConfirmActionModal";
 import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 interface Message {
@@ -218,6 +219,45 @@ export default function CommandCenter() {
   // email (Chatwoot ticket / Docuseal signature).
   const [recipientModal, setRecipientModal] = useState<{ kind: RecipientKind } | null>(null);
   const [recipientBusy, setRecipientBusy] = useState(false);
+  // W95.1 (Model B3) — conversational intent → confirm-to-commit. Runs
+  // alongside the normal routing flow; a parsed intent surfaces this modal.
+  const [pendingIntent, setPendingIntent] = useState<IntentResult | null>(null);
+  const [intentBusy, setIntentBusy] = useState(false);
+
+  // Fire-and-forget intent detection on the user's message (non-blocking on
+  // the normal chat flow). Surfaces ConfirmActionModal when confident.
+  async function detectIntent(message: string) {
+    try {
+      const res = await fetch("/api/intent/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+        body: JSON.stringify({ message }),
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as { intent: IntentResult | null };
+      if (data.intent) setPendingIntent(data.intent);
+    } catch { /* non-blocking — chat continues regardless */ }
+  }
+
+  async function commitIntent(editedFields: Record<string, string>) {
+    if (!pendingIntent) return;
+    setIntentBusy(true);
+    try {
+      const res = await fetch("/api/intent/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+        body: JSON.stringify({ intent_type: pendingIntent.type, fields: editedFields, source: "text" }),
+      });
+      const ok = res.ok;
+      setPendingIntent(null);
+      setMessages((prev) => [...prev, { role: "assistant", content: ok ? `Added ${editedFields.name} to your contacts.` : "Couldn't save that contact — try again." }]);
+    } catch {
+      setPendingIntent(null);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't save that contact — try again." }]);
+    } finally {
+      setIntentBusy(false);
+    }
+  }
 
   useEffect(() => {
     setThreadId(loadOrCreateThreadId());
@@ -511,6 +551,9 @@ export default function CommandCenter() {
     setMessages(newMessages);
     setInput("");
     setPhase("routing");
+
+    // W95.1 — detect a confirm-to-commit intent in parallel (non-blocking).
+    void detectIntent(content);
 
     const userId = pb.authStore.record?.id ?? "";
     const pbToken = pb.authStore.token;
@@ -1165,6 +1208,15 @@ export default function CommandCenter() {
         onClose={() => { if (!recipientBusy) setRecipientModal(null); }}
         onSubmit={(r) => { void submitRecipientAction(r); }}
       />
+
+      {pendingIntent && (
+        <ConfirmActionModal
+          intentResult={pendingIntent}
+          busy={intentBusy}
+          onConfirm={(f) => { void commitIntent(f); }}
+          onCancel={() => { if (!intentBusy) setPendingIntent(null); }}
+        />
+      )}
     </div>
   );
 }

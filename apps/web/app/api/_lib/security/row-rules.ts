@@ -176,6 +176,9 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   { name: "workflow_tasks", rules: USER_OWNED_RULES },
   // W91 — per-user vendor credentials (encrypted at rest, user-owned)
   { name: "user_integrations", rules: USER_OWNED_RULES },
+  // W95.1 — STAFFD-native contacts (Model B3 source of truth; mirrored to the
+  // operator-shared Twenty, tenant-tagged)
+  { name: "contacts", rules: USER_OWNED_RULES },
 ];
 
 /** Quick lookup helper. */
