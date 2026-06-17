@@ -36,6 +36,107 @@ export type AgentResult = {
   tokensActual: number;
 };
 
+// ── W72 — Parent Workflow object lifecycle ───────────────────────────────────
+
+export type WorkflowStatus = "pending" | "running" | "completed" | "failed" | "partial";
+
+export type WorkflowRecord = {
+  id: string;
+  user: string;
+  status: WorkflowStatus;
+  aggregation_doc_id: string | null;
+  started_at: string | null;
+};
+
+/**
+ * Pure state machine: derive the parent workflow status from its tasks'
+ * statuses plus whether the aggregation work product has been produced.
+ *
+ *   pending   — no tasks, or every task still pending (none started)
+ *   running   — at least one task started; or all succeeded but the
+ *               aggregator hasn't produced the unified doc yet
+ *   completed — all tasks succeeded AND aggregation doc exists
+ *   failed    — terminal (no active tasks) and nothing succeeded
+ *   partial   — terminal with a mix of succeeded + failed
+ *
+ * "active" = pending | running | retrying (work the drain can still advance).
+ */
+export function computeWorkflowStatus(
+  statuses: WorkflowTaskStatus[],
+  aggregated: boolean,
+): WorkflowStatus {
+  if (statuses.length === 0) return "pending";
+  if (statuses.every((s) => s === "pending")) return "pending";
+  if (statuses.every((s) => s === "succeeded")) return aggregated ? "completed" : "running";
+  const active = statuses.some((s) => s === "pending" || s === "running" || s === "retrying");
+  if (active) return "running";
+  // Terminal, not all succeeded: partial if anything landed, else failed.
+  return statuses.some((s) => s === "succeeded") ? "partial" : "failed";
+}
+
+/** Row-rule access gate for a workflow record: super-admin or the owner. */
+export function canAccessWorkflow(requesterId: string, isAdmin: boolean, workflowUser: string): boolean {
+  return isAdmin || (!!requesterId && requesterId === workflowUser);
+}
+
+export type ReconcileDeps = {
+  getWorkflow: (id: string) => Promise<WorkflowRecord | null>;
+  getTaskStatuses: (workflowId: string) => Promise<WorkflowTaskStatus[]>;
+  updateWorkflow: (id: string, patch: Record<string, unknown>) => Promise<void>;
+  /** Invokes the aggregate hook; returns the produced document id. */
+  runAggregator: (workflowId: string) => Promise<string>;
+  /** Best-effort audit write — one row per status change (W92 trail). */
+  logTransition: (e: { workflowId: string; user: string; from: WorkflowStatus; to: WorkflowStatus }) => Promise<void>;
+  now?: () => string;
+};
+
+export type ReconcileResult = {
+  workflowId: string;
+  from: WorkflowStatus;
+  to: WorkflowStatus;
+  aggregated: boolean;
+  changed: boolean;
+};
+
+/**
+ * Recompute a workflow's status from its tasks and persist any transition.
+ * Called by the drain after task outcomes land. When all tasks have
+ * succeeded and no aggregation doc exists yet, the aggregate hook runs
+ * first so the workflow can complete cleanly. Every status change is
+ * persisted (with started_at / completed_at stamps) and logged once.
+ */
+export async function reconcileWorkflow(workflowId: string, deps: ReconcileDeps): Promise<ReconcileResult> {
+  const now = deps.now ?? (() => new Date().toISOString());
+  const wf = await deps.getWorkflow(workflowId);
+  if (!wf) {
+    return { workflowId, from: "pending", to: "pending", aggregated: false, changed: false };
+  }
+
+  const statuses = await deps.getTaskStatuses(workflowId);
+  let aggregated = !!wf.aggregation_doc_id;
+  const patch: Record<string, unknown> = {};
+
+  const allSucceeded = statuses.length > 0 && statuses.every((s) => s === "succeeded");
+  if (allSucceeded && !aggregated) {
+    patch.aggregation_doc_id = await deps.runAggregator(workflowId);
+    aggregated = true;
+  }
+
+  const target = computeWorkflowStatus(statuses, aggregated);
+  const changed = target !== wf.status;
+
+  if (changed) {
+    patch.status = target;
+    if (target === "running" && !wf.started_at) patch.started_at = now();
+    if (target === "completed" || target === "failed" || target === "partial") patch.completed_at = now();
+  }
+
+  if (Object.keys(patch).length > 0) await deps.updateWorkflow(workflowId, patch);
+  if (changed) await deps.logTransition({ workflowId, user: wf.user, from: wf.status, to: target });
+
+  return { workflowId, from: wf.status, to: target, aggregated, changed };
+}
+
 export type DrainDeps = {
   /** Returns tasks with status in ["pending", "retrying"] to process this tick. */
   fetchPendingTasks: () => Promise<WorkflowTask[]>;

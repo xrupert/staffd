@@ -14,8 +14,16 @@
  */
 
 import { getAdminToken, pbUrl } from "../../_lib/pb";
-import { drainTasks } from "../../_lib/workflow";
-import type { WorkflowTask, WorkflowTaskStatus, DrainDeps } from "../../_lib/workflow";
+import { drainTasks, reconcileWorkflow } from "../../_lib/workflow";
+import type {
+  WorkflowTask,
+  WorkflowTaskStatus,
+  WorkflowStatus,
+  WorkflowRecord,
+  DrainDeps,
+  ReconcileDeps,
+} from "../../_lib/workflow";
+import { logWorkflowTransition } from "../../_lib/auth/super-admin-logging";
 
 const TASKS_PER_TICK = 10;
 
@@ -59,6 +67,10 @@ export async function GET(req: Request) {
     process.env.NEXT_PUBLIC_APP_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
+  // Workflow ids touched this tick — reconciled to their parent workflow
+  // status after the task drain (W72).
+  const touchedWorkflowIds = new Set<string>();
+
   const deps: DrainDeps = {
     fetchPendingTasks: async () => {
       const filter = encodeURIComponent(`(status = "pending" || status = "retrying")`);
@@ -68,7 +80,9 @@ export async function GET(req: Request) {
       );
       if (!res.ok) return [];
       const data = (await res.json()) as { items: WorkflowTask[] };
-      return data.items ?? [];
+      const items = data.items ?? [];
+      for (const t of items) if (t.workflow_id) touchedWorkflowIds.add(t.workflow_id);
+      return items;
     },
 
     getTaskStatus: async (taskId: string) => {
@@ -111,12 +125,70 @@ export async function GET(req: Request) {
     },
   };
 
+  // W72 — reconcile each touched parent workflow to its derived status,
+  // running the aggregate hook when all tasks succeed.
+  const reconcileDeps: ReconcileDeps = {
+    getWorkflow: async (id) => {
+      const res = await fetch(`${pb}/api/collections/workflows/records/${id}`, {
+        headers: { Authorization: adminToken },
+      });
+      if (!res.ok) return null;
+      const r = (await res.json()) as { id: string; user?: string; status?: string; aggregation_doc_id?: string; started_at?: string };
+      return {
+        id: r.id,
+        user: r.user ?? "",
+        status: (r.status as WorkflowStatus) || "pending",
+        aggregation_doc_id: r.aggregation_doc_id || null,
+        started_at: r.started_at || null,
+      } satisfies WorkflowRecord;
+    },
+    getTaskStatuses: async (workflowId) => {
+      const f = encodeURIComponent(`(workflow_id = "${workflowId}")`);
+      const res = await fetch(
+        `${pb}/api/collections/workflow_tasks/records?filter=${f}&perPage=200&fields=status`,
+        { headers: { Authorization: adminToken } },
+      );
+      if (!res.ok) return [];
+      const data = (await res.json()) as { items?: { status?: string }[] };
+      return (data.items ?? []).map((t) => (t.status as WorkflowTaskStatus) ?? "pending");
+    },
+    updateWorkflow: async (id, patch) => {
+      await fetch(`${pb}/api/collections/workflows/records/${id}`, {
+        method: "PATCH",
+        headers: authHeaders,
+        body: JSON.stringify(patch),
+      });
+    },
+    runAggregator: async (workflowId) => {
+      const res = await fetch(`${baseUrl}/api/workflow/aggregate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-worker-secret": workerSecret },
+        body: JSON.stringify({ workflow_id: workflowId }),
+      });
+      if (!res.ok) throw new Error(`aggregate failed: ${res.status}`);
+      const data = (await res.json()) as { documentId?: string };
+      return data.documentId ?? "";
+    },
+    logTransition: (e) => logWorkflowTransition(e),
+  };
+
   try {
     const result = await drainTasks(deps);
+
+    const transitions: { workflowId: string; from: string; to: string }[] = [];
+    for (const id of touchedWorkflowIds) {
+      try {
+        const r = await reconcileWorkflow(id, reconcileDeps);
+        if (r.changed) transitions.push({ workflowId: id, from: r.from, to: r.to });
+      } catch (err) {
+        console.error(`workflow-drain reconcile error (wf=${id}):`, err);
+      }
+    }
+
     console.log(
-      `workflow-drain: processed=${result.processed} succeeded=${result.succeeded} failed=${result.failed} skipped=${result.skipped}`
+      `workflow-drain: processed=${result.processed} succeeded=${result.succeeded} failed=${result.failed} skipped=${result.skipped} transitions=${transitions.length}`
     );
-    return Response.json({ ok: true, ...result });
+    return Response.json({ ok: true, ...result, transitions });
   } catch (err) {
     console.error("workflow-drain error:", err);
     return Response.json({ error: "Drain failed" }, { status: 500 });

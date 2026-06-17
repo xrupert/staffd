@@ -15,7 +15,7 @@ async function setupCollection(
   token: string,
   name: string,
   fields: Record<string, unknown>[],
-): Promise<{ created: boolean; rules: unknown }> {
+): Promise<{ created: boolean; rules: unknown; added?: string[] }> {
   const headers = { Authorization: token, "Content-Type": "application/json" };
 
   const checkRes = await fetch(`${pbUrl}/api/collections/${name}`, {
@@ -23,8 +23,26 @@ async function setupCollection(
   });
 
   if (checkRes.ok) {
+    // Idempotent field migration: PATCH any fields this code expects that the
+    // live collection is missing (W72 extends the W71 `workflows` stub).
+    const col = (await checkRes.json()) as { id: string; fields?: Array<{ name: string }> };
+    const existing = new Set((col.fields ?? []).map((f) => f.name));
+    const missing = fields.filter((f) => !existing.has(f.name as string));
+    let added: string[] | undefined;
+    if (missing.length > 0) {
+      const patchRes = await fetch(`${pbUrl}/api/collections/${col.id}`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({ fields: [...(col.fields ?? []), ...missing] }),
+      });
+      if (!patchRes.ok) {
+        const err = await patchRes.text();
+        throw new Error(`Failed to patch ${name}: ${err}`);
+      }
+      added = missing.map((f) => f.name as string);
+    }
     const rules = await ensureCollectionRulesWithFreshToken(name);
-    return { created: false, rules: rules.status };
+    return { created: false, rules: rules.status, added };
   }
 
   const createRes = await fetch(`${pbUrl}/api/collections`, {
@@ -66,9 +84,18 @@ export async function POST() {
     const { token } = (await authRes.json()) as { token: string };
 
     const workflowsResult = await setupCollection(pbUrl, token, "workflows", [
-      { name: "user",     type: "text", required: true },
-      { name: "name",     type: "text", required: false },
-      { name: "status",   type: "text", required: false },
+      { name: "user",                 type: "text",   required: true  },
+      { name: "name",                 type: "text",   required: false },
+      { name: "status",               type: "text",   required: false },
+      // W72 — parent workflow object fields.
+      { name: "root_goal",            type: "text",   required: false },
+      { name: "recipe_id",            type: "text",   required: false },
+      { name: "aggregation_doc_id",   type: "text",   required: false },
+      { name: "started_at",           type: "text",   required: false },
+      { name: "completed_at",         type: "text",   required: false },
+      { name: "cost_estimate_tokens", type: "number", required: false },
+      { name: "cost_actual_tokens",   type: "number", required: false },
+      { name: "error",                type: "text",   required: false },
     ]);
 
     const tasksResult = await setupCollection(pbUrl, token, "workflow_tasks", [

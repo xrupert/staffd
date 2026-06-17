@@ -85,6 +85,42 @@ export async function logSuperAdminAccess(
   }
 }
 
+/**
+ * W72 — best-effort audit row for a workflow status transition (W92 trail).
+ *
+ * Maps onto the existing `super_admin_usage_log` schema (Standard #9: the
+ * collection exists with user/operation_type/operation_detail/parameters —
+ * we adapt rather than alter it). Non-blocking: a missing collection or PB
+ * error is swallowed so the drain never fails on audit.
+ */
+export async function logWorkflowTransition(args: {
+  workflowId: string;
+  user: string;
+  from: string;
+  to: string;
+}): Promise<void> {
+  try {
+    const token = await getAdminToken();
+    const body = {
+      user: args.user,
+      operation_type: "workflow_transition",
+      operation_detail: `${args.workflowId}: ${args.from} → ${args.to}`,
+      parameters: JSON.stringify({ workflow_id: args.workflowId, from_status: args.from, to_status: args.to }),
+    };
+    const res = await fetch(`${pbUrl()}/api/collections/super_admin_usage_log/records`, {
+      method: "POST",
+      headers: adminHeaders(token),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.warn(`[logWorkflowTransition] PB ${res.status} (non-blocking): ${detail.slice(0, 200)}`);
+    }
+  } catch (err) {
+    console.warn("[logWorkflowTransition] failed (non-blocking):", err);
+  }
+}
+
 export async function logSuperAdminUsage(
   user: SuperAdminUser,
   operationType: string,
