@@ -40,6 +40,12 @@ const SURFACES: AdminSurface[] = [
     description: "Ingestion queue depths, document throughput, brief delivery, conversation thread counts.",
     status: "live",
   },
+  {
+    href: "/dashboard/admin/usage",
+    title: "Usage",
+    description: "Fleet-wide activity: users by type/plan, department + specialist output, integration outcomes, workflow execution stats.",
+    status: "live",
+  },
 ];
 
 const DEFERRED_VIEWERS = [
