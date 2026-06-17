@@ -10,5 +10,3 @@ const nextConfig = {
 };
 
 export default nextConfig;
-
-// W91.5 redeploy — force clean function trace after the tracing-root revert (cache bust).
