@@ -47,7 +47,7 @@ export default function CampaignsPage() {
     setError("");
     try {
       const res = await api("/api/integrations/listmonk?limit=50");
-      if (res.status === 503) { setCampaigns([]); setError("Email isn't connected yet."); return; }
+      if (res.status === 503) { setCampaigns([]); setError("No campaigns yet — your specialist can draft one."); return; }
       if (!res.ok) { setCampaigns([]); setError("Couldn't load campaigns."); return; }
       setCampaigns((await res.json()).campaigns ?? []);
     } catch { setCampaigns([]); setError("Couldn't load campaigns."); }
@@ -112,7 +112,7 @@ export default function CampaignsPage() {
   }
 
   if (isAdmin === false) {
-    return <Shell><div style={{ ...card, textAlign: "center", padding: "40px" }}><p className="text-sm" style={{ color: "#9090A8" }}>Your email campaigns will live here once your account is connected.</p></div></Shell>;
+    return <Shell><div style={{ ...card, textAlign: "center", padding: "40px" }}><p className="text-sm" style={{ color: "#9090A8" }}>Sign in to see your email campaigns.</p></div></Shell>;
   }
 
   return (

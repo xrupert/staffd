@@ -59,6 +59,20 @@ export function buildSpecialistPrompt(card: OpsCard, summary: string): string {
   return PROMPTS[card](summary || "(no data yet)");
 }
 
+// ── W91-rollback (Model B3) — no-data empty states ──────────────────────────
+// Customers never "connect" a vendor account (backends are invisible
+// operator-shared infrastructure). Empty states speak in STAFFD voice and
+// point at the customer's staff or the upload path (CSV/archive cold-start,
+// W95). Never vendor names, never "connect your account".
+export type EmptyState = { text: string; cta: string; href: string };
+
+export const frontDeskEmptyStates: Record<OpsCard, EmptyState> = {
+  email: { text: "No campaigns yet — your specialist can draft one.", cta: "Ask your specialist →", href: "/dashboard?ask=Draft%20my%20first%20email%20campaign" },
+  pipeline: { text: "No contacts yet — upload a CSV or ask your specialist to add some.", cta: "Add contacts →", href: "/dashboard/upload" },
+  inbox: { text: "Inbox clear — your specialist will draft replies as messages come in.", cta: "Ask your specialist →", href: "/dashboard?ask=Help%20me%20handle%20incoming%20support%20messages" },
+  analytics: { text: "Tracking not set up yet — your specialist can help.", cta: "Ask your specialist →", href: "/dashboard?ask=Help%20me%20set%20up%20site%20analytics" },
+};
+
 // ── W80.2 Email Campaigns ──────────────────────────────────────────────────
 
 /** User-facing campaign status — no vendor terms (BRAND_VOICE). */

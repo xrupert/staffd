@@ -36,7 +36,7 @@ export default function AnalyticsPage() {
     setLoading(true); setError("");
     try {
       const res = await fetch(`/api/integrations/plausible?view=deep&range=${r}&pbToken=${encodeURIComponent(pb.authStore.token)}`);
-      if (res.status === 503) { setView(null); setError("Analytics isn't connected yet."); return; }
+      if (res.status === 503) { setView(null); setError("Tracking not set up yet — your specialist can help."); return; }
       if (!res.ok) { setView(null); setError("Couldn't load analytics."); return; }
       setView((await res.json()) as AnalyticsView);
     } catch { setView(null); setError("Couldn't load analytics."); }
@@ -70,7 +70,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {error && <div className="px-4 py-3 rounded-xl text-xs mb-4" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "#F59E0B" }}>{error}{error.includes("connected") && <> <a href="/dashboard/settings#connect-your-tools" style={{ color: "#A07BFF", textDecoration: "underline" }}>Connect your tools →</a></>}</div>}
+      {error && <div className="px-4 py-3 rounded-xl text-xs mb-4" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "#F59E0B" }}>{error}{error.includes("set up") && <> <a href="/dashboard?ask=Help%20me%20set%20up%20site%20analytics" style={{ color: "#A07BFF", textDecoration: "underline" }}>Ask your specialist →</a></>}</div>}
 
       {loading ? <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
         : !view ? null

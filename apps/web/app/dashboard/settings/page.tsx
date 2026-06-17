@@ -6,7 +6,6 @@ import pb from "../../../lib/pb";
 import { signOut } from "../../../lib/auth/signOut";
 import SchedulingSettings from "../../components/SchedulingSettings";
 import ConnectedAccounts from "../../components/ConnectedAccounts";
-import ConnectYourTools from "../../components/ConnectYourTools";
 import VoiceProfilePanel from "../../components/VoiceProfilePanel";
 import PushNotificationsToggle from "../../components/PushNotificationsToggle";
 import IndustryPacksPanel from "../../components/IndustryPacksPanel";
@@ -264,9 +263,6 @@ export default function SettingsPage() {
         </section>
 
         <ConnectedAccounts />
-
-        {/* W91 — bring-your-own vendor credentials */}
-        <ConnectYourTools />
 
         {/* Password section */}
         <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>

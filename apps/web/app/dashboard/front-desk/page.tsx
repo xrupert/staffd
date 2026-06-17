@@ -26,6 +26,7 @@ import {
   summarizePipeline,
   summarizeInbox,
   summarizeAnalytics,
+  frontDeskEmptyStates,
   type OpsCard,
 } from "../../../lib/operations";
 
@@ -139,20 +140,20 @@ export default function FrontDeskHome() {
 function OpsCardView({ title, icon, card, state, drill }: { title: string; icon: string; card: OpsCard; state: CardState; drill?: { href: string; label: string } }) {
   // A card with a native surface (e.g. Email Campaigns) drills in; the rest
   // seed the Command Center with a specialist prompt (surface→specialist).
-  // W91 — not connected (and not loading) → deep-link to Settings to connect.
-  const notConnected = !state.connected && !state.loading;
-  const href = notConnected
-    ? "/dashboard/settings#connect-your-tools"
-    : drill ? drill.href : `/dashboard?ask=${encodeURIComponent(buildSpecialistPrompt(card, state.summary))}`;
-  const label = notConnected ? "Connect your tools →" : drill ? drill.label : "Have your specialist take this →";
+  // No data yet → STAFFD-voice empty state pointing at the staff / upload
+  // (W91-rollback, Model B3) — never "connect a vendor account".
+  const empty = !state.connected && !state.loading;
+  const e = frontDeskEmptyStates[card];
+  const href = empty ? e.href : drill ? drill.href : `/dashboard?ask=${encodeURIComponent(buildSpecialistPrompt(card, state.summary))}`;
+  const label = empty ? e.cta : drill ? drill.label : "Have your specialist take this →";
   return (
     <div style={cardStyle}>
       <div className="flex items-center gap-2 mb-2">
         <span style={{ fontSize: "16px" }}>{icon}</span>
         <p className="font-semibold text-sm" style={{ color: "#F0F0F8" }}>{title}</p>
       </div>
-      <p className="text-xs mb-4" style={{ color: state.connected ? "#9090A8" : "#5A5A70", lineHeight: 1.5, minHeight: "32px" }}>
-        {state.loading ? "Loading…" : state.summary}
+      <p className="text-xs mb-4" style={{ color: empty ? "#7070A0" : "#9090A8", lineHeight: 1.5, minHeight: "32px" }}>
+        {state.loading ? "Loading…" : empty ? e.text : state.summary}
       </p>
       {!state.loading && (
         <a href={href} className="text-xs px-3 py-1.5 rounded-lg inline-block transition-colors hover:text-white" style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.30)", color: "#A07BFF", textDecoration: "none" }}>

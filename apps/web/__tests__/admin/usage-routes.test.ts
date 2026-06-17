@@ -109,9 +109,12 @@ describe("GET /api/admin/usage", () => {
     // Tab 2 — Departments
     expect(d.departments.byDept.find((x: { department: string }) => x.department === "marketing").count).toBe(2);
     expect(d.departments.specialists[0]).toHaveProperty("agent_name");
-    // Tab 3 — Integrations
+    // Tab 3 — Integrations (W91-rollback: operator health + outcomes + note;
+    // the customer-adoption block is gone under Model B3).
     expect(d.integrations.outcomes.find((o: { decision_kind: string }) => o.decision_kind === "campaign_sent").count).toBe(2);
     expect(Array.isArray(d.integrations.health)).toBe(true);
+    expect(d.integrations.adoption).toBeUndefined();
+    expect(d.integrations.note).toMatch(/operator-shared|STAFFD-native|W95/i);
     // Tab 4 — Workflows
     expect(d.workflows.byStatus).toMatchObject({ completed: 1, running: 1 });
     expect(d.workflows.taskSuccess).toMatchObject({ succeeded: 3, total: 4, rate: 75 });

@@ -14,6 +14,7 @@ import {
   analyticsRangeLabel,
   formatVisitDuration,
   buildAnalyticsSmartPrompt,
+  frontDeskEmptyStates,
   type AnalyticsView,
 } from "../../lib/operations";
 
@@ -116,5 +117,45 @@ describe("analytics helpers (W80.3)", () => {
       sources: [], pages: [], countries: [], timeseries: [],
     };
     expect(buildAnalyticsSmartPrompt(empty)).toContain("Today");
+  });
+});
+
+describe("frontDeskEmptyStates (W91-rollback / Model B3)", () => {
+  const cards = ["email", "pipeline", "inbox", "analytics"] as const;
+
+  it("every card has STAFFD-voice empty copy and never asks to 'connect' a vendor", () => {
+    for (const c of cards) {
+      const e = frontDeskEmptyStates[c];
+      expect(e.text.length).toBeGreaterThan(0);
+      expect(e.text.toLowerCase()).not.toContain("connect");
+      expect(e.cta.toLowerCase()).not.toContain("connect");
+      // no vendor names leak into customer-facing copy
+      expect(`${e.text} ${e.cta}`.toLowerCase()).not.toMatch(/twenty|chatwoot|listmonk|plausible|docuseal/);
+    }
+  });
+
+  it("copy speaks of the customer's staff / upload, not vendor accounts", () => {
+    expect(frontDeskEmptyStates.email.text).toMatch(/specialist/i);
+    expect(frontDeskEmptyStates.pipeline.text).toMatch(/upload|specialist/i);
+    expect(frontDeskEmptyStates.inbox.text).toMatch(/specialist/i);
+    expect(frontDeskEmptyStates.analytics.text).toMatch(/specialist/i);
+  });
+
+  it("no empty-state CTA deep-links to the removed Connect-Your-Tools settings anchor", () => {
+    for (const c of cards) {
+      expect(frontDeskEmptyStates[c].href).not.toContain("connect-your-tools");
+      expect(frontDeskEmptyStates[c].href).not.toContain("/dashboard/settings");
+    }
+  });
+
+  it("email / inbox / analytics seed the Command Center; pipeline routes to the upload cold-start path", () => {
+    expect(frontDeskEmptyStates.email.href).toMatch(/^\/dashboard\?ask=/);
+    expect(frontDeskEmptyStates.inbox.href).toMatch(/^\/dashboard\?ask=/);
+    expect(frontDeskEmptyStates.analytics.href).toMatch(/^\/dashboard\?ask=/);
+    expect(frontDeskEmptyStates.pipeline.href).toBe("/dashboard/upload");
+  });
+
+  it("covers exactly the four Front Desk cards", () => {
+    expect(Object.keys(frontDeskEmptyStates).sort()).toEqual(["analytics", "email", "inbox", "pipeline"]);
   });
 });
