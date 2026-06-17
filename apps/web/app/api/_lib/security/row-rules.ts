@@ -179,6 +179,9 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   // W95.1 — STAFFD-native contacts (Model B3 source of truth; mirrored to the
   // operator-shared Twenty, tenant-tagged)
   { name: "contacts", rules: USER_OWNED_RULES },
+  // W95.3 — per-customer upload session ledger (cold-start CSV/document
+  // ingestion). USER_OWNED so each owner sees only their own upload history.
+  { name: "upload_sessions", rules: USER_OWNED_RULES },
 ];
 
 /** Quick lookup helper. */

@@ -245,7 +245,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W71 — 26 = 24 + workflows + workflow_tasks (task bus substrate)
     // W91 — 27 = 26 + user_integrations (per-user vendor credentials)
     // W95.1 — 28 = 27 + contacts (STAFFD-native Model B3 contacts)
-    expect(body.collections_checked).toBe(28);
+    // W95.3 — 29 = 28 + upload_sessions (per-customer cold-start upload ledger)
+    expect(body.collections_checked).toBe(29);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 
