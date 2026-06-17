@@ -12,6 +12,12 @@
  */
 
 import { pbUrl, pbEscape } from "../pb";
+import { trySuperAdminByUserId } from "../auth/super-admin";
+import { staffdSelfVault } from "./staffd-self";
+
+// W91.5 — per-process memo of operator status (super-admin doesn't change at
+// runtime), so the STAFFD-self check costs at most one PB read per user.
+const operatorMemo = new Map<string, boolean>();
 
 export type Vault = {
   id?: string;
@@ -131,6 +137,25 @@ export async function fetchVault(
     } catch {
       // fall through to user's own vault
     }
+  }
+
+  // W91.5 — STAFFD self-knowledge override. For the super-admin (operator),
+  // STAFFD's canonical brand identity is the Vault, overriding any businesses
+  // row they may have typed. Only runs when STAFFD_SELF.md parsed successfully;
+  // any failure falls through to the normal businesses path (fail-closed).
+  // Skipped in agency-client mode (an explicit client view wins above).
+  try {
+    const self = staffdSelfVault();
+    if (self) {
+      let isOperator = operatorMemo.get(userId);
+      if (isOperator === undefined) {
+        isOperator = (await trySuperAdminByUserId(userId)) !== null;
+        operatorMemo.set(userId, isOperator);
+      }
+      if (isOperator) return self;
+    }
+  } catch {
+    // fall through to the businesses row
   }
 
   try {
