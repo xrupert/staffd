@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
-import Script from "next/script";
 import "./globals.css";
 import RegisterServiceWorker from "./components/RegisterServiceWorker";
-import { resolvePlausibleDomain } from "../lib/env";
+import PlausibleScript from "./components/PlausibleScript";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -41,23 +40,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const plausibleUrl = process.env.NEXT_PUBLIC_PLAUSIBLE_URL;
-  // PR-Tranche-1.6 — resolves empty-string env to default (W8-class fix).
-  const plausibleDomain = resolvePlausibleDomain();
-
   return (
     <html lang="en" className="dark">
-      <head>
-        {plausibleUrl && (
-          <Script
-            defer
-            data-domain={plausibleDomain}
-            src={`${plausibleUrl}/js/script.js`}
-            strategy="afterInteractive"
-          />
-        )}
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {/* Analytics loads for customer sessions only — super-admin opts out (W72). */}
+        <PlausibleScript />
         <RegisterServiceWorker />
         {children}
       </body>
