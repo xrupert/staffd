@@ -53,10 +53,15 @@ export async function GET(req: Request) {
   findings.C_filtered = await gql(base, "/graphql", key,
     `query { people(first: 3, filter: { ${FIELD}: { eq: "probe-nonexistent" } }) { totalCount } }`);
 
-  // D. Metadata API — list objects (no args; shape differs from data API) and
-  // find Person client-side.
+  // D0. Introspect the metadata `objects` query signature + ObjectFilter shape.
+  findings.D0_objects_signature = await gql(base, "/metadata", key,
+    `query { __schema { queryType { fields { name args { name type { name ofType { name } } } } } } }`);
+  findings.D0_object_filter = await gql(base, "/metadata", key,
+    `query { __type(name: "ObjectFilter") { inputFields { name type { name } } } }`);
+
+  // D. Metadata API — page through objects (cursor) and find Person client-side.
   findings.D_metadata_objects = await gql(base, "/metadata", key,
-    `query { objects { edges { node { id nameSingular } } } }`);
+    `query { objects(paging: { first: 200 }) { edges { node { id nameSingular } } } }`);
 
   // E. (write, flag-gated) attempt to create the additive text field.
   if (doCreate) {
