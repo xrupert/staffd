@@ -258,6 +258,13 @@ SENTRY_DSN                  ← MX-1 error monitoring
 | Post W80.2 (Email Campaigns native) | 564/565 | /dashboard/cockpit/campaigns list/detail/compose; Listmonk lists read + send/schedule PUT; +11 tests. Plus Plausible CE URL fix + middleware→proxy migration. |
 | Post Cockpit→Front Desk rename | 564/565 | route + nav + 301 redirect; no test delta (rename only) |
 | Post W80.3 (Site Analytics native) | 577/578 | /dashboard/front-desk/analytics: range toggles + headline + breakdowns + inline-SVG trend; Plausible route gains ?view=deep (2-tier range-keyed cache); +13 tests |
+| Post W72 (Workflow object) + Plausible opt-out | 601/602 | parent Workflow lifecycle state machine + aggregate hook + drain reconcile + usage-log audit; super-admin Plausible opt-out; +24 tests |
+
+### W72 — WORKFLOW OBJECT (L4 substrate, layer 2 of compound execution)
+- **W72 ✅** (`66b9671`) Parent `workflows` object owns task groups + lifecycle. `computeWorkflowStatus`/`reconcileWorkflow` (pure, dep-injected) in `_lib/workflow.ts`: pending→running→completed|failed|partial. Routes: `/api/workflow/[id]` GET (super-admin OR row-owner via `canAccessWorkflow`); `/api/workflow/aggregate` POST (aggregation HOOK — V1 stub doc, ADMIN_SECRET/WORKER_SECRET gated; W74 recipes fill it). `workflow-drain` reconciles touched workflows post-drain + runs aggregate when all tasks succeed. Status transitions → `super_admin_usage_log` (exists; mapped to schema, Standard #9) for W92 trail. `setup/workflow-tasks` extends `workflows` (root_goal, recipe_id, aggregation_doc_id, started/completed_at, cost_*, error) w/ idempotent field-patch. +20 tests.
+- **Plausible opt-out ✅** (`0aba731`) super-admin/operator sessions no longer counted as customer traffic — `PlausibleScript` client component skips the script + stubs `window.plausible` when email matches `NEXT_PUBLIC_ADMIN_EMAIL`. Verified in-browser (customer present / admin absent). +4 tests. No historical cleanup (CE limitation).
+- **⚠️ OPERATOR:** run `POST /api/setup/workflow-tasks` with `x-setup-secret: <ADMIN_SECRET>` to migrate the new `workflows` fields into prod PB (idempotent). Aggregate stub-return smoke needs a real workflow_id (fake id → 404 by design).
+- **Next:** W92 (Super-Admin Usage Dashboard) — SA dispatches after W72 closes.
 
 ### W80 — DIRECT-SERVICE UX (operator-scoped, decision b)
 - W80 Part 2 thinking: chat + would-be doc. W80 spike: `docs/architecture/direct-service-capability-spike-W80.md` (`791d2f9`).
@@ -267,7 +274,7 @@ SENTRY_DSN                  ← MX-1 error monitoring
 - **W80.2 ✅** Email Campaigns native depth → `/dashboard/front-desk/campaigns` (list/detail/compose). Listmonk gains lists read (`?resource=lists`), enriched list (recipients/dates/open-rate), send/schedule (`PUT`). Compose has "✨ Make this smart →" (→ Command Center). Email card now drills in. +11 tests (564 floor). No vendor names in rendered UI (proven via grep). Pulse widget "Stripe" → "your billing".
 - **Rename ✅** Cockpit → **Front Desk** across all user-facing surfaces (`cc0cf9d`). Route `/dashboard/cockpit`(+sub) → `/dashboard/front-desk`; 301 redirect in `next.config.js`. Zero `cockpit/Cockpit` in user-facing copy (one redirect docstring only).
 - **W80.3 ✅** Site Analytics native depth → **`/dashboard/front-desk/analytics`** (`fd94520`). Range toggles (Today/7d/30d), headline (visitors/pageviews/bounce/avg-visit), source/page/country top-5 breakdowns, inline-SVG visitor trend (no chart dep — Standard #9). "✨ Make sense of this →" → analytics specialist via `?ask=`. Front Desk Analytics card drills in. Plausible route extended with `?view=deep&range=` — single auth/cache substrate; 2-tier cache (5-min headline+timeseries / 15-min breakdowns), keyed by range. +13 tests (577 floor). Verified live in prod with operator data (7d=21 / 30d=88 visitors). **READ SUBSTRATE COMPLETE.**
-- **Pending:** operator smoke (live-browser click-through on prod, super-admin); SA ratify Front Desk name; **W72 (L4 workflow object) next tranche — await SA dispatch**; FC-2c (DepartmentRoom action handlers); Chatwoot native inbox (deferred per spike).
+- **Pending:** operator smoke (live-browser click-through on prod, super-admin); SA ratify Front Desk name; FC-2c (DepartmentRoom action handlers); Chatwoot native inbox (deferred per spike).
 | TDD iron law | Always RED before GREEN | No production code without a failing test |
 
 ---
