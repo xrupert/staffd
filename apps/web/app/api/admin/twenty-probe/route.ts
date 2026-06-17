@@ -53,16 +53,18 @@ export async function GET(req: Request) {
   findings.C_filtered = await gql(base, "/graphql", key,
     `query { people(first: 3, filter: { ${FIELD}: { eq: "probe-nonexistent" } }) { totalCount } }`);
 
-  // D. Metadata API — find the Person object id (needed to create a field).
+  // D. Metadata API — list objects (no args; shape differs from data API) and
+  // find Person client-side.
   findings.D_metadata_objects = await gql(base, "/metadata", key,
-    `query { objects(filter: { nameSingular: { eq: "person" } }, first: 1) { edges { node { id nameSingular } } } }`);
+    `query { objects { edges { node { id nameSingular } } } }`);
 
   // E. (write, flag-gated) attempt to create the additive text field.
   if (doCreate) {
     const objId = (() => {
       try {
-        const d = findings.D_metadata_objects as { json?: { data?: { objects?: { edges?: { node?: { id?: string } }[] } } } };
-        return d.json?.data?.objects?.edges?.[0]?.node?.id ?? null;
+        const d = findings.D_metadata_objects as { json?: { data?: { objects?: { edges?: { node?: { id?: string; nameSingular?: string } }[] } } } };
+        const edges = d.json?.data?.objects?.edges ?? [];
+        return edges.find((e) => e?.node?.nameSingular === "person")?.node?.id ?? null;
       } catch { return null; }
     })();
     findings.E_objectMetadataId = objId;
