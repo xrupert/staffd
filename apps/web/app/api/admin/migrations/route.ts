@@ -19,8 +19,17 @@ import { MIGRATION_REGISTRY, getMigration } from "../../_lib/admin/migrations";
 
 const LOG_COLLECTION = "admin_migration_log";
 
-async function collectionExists(pb: string, token: string, collection: string): Promise<boolean | null> {
+async function collectionExists(pb: string, token: string, collection: string, detectField?: string): Promise<boolean | null> {
   try {
+    // Schema-extension migration: "exists" means the field is present, not just
+    // the collection. Read the collection schema and look for the field.
+    if (detectField) {
+      const res = await fetch(`${pb}/api/collections/${encodeURIComponent(collection)}`, { headers: { Authorization: token } });
+      if (res.status === 404) return false;
+      if (!res.ok) return null;
+      const col = (await res.json()) as { fields?: { name: string }[] };
+      return (col.fields ?? []).some((f) => f.name === detectField);
+    }
     const res = await fetch(`${pb}/api/collections/${encodeURIComponent(collection)}/records?perPage=1&fields=id`, {
       headers: { Authorization: token },
     });
@@ -59,7 +68,7 @@ export async function GET(req: Request) {
 
   const migrations = await Promise.all(
     MIGRATION_REGISTRY.map(async (m) => {
-      const exists = await collectionExists(pb, token, m.collection);
+      const exists = await collectionExists(pb, token, m.collection, m.detectField);
       return {
         route: m.route,
         label: m.label,

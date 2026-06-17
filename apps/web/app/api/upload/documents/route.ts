@@ -1,21 +1,21 @@
 /**
- * POST /api/upload/documents — cold-start document import (W95.3).
+ * POST /api/upload/documents — cold-start document import (W95.3 / W95.3.5).
  *
  * multipart/form-data, one or more `file` entries. Allowed: PDF, DOCX, TXT, MD.
- * Each file → a row in the EXISTING `documents` collection (Standard #20 —
- * reuse, no new collection) + a Vault decision so the staff know it exists.
+ * Each file → a row in the EXISTING `documents` collection (Standard #20) with
+ * the binary stored in `documents.file`, source="upload", and a Vault decision.
  *
- * V1 constraints (documented for SA):
- *  • `documents` has no `file` field — binaries are not stored. TXT/MD text is
- *    captured in `output`; PDF/DOCX store a metadata note (text extraction is a
- *    later tranche — no heavy binary-parsing deps in serverless, per the
- *    node:fs deploy footgun).
- *  • `documents` has no `source` field — uploads are marked via
- *    agent_name="Uploaded document" + department="library"; the explicit
- *    source="upload" lives on the Vault decision + the upload_sessions audit.
+ * Extraction (W95.3.5):
+ *  • TXT/MD — decoded inline (instant) → output set, extraction_status="extracted".
+ *  • PDF/DOCX — stored with extraction_status="pending"; an async
+ *    document_extraction_worker task (W71 bus) parses the text into output.
+ *
+ * Requires the documents-v2 migration (file/source/extraction_status fields).
+ * Returns 202 when any file is still extracting so the UI can poll
+ * GET /api/documents/<id>.
  */
 
-import { adminHeaders, getAdminToken, pbUrl } from "../../_lib/pb";
+import { getAdminToken, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
 import { recordDecision } from "../../_lib/vault/outcomes";
 import { recordUploadSession } from "../../_lib/upload/session";
@@ -26,6 +26,7 @@ const TEXT_EXT = new Set(["txt", "md"]);
 const BINARY_EXT = new Set(["pdf", "docx"]);
 
 type RowError = { row: number; reason: string };
+type DocResult = { document_id: string; name: string; status: "extracted" | "extraction_pending" };
 
 function ext(name: string): string {
   const i = name.lastIndexOf(".");
@@ -49,7 +50,8 @@ export async function POST(req: Request) {
   const pb = pbUrl();
 
   const errors: RowError[] = [];
-  let succeeded = 0;
+  const documents: DocResult[] = [];
+  let pendingAny = false;
   let idx = 0;
   for (const file of files) {
     idx++;
@@ -63,28 +65,59 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const output = TEXT_EXT.has(e)
-      ? await file.text()
-      : `[Uploaded document: ${file.name} — ${Math.round(file.size / 1024)} KB. Stored as a reference; text extraction is not yet available.]`;
+    const isText = TEXT_EXT.has(e);
+    const status: DocResult["status"] = isText ? "extracted" : "extraction_pending";
+    const output = isText ? await file.text() : "[Reading this document… your specialist will have it shortly.]";
+
+    // Multipart create so the binary lands in documents.file. NOTE: no JSON
+    // Content-Type header — fetch sets the multipart boundary itself.
+    const fd = new FormData();
+    fd.append("user", me.id);
+    fd.append("client", "");
+    fd.append("department", "library");
+    fd.append("agent_name", "Uploaded document");
+    fd.append("prompt", file.name);
+    fd.append("source", "upload");
+    fd.append("extraction_status", isText ? "extracted" : "pending");
+    fd.append("output", output);
+    fd.append("file", file, file.name);
 
     const createRes = await fetch(`${pb}/api/collections/documents/records`, {
       method: "POST",
-      headers: adminHeaders(token),
-      body: JSON.stringify({
-        user: me.id,
-        client: "",
-        department: "library",
-        agent_name: "Uploaded document", // source marker (documents has no `source` field)
-        prompt: file.name,
-        output,
-      }),
+      headers: { Authorization: token },
+      body: fd,
     });
     if (!createRes.ok) {
       errors.push({ row: idx, reason: `save_failed (${createRes.status})` });
       continue;
     }
-    succeeded++;
     const record = (await createRes.json()) as { id: string };
+    documents.push({ document_id: record.id, name: file.name, status });
+
+    // PDF/DOCX → enqueue async extraction (W71 task bus, drained by workflow-drain).
+    if (!isText) {
+      pendingAny = true;
+      void fetch(`${pb}/api/collections/workflow_tasks/records`, {
+        method: "POST",
+        headers: { Authorization: token, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workflow_id: "",
+          user: me.id,
+          specialist_id: "document_extraction_worker",
+          department_id: "system",
+          input_payload: { document_id: record.id, ext: e },
+          output_payload: null,
+          status: "pending",
+          depends_on: [],
+          retry_count: 0,
+          error: "",
+          started_at: "",
+          completed_at: "",
+          cost_estimate_tokens: 0,
+          cost_actual_tokens: 0,
+        }),
+      }).catch(() => {});
+    }
 
     // Vault enrichment — the staff now know this document exists. source=upload.
     void recordDecision({
@@ -98,9 +131,10 @@ export async function POST(req: Request) {
   }
 
   const total = files.length;
+  const succeeded = documents.length;
   const failed = total - succeeded;
   const summary = `Uploaded ${succeeded} document${succeeded === 1 ? "" : "s"}${failed ? `, ${failed} skipped` : ""}`;
   void recordUploadSession(me.id, "documents", { fileCount: total, rowCount: total, succeeded, failed, summary });
 
-  return Response.json({ ok: true, total, succeeded, failed, errors });
+  return Response.json({ ok: true, total, succeeded, failed, documents, errors }, { status: pendingAny ? 202 : 200 });
 }

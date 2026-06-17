@@ -19,6 +19,9 @@ export type MigrationEntry = {
   label: string;
   /** Representative PB collection used for exists/missing status detection. */
   collection: string;
+  /** For schema-extension migrations on an existing collection: status is
+   *  "exists" only when this field is present (not merely the collection). */
+  detectField?: string;
   /** When true, this collection backs the audit log itself and CANNOT be run
    *  via the in-app trigger — it must be bootstrapped once via x-setup-secret. */
   bootstrap?: boolean;
@@ -30,6 +33,13 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "workflow-tasks",     label: "Workflows & tasks",   collection: "workflow_tasks", note: "creates both `workflows` and `workflow_tasks`" },
   { route: "upload-sessions",    label: "Upload sessions",     collection: "upload_sessions" },
   { route: "user-integrations",  label: "User integrations",   collection: "user_integrations" },
+  {
+    route: "documents-v2",
+    label: "Documents — file & extraction",
+    collection: "documents",
+    detectField: "file",
+    note: "adds file (25MB) + source + extraction_status to the existing documents collection",
+  },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

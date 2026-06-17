@@ -101,6 +101,32 @@ describe("POST /api/admin/migrations (audit log)", () => {
   });
 });
 
+describe("GET status — detectField (schema-extension migration)", () => {
+  function stubSchema(documentsHasFile: boolean) {
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (/\/api\/collections\/documents$/.test(url) && method === "GET") {
+        return { ok: true, status: 200, json: async () => ({ fields: documentsHasFile ? [{ name: "output" }, { name: "file" }] : [{ name: "output" }] }) };
+      }
+      if (/\/records/.test(url) && method === "GET") return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      return { ok: true, json: async () => ({}) };
+    }));
+  }
+  const find = (ms: { route: string; status: string }[]) => ms.find((m) => m.route === "documents-v2")!;
+
+  it("documents-v2 reports 'missing' until the file field exists", async () => {
+    stubSchema(false);
+    const data = await (await GET(req())).json() as { migrations: { route: string; status: string }[] };
+    expect(find(data.migrations).status).toBe("missing");
+  });
+
+  it("documents-v2 reports 'exists' once the file field is present", async () => {
+    stubSchema(true);
+    const data = await (await GET(req())).json() as { migrations: { route: string; status: string }[] };
+    expect(find(data.migrations).status).toBe("exists");
+  });
+});
+
 describe("MIGRATION_REGISTRY", () => {
   it("includes the Model-B3 cold-start collections and marks the log as bootstrap-only", () => {
     const routes = MIGRATION_REGISTRY.map((m) => m.route);

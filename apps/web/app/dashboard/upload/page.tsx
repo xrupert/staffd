@@ -18,10 +18,12 @@ const label = { color: "#F0F0F8" };
 const muted = { color: "#9090A8" };
 const faint = { color: "#5A5A70" };
 
+type DocItem = { document_id: string; name: string; status: "extracted" | "extraction_pending" };
 type UploadResult =
-  | { ok: boolean; total: number; succeeded: number; failed: number; errors: { row: number; reason: string }[] }
+  | { ok: boolean; total: number; succeeded: number; failed: number; errors: { row: number; reason: string }[]; documents?: DocItem[] }
   | { error: string; detail?: string };
 type Session = { id: string; kind: string; summary?: string; succeeded?: number; failed?: number; created: string };
+type DocStatus = { name: string; state: "processing" | "ready" | "error"; preview?: string };
 
 // Lightweight client-side preview parse (display only — the server is the
 // authority). Splits on newlines, naive comma split (good enough for a glance).
@@ -152,30 +154,55 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
+  const [statuses, setStatuses] = useState<Record<string, DocStatus>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Poll a pending document until extraction finishes (or ~30s elapse).
+  const pollDoc = useCallback(async (id: string, name: string) => {
+    const token = pb.authStore.token;
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      try {
+        const res = await fetch(`/api/documents/${id}`, { headers: token ? { Authorization: token } : {} });
+        if (!res.ok) continue;
+        const d = await res.json() as { extraction_status?: string; preview?: string };
+        if (d.extraction_status === "extracted") { setStatuses((s) => ({ ...s, [id]: { name, state: "ready", preview: d.preview } })); return; }
+        if (d.extraction_status === "error") { setStatuses((s) => ({ ...s, [id]: { name, state: "error" } })); return; }
+      } catch { /* keep polling */ }
+    }
+  }, []);
 
   const submit = async () => {
     if (files.length === 0) return;
-    setBusy(true); setResult(null);
+    setBusy(true); setResult(null); setStatuses({});
     try {
       const token = pb.authStore.token;
       const fd = new FormData(); for (const f of files) fd.append("file", f);
       const res = await fetch("/api/upload/documents", { method: "POST", headers: token ? { Authorization: token } : {}, body: fd });
-      setResult(await res.json());
+      const data = await res.json() as UploadResult;
+      setResult(data);
+      if ("documents" in data && data.documents) {
+        const init: Record<string, DocStatus> = {};
+        for (const d of data.documents) init[d.document_id] = { name: d.name, state: d.status === "extracted" ? "ready" : "processing" };
+        setStatuses(init);
+        for (const d of data.documents) if (d.status === "extraction_pending") void pollDoc(d.document_id, d.name);
+      }
       setFiles([]); onDone();
     } catch { setResult({ error: "upload_failed" }); }
     finally { setBusy(false); }
   };
 
+  const statusList = Object.entries(statuses);
+
   return (
     <section style={card}>
       <h2 className="font-semibold mb-1" style={{ ...label, fontSize: "1.05rem" }}>Upload your documents</h2>
       <p className="text-sm mb-4" style={{ ...muted, lineHeight: 1.55 }}>
-        Contracts, briefs, notes — PDF, Word, or text files. Your staff will keep them on hand for the work ahead.
+        Contracts, briefs, notes — PDF, Word, or text files. Your staff will read them and keep them on hand for the work ahead.
       </p>
 
       <input ref={inputRef} type="file" multiple accept=".pdf,.docx,.txt,.md" className="hidden"
-        onChange={(e) => { setResult(null); setFiles(Array.from(e.target.files ?? [])); }} />
+        onChange={(e) => { setResult(null); setStatuses({}); setFiles(Array.from(e.target.files ?? [])); }} />
       <button onClick={() => inputRef.current?.click()} className="text-sm px-4 py-2 rounded-xl font-medium"
         style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E0" }}>
         {files.length ? `📎 ${files.length} file${files.length === 1 ? "" : "s"} selected` : "Choose files"}
@@ -191,6 +218,23 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
             {busy ? "Uploading…" : `Upload ${files.length} document${files.length === 1 ? "" : "s"}`}
           </button>
         </div>
+      )}
+
+      {statusList.length > 0 && (
+        <ul className="mt-4 space-y-2">
+          {statusList.map(([id, s]) => (
+            <li key={id} className="text-sm rounded-lg px-3 py-2" style={{ background: "#0E0E15", border: "1px solid #1E1E28" }}>
+              <div className="flex items-center justify-between gap-3">
+                <span style={{ color: "#C0C0D8" }} className="truncate">{s.name}</span>
+                <span className="text-xs shrink-0" style={{ color: s.state === "ready" ? "#7CD992" : s.state === "error" ? "#E0B060" : "#8A8AA0" }}>
+                  {s.state === "ready" ? "✓ Ready" : s.state === "error" ? "Couldn't read" : "Processing…"}
+                </span>
+              </div>
+              {s.state === "ready" && s.preview && <p className="text-xs mt-1" style={faint}>{s.preview}{s.preview.length >= 200 ? "…" : ""}</p>}
+              {s.state === "error" && <p className="text-xs mt-1" style={faint}>We couldn&apos;t read this file — your specialist can still work from the file name and your description.</p>}
+            </li>
+          ))}
+        </ul>
       )}
 
       <ResultBanner result={result} noun="document" />
