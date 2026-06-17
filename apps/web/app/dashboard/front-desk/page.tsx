@@ -126,7 +126,7 @@ export default function FrontDeskHome() {
               <OpsCardView title="Email Campaigns" icon="📧" card="email" state={email} drill={{ href: "/dashboard/front-desk/campaigns", label: "Open campaigns →" }} />
               <OpsCardView title="Sales Pipeline" icon="📇" card="pipeline" state={pipeline} />
               <OpsCardView title="Support Inbox" icon="🎫" card="inbox" state={inbox} />
-              <OpsCardView title="Site Analytics" icon="📈" card="analytics" state={analytics} />
+              <OpsCardView title="Site Analytics" icon="📈" card="analytics" state={analytics} drill={{ href: "/dashboard/front-desk/analytics", label: "Open analytics →" }} />
             </div>
           </>
         )}

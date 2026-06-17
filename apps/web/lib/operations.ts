@@ -78,3 +78,49 @@ export function buildCampaignSmartPrompt(subject: string, body: string): string 
   const draft = `Subject: ${subject?.trim() || "(no subject yet)"}\n\n${(body?.trim() || "(empty)").slice(0, 1500)}`;
   return `Sharpen this email campaign for me — give me a stronger subject line, tighter body copy, and the best time to send it.\n\n---\n${draft}\n---`;
 }
+
+// ── W80.3 Site Analytics ────────────────────────────────────────────────────
+
+export type AnalyticsRange = "day" | "7d" | "30d";
+
+export type AnalyticsView = {
+  range: AnalyticsRange;
+  headline: { visitors: number; pageviews: number; bounceRate: number; visitDuration: number };
+  sources: { name: string; visitors: number }[];
+  pages: { name: string; pageviews: number }[];
+  countries: { name: string; visitors: number }[];
+  timeseries: { date: string; visitors: number }[];
+};
+
+/** Operator-friendly range label — three fixed windows, no date jargon. */
+export function analyticsRangeLabel(range: AnalyticsRange): string {
+  switch (range) {
+    case "day": return "Today";
+    case "30d": return "Last 30 days";
+    case "7d":
+    default: return "Last 7 days";
+  }
+}
+
+/** Average visit duration (seconds) → "2m 5s" / "45s". */
+export function formatVisitDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds || 0));
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
+
+/** "Make sense of this →" — hands the current view to the analytics specialist. */
+export function buildAnalyticsSmartPrompt(view: AnalyticsView): string {
+  const { headline: h } = view;
+  const top = (rows: { name: string }[]) => rows.slice(0, 3).map((r) => r.name).join(", ") || "—";
+  return [
+    `Make sense of my site traffic for ${analyticsRangeLabel(view.range)} and tell me what to do next.`,
+    "",
+    `Visitors: ${h.visitors} · Pageviews: ${h.pageviews} · Bounce rate: ${h.bounceRate}% · Avg visit: ${formatVisitDuration(h.visitDuration)}`,
+    `Top sources: ${top(view.sources)}`,
+    `Top pages: ${top(view.pages)}`,
+    `Top countries: ${top(view.countries)}`,
+    "",
+    "Interpret these numbers, call out any anomalies or notable shifts, and give me the single best next move to grow traffic.",
+  ].join("\n");
+}

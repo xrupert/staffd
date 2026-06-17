@@ -11,6 +11,10 @@ import {
   buildSpecialistPrompt,
   campaignStatusLabel,
   buildCampaignSmartPrompt,
+  analyticsRangeLabel,
+  formatVisitDuration,
+  buildAnalyticsSmartPrompt,
+  type AnalyticsView,
 } from "../../lib/operations";
 
 describe("Operations summaries", () => {
@@ -70,5 +74,47 @@ describe("campaign helpers (W80.2)", () => {
 
   it("buildCampaignSmartPrompt handles an empty draft", () => {
     expect(buildCampaignSmartPrompt("", "")).toContain("(no subject yet)");
+  });
+});
+
+describe("analytics helpers (W80.3)", () => {
+  it("analyticsRangeLabel maps the three ranges to operator-friendly labels", () => {
+    expect(analyticsRangeLabel("day")).toBe("Today");
+    expect(analyticsRangeLabel("7d")).toBe("Last 7 days");
+    expect(analyticsRangeLabel("30d")).toBe("Last 30 days");
+  });
+
+  it("formatVisitDuration renders seconds as Xm Ys (or just seconds under a minute)", () => {
+    expect(formatVisitDuration(0)).toBe("0s");
+    expect(formatVisitDuration(45)).toBe("45s");
+    expect(formatVisitDuration(125)).toBe("2m 5s");
+    expect(formatVisitDuration(120)).toBe("2m 0s");
+  });
+
+  const view: AnalyticsView = {
+    range: "7d",
+    headline: { visitors: 312, pageviews: 1045, bounceRate: 48, visitDuration: 125 },
+    sources: [{ name: "Google", visitors: 180 }, { name: "Direct", visitors: 90 }],
+    pages: [{ name: "/", pageviews: 600 }, { name: "/pricing", pageviews: 200 }],
+    countries: [{ name: "United States", visitors: 210 }],
+    timeseries: [{ date: "2026-06-10", visitors: 40 }, { date: "2026-06-11", visitors: 52 }],
+  };
+
+  it("buildAnalyticsSmartPrompt embeds the range, headline metrics, and top breakdown for the specialist", () => {
+    const p = buildAnalyticsSmartPrompt(view);
+    expect(p).toContain("Last 7 days");
+    expect(p).toContain("312");        // visitors
+    expect(p).toContain("Google");     // top source
+    expect(p).toMatch(/anomal/i);      // asks for anomaly detection
+    expect(p).toMatch(/next/i);        // asks for next moves
+  });
+
+  it("buildAnalyticsSmartPrompt handles an empty view gracefully", () => {
+    const empty: AnalyticsView = {
+      range: "day",
+      headline: { visitors: 0, pageviews: 0, bounceRate: 0, visitDuration: 0 },
+      sources: [], pages: [], countries: [], timeseries: [],
+    };
+    expect(buildAnalyticsSmartPrompt(empty)).toContain("Today");
   });
 });
