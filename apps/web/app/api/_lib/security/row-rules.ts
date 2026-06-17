@@ -174,6 +174,8 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   // W71 — Task Bus substrate
   { name: "workflows", rules: USER_OWNED_RULES },
   { name: "workflow_tasks", rules: USER_OWNED_RULES },
+  // W91 — per-user vendor credentials (encrypted at rest, user-owned)
+  { name: "user_integrations", rules: USER_OWNED_RULES },
 ];
 
 /** Quick lookup helper. */

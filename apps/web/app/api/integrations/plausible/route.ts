@@ -21,7 +21,8 @@
  * Read in-handler so config/tests take effect live.
  */
 
-import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
+import { whoAmI } from "../../_lib/integrations/identity";
+import { resolveCredentials } from "../../_lib/integrations/resolve";
 import type { AnalyticsRange } from "../../../../lib/operations";
 
 type PlausiblePulse = {
@@ -41,34 +42,23 @@ type DeepBreakdowns = {
 const CACHE_TTL_MS = 5 * 60 * 1000;          // pulse + deep headline/timeseries
 const BREAKDOWN_TTL_MS = 15 * 60 * 1000;     // deep breakdowns shift slowly
 
-let cache: { data: PlausiblePulse; expiresAt: number } | null = null;
+// W91 — caches are keyed by site so per-user installs never collide.
+const pulseCache = new Map<string, { data: PlausiblePulse; expiresAt: number }>();
 const headlineCache = new Map<string, { data: DeepHeadline; expiresAt: number }>();
 const breakdownCache = new Map<string, { data: DeepBreakdowns; expiresAt: number }>();
 
 /** Test hook — reset every module cache between cases. */
 export function _clearPlausibleCache(): void {
-  cache = null;
+  pulseCache.clear();
   headlineCache.clear();
   breakdownCache.clear();
-}
-
-function config() {
-  // Operator runs Plausible Community Edition (self-hosted), not Cloud.
-  // NEXT_PUBLIC_PLAUSIBLE_URL already points at the CE install; an optional
-  // server-only PLAUSIBLE_API_URL can override it. Falls back to Cloud.
-  const base = (
-    process.env.PLAUSIBLE_API_URL ??
-    process.env.NEXT_PUBLIC_PLAUSIBLE_URL ??
-    "https://plausible.io"
-  ).replace(/\/$/, "");
-  return { base, key: process.env.PLAUSIBLE_API_KEY ?? "", site: process.env.PLAUSIBLE_SITE_ID ?? "" };
 }
 
 function notConfigured() {
   return Response.json(
     {
       error: "not_configured",
-      message: "Analytics isn't connected yet. Add PLAUSIBLE_API_KEY and PLAUSIBLE_SITE_ID to your environment.",
+      message: "Analytics isn't connected yet. Add your Plausible URL, API key, and site ID in Settings → Connect Your Tools.",
     },
     { status: 503 }
   );
@@ -80,13 +70,15 @@ function parseRange(raw: string | null): AnalyticsRange {
 }
 
 export async function GET(req: Request) {
-  try {
-    await requireSuperAdmin(req);
-  } catch (err) {
-    return toAuthErrorResponse(err);
-  }
+  // W91 — any authenticated user; creds resolve per-user (own → operator).
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const { base, key, site } = config();
+  const creds = await resolveCredentials(me, "plausible");
+  if (!creds) return notConfigured();
+  const base = creds.url.replace(/\/$/, "");
+  const key = creds.key;
+  const site = String(creds.config.site_id ?? "");
   if (!key || !site) return notConfigured();
 
   const url = new URL(req.url);
@@ -95,6 +87,7 @@ export async function GET(req: Request) {
   }
 
   // ── Default: Front Desk card pulse (today) ──
+  const cache = pulseCache.get(site);
   if (cache && cache.expiresAt > Date.now()) {
     return Response.json({ ...cache.data, cached: true });
   }
@@ -122,7 +115,7 @@ export async function GET(req: Request) {
       sources: (brk.results ?? []).map((r) => ({ source: r.source ?? "Unknown", visitors: r.visitors ?? 0 })),
     };
 
-    cache = { data, expiresAt: Date.now() + CACHE_TTL_MS };
+    pulseCache.set(site, { data, expiresAt: Date.now() + CACHE_TTL_MS });
     return Response.json({ ...data, cached: false });
   } catch (err) {
     console.error("[plausible] read error:", err);
@@ -136,10 +129,11 @@ async function deep(base: string, key: string, site: string, range: AnalyticsRan
   const headers = { Authorization: `Bearer ${key}` };
   const q = `site_id=${encodeURIComponent(site)}&period=${range}`;
   const now = Date.now();
+  const cacheKey = `${site}:${range}`; // W91 — per-site to avoid cross-user collisions
 
   try {
-    // Tier 1 — headline + timeseries (5-min cache, keyed by range).
-    let head = headlineCache.get(range);
+    // Tier 1 — headline + timeseries (5-min cache, keyed by site+range).
+    let head = headlineCache.get(cacheKey);
     if (!head || head.expiresAt <= now) {
       const [aggRes, tsRes] = await Promise.all([
         fetch(`${base}/api/v1/stats/aggregate?${q}&metrics=visitors,pageviews,bounce_rate,visit_duration`, { headers }),
@@ -160,11 +154,11 @@ async function deep(base: string, key: string, site: string, range: AnalyticsRan
         timeseries: (ts.results ?? []).map((r) => ({ date: r.date ?? "", visitors: r.visitors ?? 0 })),
       };
       head = { data, expiresAt: now + CACHE_TTL_MS };
-      headlineCache.set(range, head);
+      headlineCache.set(cacheKey, head);
     }
 
-    // Tier 2 — breakdowns (15-min cache, keyed by range). Each degrades to [].
-    let brk = breakdownCache.get(range);
+    // Tier 2 — breakdowns (15-min cache, keyed by site+range). Each degrades to [].
+    let brk = breakdownCache.get(cacheKey);
     if (!brk || brk.expiresAt <= now) {
       const [srcRes, pageRes, countryRes] = await Promise.all([
         fetch(`${base}/api/v1/stats/breakdown?${q}&property=visit:source&metrics=visitors&limit=5`, { headers }),
@@ -180,7 +174,7 @@ async function deep(base: string, key: string, site: string, range: AnalyticsRan
         countries: (countryJson.results ?? []).map((r) => ({ name: r.country ?? "Unknown", visitors: r.visitors ?? 0 })),
       };
       brk = { data, expiresAt: now + BREAKDOWN_TTL_MS };
-      breakdownCache.set(range, brk);
+      breakdownCache.set(cacheKey, brk);
     }
 
     return Response.json({ range, ...head.data, ...brk.data });

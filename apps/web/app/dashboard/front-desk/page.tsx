@@ -20,7 +20,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import pb from "../../../lib/pb";
-import { isSuperAdminClient } from "../../../lib/hooks/useEffectivePlan";
 import {
   buildSpecialistPrompt,
   summarizeEmail,
@@ -64,9 +63,12 @@ export default function FrontDeskHome() {
   );
 
   useEffect(() => {
-    const admin = isSuperAdminClient((pb.authStore.record as { email?: string } | null)?.email);
-    setIsAdmin(admin);
-    if (!admin) return;
+    // W91 — open to every authenticated user. Each card resolves the user's
+    // own creds (operator falls back to env); missing creds → per-card
+    // "Connect your tools" state. No super-admin gate here anymore.
+    const authed = pb.authStore.isValid;
+    setIsAdmin(authed);
+    if (!authed) return;
 
     void loadCard("/api/integrations/listmonk", setEmail, (d) => summarizeEmail(d as never));
     void loadCard("/api/integrations/twenty?type=opportunities", setPipeline, (d) => summarizePipeline(d as never));
@@ -108,8 +110,7 @@ export default function FrontDeskHome() {
 
         {isAdmin === false ? (
           <div style={{ ...cardStyle, textAlign: "center", padding: "40px" }}>
-            <p className="text-sm" style={{ color: "#9090A8" }}>Connect your business tools and they&apos;ll show up here — campaigns, contacts, support, and analytics in one view.</p>
-            <p className="text-xs mt-2" style={{ color: "#5A5A70" }}>Coming to your account soon.</p>
+            <p className="text-sm" style={{ color: "#9090A8" }}>Sign in to see your campaigns, pipeline, support, and analytics in one view.</p>
           </div>
         ) : (
           <>
@@ -138,8 +139,12 @@ export default function FrontDeskHome() {
 function OpsCardView({ title, icon, card, state, drill }: { title: string; icon: string; card: OpsCard; state: CardState; drill?: { href: string; label: string } }) {
   // A card with a native surface (e.g. Email Campaigns) drills in; the rest
   // seed the Command Center with a specialist prompt (surface→specialist).
-  const href = drill ? drill.href : `/dashboard?ask=${encodeURIComponent(buildSpecialistPrompt(card, state.summary))}`;
-  const label = drill ? drill.label : "Have your specialist take this →";
+  // W91 — not connected (and not loading) → deep-link to Settings to connect.
+  const notConnected = !state.connected && !state.loading;
+  const href = notConnected
+    ? "/dashboard/settings#connect-your-tools"
+    : drill ? drill.href : `/dashboard?ask=${encodeURIComponent(buildSpecialistPrompt(card, state.summary))}`;
+  const label = notConnected ? "Connect your tools →" : drill ? drill.label : "Have your specialist take this →";
   return (
     <div style={cardStyle}>
       <div className="flex items-center gap-2 mb-2">
@@ -149,7 +154,7 @@ function OpsCardView({ title, icon, card, state, drill }: { title: string; icon:
       <p className="text-xs mb-4" style={{ color: state.connected ? "#9090A8" : "#5A5A70", lineHeight: 1.5, minHeight: "32px" }}>
         {state.loading ? "Loading…" : state.summary}
       </p>
-      {(drill || (state.connected && !state.loading)) && (
+      {!state.loading && (
         <a href={href} className="text-xs px-3 py-1.5 rounded-lg inline-block transition-colors hover:text-white" style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.30)", color: "#A07BFF", textDecoration: "none" }}>
           {label}
         </a>

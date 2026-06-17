@@ -5,22 +5,9 @@
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";
-
-const DOCUSEAL_URL = process.env.DOCUSEAL_URL ?? "";
-const DOCUSEAL_KEY = process.env.DOCUSEAL_API_KEY ?? "";
+import { resolveCredentials } from "../../_lib/integrations/resolve";
 
 export async function POST(req: Request) {
-  if (!DOCUSEAL_URL || !DOCUSEAL_KEY) {
-    return Response.json(
-      {
-        error: "not_configured",
-        message:
-          "E-signatures are not set up yet. Deploy Docuseal and add DOCUSEAL_URL and DOCUSEAL_API_KEY to your environment variables.",
-      },
-      { status: 503 }
-    );
-  }
-
   try {
     const { name, documentContent, signerEmail, signerName, userId } = (await req.json()) as {
       name: string;
@@ -36,6 +23,16 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
+    // W91 — per-user creds (own → operator fallback). No direct env reads.
+    const creds = await resolveCredentials({ id: userId ?? "" }, "docuseal");
+    if (!creds) {
+      return Response.json(
+        { error: "not_configured", message: "E-signatures aren't connected yet. Add your Docuseal URL and API key in Settings → Connect Your Tools." },
+        { status: 503 }
+      );
+    }
+    const DOCUSEAL_URL = creds.url.replace(/\/$/, ""), DOCUSEAL_KEY = creds.key;
 
     // Create a submission in Docuseal
     const res = await fetch(`${DOCUSEAL_URL}/api/submissions`, {

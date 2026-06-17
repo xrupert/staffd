@@ -22,7 +22,7 @@ type Roster = { id: string; email: string; type: UserType; plan: string; lastAct
 type Usage = {
   users: { total: number; byType: Record<string, number>; byPlan: Record<string, number>; activity: Record<string, number>; churn: { expired: number; expiring: number }; roster: Roster[] };
   departments: { byDept: { department: string; count: number; lastAt: string }[]; specialists: { agent_name: string; department: string; count: number }[] };
-  integrations: { health: { key: string; label: string; connected: boolean }[]; outcomes: { decision_kind: string; count: number }[]; note: string };
+  integrations: { health: { key: string; label: string; connected: boolean }[]; outcomes: { decision_kind: string; count: number }[]; adoption: { type: string; connected: number; configured: number }[] };
   workflows: { byStatus: Record<string, number>; taskSuccess: { succeeded: number; total: number; rate: number }; recentTransitions: { detail: string; at: string; user: string }[]; velocity7d: { date: string; count: number }[] };
 };
 type Detail = { user: { id: string; email: string; type: string; plan: string; created: string; lastActivity: string | null }; counts: { documents: number; threads: number; workflows: number; imageCredits: number; videoCredits: number; agentCreditsTopup: number }; outcomes: { decision_kind: string; count: number }[] };
@@ -189,9 +189,13 @@ function IntegrationsTab({ d }: { d: Usage["integrations"] }) {
         </div>
       </div>
       <div style={card}>
+        <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Customer adoption (connected)</p>
+        <Bars rows={d.adoption.map((a) => ({ label: a.type, value: a.connected }))} />
+        <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>How many customers have connected their own credentials (W91). Zero is honest.</p>
+      </div>
+      <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Outcomes (fleet-wide)</p>
         {d.outcomes.length === 0 ? <p className="text-xs" style={{ color: "#5A5A70" }}>No recorded outcomes yet.</p> : <Bars rows={d.outcomes.map((o) => ({ label: o.decision_kind, value: o.count }))} />}
-        <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>{d.note}</p>
       </div>
     </div>
   );

@@ -14,6 +14,14 @@ process.env.TWENTY_API_KEY = "key";
 
 const recordMock = vi.hoisted(() => ({ fn: vi.fn(async (_input: Record<string, unknown>) => ({ ok: true, id: "dec_1" })) }));
 vi.mock("../../app/api/_lib/vault/outcomes", () => ({ recordDecision: recordMock.fn }));
+// W91 — POST resolves creds via the resolver; mock it to operator env so the
+// write proceeds (this test is about outcome recording, not cred resolution).
+vi.mock("../../app/api/_lib/integrations/resolve", () => ({
+  resolveCredentials: async () => {
+    const url = process.env.TWENTY_API_URL, key = process.env.TWENTY_API_KEY;
+    return url && key ? { source: "operator", url, key, config: {} } : null;
+  },
+}));
 
 let POST: (req: Request) => Promise<Response>;
 beforeAll(async () => {

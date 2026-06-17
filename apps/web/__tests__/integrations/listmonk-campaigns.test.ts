@@ -6,9 +6,13 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-vi.mock("../../app/api/_lib/auth/super-admin", () => ({
-  requireSuperAdmin: vi.fn(async () => ({ id: "admin", email: "admin@staffd.com" })),
-  toAuthErrorResponse: () => Response.json({ error: "forbidden" }, { status: 403 }),
+// W91 — mock identity + resolveCredentials (env-mirroring, no fetch).
+vi.mock("../../app/api/_lib/integrations/identity", () => ({ whoAmI: async () => ({ id: "admin", email: "admin@staffd.com" }) }));
+vi.mock("../../app/api/_lib/integrations/resolve", () => ({
+  resolveCredentials: async () => {
+    const url = process.env.LISTMONK_URL, key = process.env.LISTMONK_PASSWORD;
+    return url && key ? { source: "operator", url, key, config: { username: process.env.LISTMONK_USERNAME || "listmonk" } } : null;
+  },
 }));
 const recordMock = vi.hoisted(() => ({ fn: vi.fn(async (_i: Record<string, unknown>) => ({ ok: true })) }));
 vi.mock("../../app/api/_lib/vault/outcomes", () => ({ recordDecision: recordMock.fn }));

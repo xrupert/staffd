@@ -345,11 +345,10 @@ export default function DashboardPage() {
             {effectivePlan === "agency" && (
               <ClientSwitcher />
             )}
-            {isAdmin && (
-              <a href="/dashboard/front-desk" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
-                Front Desk
-              </a>
-            )}
+            {/* W91 — Front Desk is open to every authenticated user now. */}
+            <a href="/dashboard/front-desk" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
+              Front Desk
+            </a>
             {isAdmin && (
               <a href="/dashboard/admin" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
                 Admin

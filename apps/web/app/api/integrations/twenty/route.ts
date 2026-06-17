@@ -1,14 +1,19 @@
 /**
  * Twenty CRM integration — creates a contact and/or opportunity from Sales output.
- * Requires TWENTY_API_URL + TWENTY_API_KEY env vars.
- * Returns 503 with setup instructions when not yet configured.
+ *
+ * W91: credentials resolve via resolveCredentials(userId, "twenty") —
+ * the user's own stored creds first, else operator env fallback. No env var
+ * is read directly here anymore. 503 when neither resolves ("Connect your tools").
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";
-import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
+import { whoAmI } from "../../_lib/integrations/identity";
+import { resolveCredentials } from "../../_lib/integrations/resolve";
 
-const TWENTY_URL = process.env.TWENTY_API_URL ?? "";
-const TWENTY_KEY = process.env.TWENTY_API_KEY ?? "";
+const NOT_CONFIGURED = {
+  error: "not_configured",
+  message: "CRM isn't connected yet. Add your Twenty URL and API key in Settings → Connect Your Tools.",
+};
 
 const CREATE_PERSON = `
   mutation CreatePerson($name: String!, $email: String, $notes: String) {
@@ -37,17 +42,6 @@ const CREATE_OPPORTUNITY = `
 `;
 
 export async function POST(req: Request) {
-  if (!TWENTY_URL || !TWENTY_KEY) {
-    return Response.json(
-      {
-        error: "not_configured",
-        message:
-          "CRM is not set up yet. Deploy Twenty and add TWENTY_API_URL and TWENTY_API_KEY to your environment variables.",
-      },
-      { status: 503 }
-    );
-  }
-
   try {
     const { type, name, email, notes, stage, userId } = (await req.json()) as {
       type: "contact" | "opportunity";
@@ -61,6 +55,10 @@ export async function POST(req: Request) {
     if (!name?.trim()) {
       return Response.json({ error: "name is required" }, { status: 400 });
     }
+
+    const creds = await resolveCredentials({ id: userId ?? "" }, "twenty");
+    if (!creds) return Response.json(NOT_CONFIGURED, { status: 503 });
+    const TWENTY_URL = creds.url, TWENTY_KEY = creds.key;
 
     const query = type === "opportunity" ? CREATE_OPPORTUNITY : CREATE_PERSON;
     const variables =
@@ -134,26 +132,15 @@ type TwentyNode = {
 };
 
 export async function GET(req: Request) {
-  // Operator-private CRM data — super-admin only (W80.1). Reopens to all
-  // plans under per-user credentials (W91).
-  try {
-    await requireSuperAdmin(req);
-  } catch (err) {
-    return toAuthErrorResponse(err);
-  }
+  // W91 — any authenticated user; creds resolve per-user (own → operator
+  // fallback). Returns 503 "Connect your tools" when neither resolves.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const url = (process.env.TWENTY_API_URL ?? "").replace(/\/$/, "");
-  const key = process.env.TWENTY_API_KEY ?? "";
-  if (!url || !key) {
-    return Response.json(
-      {
-        error: "not_configured",
-        message:
-          "CRM is not set up yet. Deploy Twenty and add TWENTY_API_URL and TWENTY_API_KEY to your environment variables.",
-      },
-      { status: 503 }
-    );
-  }
+  const creds = await resolveCredentials(me, "twenty");
+  if (!creds) return Response.json(NOT_CONFIGURED, { status: 503 });
+  const url = creds.url.replace(/\/$/, "");
+  const key = creds.key;
 
   const type = new URL(req.url).searchParams.get("type") ?? "opportunities";
   const isOpp = type !== "contacts";

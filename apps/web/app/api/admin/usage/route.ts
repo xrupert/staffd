@@ -80,7 +80,8 @@ export async function GET(req: Request) {
   type DecRow = { decision_kind?: string; user?: string };
   type LogRow = { operation_detail?: string; created?: string; user?: string };
 
-  const [users, subs, docs, convos, workflows, decisions, transitions, taskTotal, taskSucceeded] = await Promise.all([
+  type IntegRow = { integration_type: string; status?: string };
+  const [users, subs, docs, convos, workflows, decisions, transitions, integrations, taskTotal, taskSucceeded] = await Promise.all([
     listItems<UserRow>(`${pb}/api/collections/users/records?perPage=${USER_CAP}&fields=id,email,created&sort=-created`, token), // Capped at USER_CAP — paginate at scale.
     listItems<SubRow>(`${pb}/api/collections/subscriptions/records?perPage=${USER_CAP}&fields=user,plan,active_until,image_credits_used,video_credits_used,agent_credits_topup`, token),
     listItems<DocRow>(`${pb}/api/collections/documents/records?perPage=${DOC_CAP}&fields=user,department,agent_name,created&sort=-created`, token), // Capped at DOC_CAP — paginate at scale.
@@ -88,6 +89,7 @@ export async function GET(req: Request) {
     listItems<WfRow>(`${pb}/api/collections/workflows/records?perPage=${WF_CAP}&fields=user,status,created,completed_at&sort=-created`, token), // Capped at WF_CAP — paginate at scale.
     listItems<DecRow>(`${pb}/api/collections/vault_decisions/records?perPage=${DECISION_CAP}&fields=decision_kind,user`, token), // Capped at DECISION_CAP — paginate at scale.
     listItems<LogRow>(`${pb}/api/collections/super_admin_usage_log/records?filter=${encodeURIComponent(`operation_type = "workflow_transition"`)}&perPage=${TRANSITION_RECENT}&sort=-created&fields=operation_detail,created,user`, token),
+    listItems<IntegRow>(`${pb}/api/collections/user_integrations/records?perPage=${USER_CAP}&fields=integration_type,status`, token), // W91 adoption — capped, paginate at scale.
     totalItems(`${pb}/api/collections/workflow_tasks/records?perPage=1&fields=id`, token),
     totalItems(`${pb}/api/collections/workflow_tasks/records?filter=${encodeURIComponent(`status = "succeeded"`)}&perPage=1&fields=id`, token),
   ]);
@@ -149,6 +151,13 @@ export async function GET(req: Request) {
   const outMap = new Map<string, number>();
   for (const d of decisions) { const k = d.decision_kind || "unknown"; outMap.set(k, (outMap.get(k) ?? 0) + 1); }
   const outcomes = Array.from(outMap.entries()).map(([decision_kind, count]) => ({ decision_kind, count })).sort((a, b) => b.count - a.count);
+  // W91 — fleet adoption: how many users have each vendor connected (zero is honest).
+  const TYPES = ["twenty", "chatwoot", "listmonk", "plausible", "docuseal"];
+  const adoption = TYPES.map((type) => ({
+    type,
+    connected: integrations.filter((r) => r.integration_type === type && r.status === "connected").length,
+    configured: integrations.filter((r) => r.integration_type === type).length,
+  }));
 
   // ── Tab 4: Workflows ──
   const byStatus: Record<string, number> = { pending: 0, running: 0, completed: 0, failed: 0, partial: 0 };
@@ -164,7 +173,7 @@ export async function GET(req: Request) {
   return Response.json({
     users: { total: users.length, byType, byPlan, activity, churn: { expired, expiring }, roster },
     departments: { byDept, specialists },
-    integrations: { health, outcomes, note: "Per-customer integration metrics arrive with W91 (per-user credentials)." },
+    integrations: { health, outcomes, adoption },
     workflows: {
       byStatus,
       taskSuccess: { succeeded: taskSucceeded, total: taskTotal, rate: taskSuccessRate(taskSucceeded, taskTotal) },

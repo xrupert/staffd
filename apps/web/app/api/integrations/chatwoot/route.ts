@@ -16,29 +16,28 @@
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";
-import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
+import { whoAmI } from "../../_lib/integrations/identity";
+import { resolveCredentials } from "../../_lib/integrations/resolve";
 
-const CHATWOOT_URL  = (process.env.CHATWOOT_URL ?? "").replace(/\/$/, "");
-const CHATWOOT_KEY  = process.env.CHATWOOT_API_KEY ?? "";
-const CHATWOOT_ACCT = process.env.CHATWOOT_ACCOUNT_ID ?? "";
+// W91 — per-call creds (user's own → operator fallback). No direct env reads.
+type Cw = { base: string; key: string; acct: string };
 
 function notConfigured(): Response {
   return Response.json(
     {
       error: "not_configured",
-      message:
-        "Support tickets are not set up yet. Deploy Chatwoot and add CHATWOOT_URL, CHATWOOT_API_KEY, and CHATWOOT_ACCOUNT_ID to your environment variables.",
+      message: "Support inbox isn't connected yet. Add your Chatwoot URL, API key, and account ID in Settings → Connect Your Tools.",
     },
     { status: 503 }
   );
 }
 
-async function cw(path: string, init: RequestInit = {}) {
-  return fetch(`${CHATWOOT_URL}/api/v1${path}`, {
+async function cw(c: Cw, path: string, init: RequestInit = {}) {
+  return fetch(`${c.base}/api/v1${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      api_access_token: CHATWOOT_KEY,
+      api_access_token: c.key,
       ...(init.headers ?? {}),
     },
   });
@@ -64,9 +63,9 @@ interface InboxesResponse {
   payload?: Inbox[];
 }
 
-async function findOrCreateContact(name: string, email: string): Promise<number | null> {
+async function findOrCreateContact(c: Cw, name: string, email: string): Promise<number | null> {
   // Search by email
-  const searchRes = await cw(`/accounts/${CHATWOOT_ACCT}/contacts/search?q=${encodeURIComponent(email)}&include=contact_inboxes`);
+  const searchRes = await cw(c, `/accounts/${c.acct}/contacts/search?q=${encodeURIComponent(email)}&include=contact_inboxes`);
   if (searchRes.ok) {
     const data = (await searchRes.json()) as SearchResponse;
     const list = data.payload ?? data.data?.payload ?? [];
@@ -74,7 +73,7 @@ async function findOrCreateContact(name: string, email: string): Promise<number 
   }
 
   // Create new contact
-  const createRes = await cw(`/accounts/${CHATWOOT_ACCT}/contacts`, {
+  const createRes = await cw(c, `/accounts/${c.acct}/contacts`, {
     method: "POST",
     body: JSON.stringify({ name, email }),
   });
@@ -83,8 +82,8 @@ async function findOrCreateContact(name: string, email: string): Promise<number 
   return data.payload?.contact?.id ?? data.id ?? null;
 }
 
-async function getFirstInboxId(): Promise<number | null> {
-  const res = await cw(`/accounts/${CHATWOOT_ACCT}/inboxes`);
+async function getFirstInboxId(c: Cw): Promise<number | null> {
+  const res = await cw(c, `/accounts/${c.acct}/inboxes`);
   if (!res.ok) return null;
   const data = (await res.json()) as InboxesResponse;
   const list = data.data?.payload ?? data.payload ?? [];
@@ -94,10 +93,6 @@ async function getFirstInboxId(): Promise<number | null> {
 }
 
 export async function POST(req: Request) {
-  if (!CHATWOOT_URL || !CHATWOOT_KEY || !CHATWOOT_ACCT) {
-    return notConfigured();
-  }
-
   try {
     const { customerName, customerEmail, subject, reply, userId } = (await req.json()) as {
       customerName: string;
@@ -114,12 +109,16 @@ export async function POST(req: Request) {
       );
     }
 
-    const contactId = await findOrCreateContact(customerName.trim(), customerEmail.trim());
+    const creds = await resolveCredentials({ id: userId ?? "" }, "chatwoot");
+    if (!creds || !creds.config.account_id) return notConfigured();
+    const c: Cw = { base: creds.url.replace(/\/$/, ""), key: creds.key, acct: String(creds.config.account_id) };
+
+    const contactId = await findOrCreateContact(c, customerName.trim(), customerEmail.trim());
     if (!contactId) {
       return Response.json({ error: "Failed to create contact in Chatwoot" }, { status: 502 });
     }
 
-    const inboxId = await getFirstInboxId();
+    const inboxId = await getFirstInboxId(c);
     if (!inboxId) {
       return Response.json(
         {
@@ -132,7 +131,7 @@ export async function POST(req: Request) {
     }
 
     // Create conversation
-    const convRes = await cw(`/accounts/${CHATWOOT_ACCT}/conversations`, {
+    const convRes = await cw(c, `/accounts/${c.acct}/conversations`, {
       method: "POST",
       body: JSON.stringify({
         source_id: customerEmail.trim(),
@@ -149,7 +148,7 @@ export async function POST(req: Request) {
     const conv = (await convRes.json()) as { id: number };
 
     // Post the reply as the first outgoing message
-    await cw(`/accounts/${CHATWOOT_ACCT}/conversations/${conv.id}/messages`, {
+    await cw(c, `/accounts/${c.acct}/conversations/${conv.id}/messages`, {
       method: "POST",
       body: JSON.stringify({
         content: reply.trim(),
@@ -172,7 +171,7 @@ export async function POST(req: Request) {
     return Response.json({
       success: true,
       conversationId: conv.id,
-      conversationUrl: `${CHATWOOT_URL}/app/accounts/${CHATWOOT_ACCT}/conversations/${conv.id}`,
+      conversationUrl: `${c.base}/app/accounts/${c.acct}/conversations/${conv.id}`,
     });
   } catch (err) {
     console.error("Chatwoot route error:", err);
@@ -195,17 +194,15 @@ type CwConversation = {
 };
 
 export async function GET(req: Request) {
-  // Operator-private support data — super-admin only (W80.1).
-  try {
-    await requireSuperAdmin(req);
-  } catch (err) {
-    return toAuthErrorResponse(err);
-  }
+  // W91 — any authenticated user; creds resolve per-user (own → operator).
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const base = (process.env.CHATWOOT_URL ?? "").replace(/\/$/, "");
-  const key = process.env.CHATWOOT_API_KEY ?? "";
-  const acct = process.env.CHATWOOT_ACCOUNT_ID ?? "";
-  if (!base || !key || !acct) return notConfigured();
+  const creds = await resolveCredentials(me, "chatwoot");
+  if (!creds || !creds.config.account_id) return notConfigured();
+  const base = creds.url.replace(/\/$/, "");
+  const key = creds.key;
+  const acct = String(creds.config.account_id);
 
   const status = new URL(req.url).searchParams.get("status") ?? "open";
 

@@ -12,7 +12,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import pb from "../../../../lib/pb";
-import { isSuperAdminClient } from "../../../../lib/hooks/useEffectivePlan";
 import { campaignStatusLabel, buildCampaignSmartPrompt } from "../../../../lib/operations";
 
 type Campaign = { id: number; name: string; status: string; sent: number; toSend: number; openRate: number; sendAt: string | null; createdAt: string | null };
@@ -55,9 +54,10 @@ export default function CampaignsPage() {
   }, []);
 
   useEffect(() => {
-    const admin = isSuperAdminClient((pb.authStore.record as { email?: string } | null)?.email);
-    setIsAdmin(admin);
-    if (admin) void loadList();
+    // W91 — any authenticated user; creds resolve per-user (own → operator).
+    const authed = pb.authStore.isValid;
+    setIsAdmin(authed);
+    if (authed) void loadList();
   }, [loadList]);
 
   async function openDetail(id: number) {

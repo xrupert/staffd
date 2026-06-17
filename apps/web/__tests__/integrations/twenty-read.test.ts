@@ -8,10 +8,15 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-// GET is super-admin gated (W80.1) — resolve the gate so the read tests run.
-vi.mock("../../app/api/_lib/auth/super-admin", () => ({
-  requireSuperAdmin: vi.fn(async () => ({ id: "admin", email: "admin@staffd.com" })),
-  toAuthErrorResponse: () => Response.json({ error: "forbidden" }, { status: 403 }),
+// W91 — any authed user; creds resolve per-user → operator env fallback.
+// Mock identity (auth passes) + resolveCredentials (env-mirroring, no fetch
+// so vendor call counts stay clean).
+vi.mock("../../app/api/_lib/integrations/identity", () => ({ whoAmI: async () => ({ id: "admin", email: "admin@staffd.com" }) }));
+vi.mock("../../app/api/_lib/integrations/resolve", () => ({
+  resolveCredentials: async () => {
+    const url = process.env.TWENTY_API_URL, key = process.env.TWENTY_API_KEY;
+    return url && key ? { source: "operator", url, key, config: {} } : null;
+  },
 }));
 
 import { GET } from "../../app/api/integrations/twenty/route";

@@ -41,6 +41,7 @@ const CASCADE_COLLECTIONS_USER = [
   "push_subscriptions",
   "templates",
   "businesses",
+  "user_integrations", // W91 — erase stored vendor creds on account delete (GDPR Art. 17)
   "subscriptions",
 ] as const;
 

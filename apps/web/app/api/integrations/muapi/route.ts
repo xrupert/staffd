@@ -29,6 +29,11 @@ const anthropic = new Anthropic();
 // crash on first import rather than silently producing relative URLs.
 import { MUAPI_BASE_URL } from "../../../../lib/env";
 const MUAPI_URL = MUAPI_BASE_URL;
+// W91 — muapi is STAFFD's PLATFORM image/video credit gateway (billed in
+// credits), NOT a per-customer integration. It deliberately reads the
+// operator/platform key from env and is NOT routed through
+// resolveCredentials. Do NOT add "muapi" to the IntegrationType enum or
+// move this to per-user creds — customers never bring their own muapi key.
 const MUAPI_KEY = process.env.MUAPI_API_KEY ?? "";
 
 /**

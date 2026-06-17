@@ -11,9 +11,13 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 const fetchMock = vi.hoisted(() => ({ fn: vi.fn() }));
 
-vi.mock("../../app/api/_lib/auth/super-admin", () => ({
-  requireSuperAdmin: vi.fn(async () => ({ id: "admin", email: "admin@staffd.com" })),
-  toAuthErrorResponse: () => Response.json({ error: "forbidden" }, { status: 403 }),
+// W91 — mock identity + resolveCredentials (env-mirroring, no fetch).
+vi.mock("../../app/api/_lib/integrations/identity", () => ({ whoAmI: async () => ({ id: "admin", email: "admin@staffd.com" }) }));
+vi.mock("../../app/api/_lib/integrations/resolve", () => ({
+  resolveCredentials: async () => {
+    const key = process.env.PLAUSIBLE_API_KEY, site = process.env.PLAUSIBLE_SITE_ID;
+    return key && site ? { source: "operator", url: process.env.NEXT_PUBLIC_PLAUSIBLE_URL || "https://plausible.io", key, config: { site_id: site } } : null;
+  },
 }));
 
 import { GET, _clearPlausibleCache } from "../../app/api/integrations/plausible/route";

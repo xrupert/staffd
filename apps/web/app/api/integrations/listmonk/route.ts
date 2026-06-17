@@ -5,24 +5,23 @@
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";
-import { requireSuperAdmin, toAuthErrorResponse } from "../../_lib/auth/super-admin";
+import { whoAmI } from "../../_lib/integrations/identity";
+import { resolveCredentials, type Resolved } from "../../_lib/integrations/resolve";
 
-const LISTMONK_URL = process.env.LISTMONK_URL ?? "";
-const LISTMONK_USER = process.env.LISTMONK_USERNAME ?? "listmonk";
-const LISTMONK_PASS = process.env.LISTMONK_PASSWORD ?? "";
+const NOT_CONFIGURED = {
+  error: "not_configured",
+  message: "Email isn't connected yet. Add your Listmonk URL, username, and API password in Settings → Connect Your Tools.",
+};
+
+/** Listmonk basic-auth tuple from resolved creds (key=password, config.username). */
+function lm(creds: Resolved): { base: string; headers: Record<string, string> } {
+  const base = creds.url.replace(/\/$/, "");
+  const user = String(creds.config.username || "listmonk");
+  const auth = Buffer.from(`${user}:${creds.key}`).toString("base64");
+  return { base, headers: { "Content-Type": "application/json", Authorization: `Basic ${auth}` } };
+}
 
 export async function POST(req: Request) {
-  if (!LISTMONK_URL || !LISTMONK_PASS) {
-    return Response.json(
-      {
-        error: "not_configured",
-        message:
-          "Email sending is not set up yet. Deploy Listmonk and add LISTMONK_URL, LISTMONK_USERNAME, and LISTMONK_PASSWORD to your environment variables.",
-      },
-      { status: 503 }
-    );
-  }
-
   try {
     const { subject, body, listIds, userId } = (await req.json()) as {
       subject: string;
@@ -35,15 +34,14 @@ export async function POST(req: Request) {
       return Response.json({ error: "subject and body are required" }, { status: 400 });
     }
 
-    const auth = Buffer.from(`${LISTMONK_USER}:${LISTMONK_PASS}`).toString("base64");
+    const creds = await resolveCredentials({ id: userId ?? "" }, "listmonk");
+    if (!creds) return Response.json(NOT_CONFIGURED, { status: 503 });
+    const { base: LISTMONK_URL, headers: lmHeaders } = lm(creds);
 
     // Create a draft campaign in Listmonk
     const res = await fetch(`${LISTMONK_URL}/api/campaigns`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${auth}`,
-      },
+      headers: lmHeaders,
       body: JSON.stringify({
         name: subject,
         subject,
@@ -107,33 +105,18 @@ type LmCampaign = {
 };
 
 export async function GET(req: Request) {
-  // Operator-private email data — super-admin only (W80.1).
-  try {
-    await requireSuperAdmin(req);
-  } catch (err) {
-    return toAuthErrorResponse(err);
-  }
+  // W91 — any authenticated user; creds resolve per-user (own → operator).
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const base = (process.env.LISTMONK_URL ?? "").replace(/\/$/, "");
-  const user = process.env.LISTMONK_USERNAME ?? "listmonk";
-  const pass = process.env.LISTMONK_PASSWORD ?? "";
-  if (!base || !pass) {
-    return Response.json(
-      {
-        error: "not_configured",
-        message:
-          "Email is not set up yet. Deploy Listmonk and add LISTMONK_URL, LISTMONK_USERNAME, and LISTMONK_PASSWORD to your environment variables.",
-      },
-      { status: 503 }
-    );
-  }
+  const creds = await resolveCredentials(me, "listmonk");
+  if (!creds) return Response.json(NOT_CONFIGURED, { status: 503 });
+  const { base, headers } = lm(creds);
 
   const params = new URL(req.url).searchParams;
   const campaignId = params.get("campaign_id");
   const resource = params.get("resource");
   const limit = Math.min(50, Math.max(1, Number.parseInt(params.get("limit") ?? "5", 10) || 5));
-  const auth = Buffer.from(`${user}:${pass}`).toString("base64");
-  const headers = { Authorization: `Basic ${auth}` };
 
   // W80.2 — recipient lists, for the compose view's audience picker.
   if (resource === "lists") {
@@ -224,18 +207,9 @@ export async function GET(req: Request) {
  * outcome on a real send.
  */
 export async function PUT(req: Request) {
-  try {
-    await requireSuperAdmin(req);
-  } catch (err) {
-    return toAuthErrorResponse(err);
-  }
-
-  const base = (process.env.LISTMONK_URL ?? "").replace(/\/$/, "");
-  const user = process.env.LISTMONK_USERNAME ?? "listmonk";
-  const pass = process.env.LISTMONK_PASSWORD ?? "";
-  if (!base || !pass) {
-    return Response.json({ error: "not_configured", message: "Email isn't set up yet." }, { status: 503 });
-  }
+  // W91 — any authenticated user manages their own campaigns.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as
     | { campaignId?: number | string; action?: string; sendAt?: string; userId?: string }
@@ -252,8 +226,9 @@ export async function PUT(req: Request) {
     return Response.json({ error: "unsupported action" }, { status: 400 });
   }
 
-  const auth = Buffer.from(`${user}:${pass}`).toString("base64");
-  const headers = { "Content-Type": "application/json", Authorization: `Basic ${auth}` };
+  const creds = await resolveCredentials(me, "listmonk");
+  if (!creds) return Response.json(NOT_CONFIGURED, { status: 503 });
+  const { base, headers } = lm(creds);
 
   try {
     // Schedule first sets send_at on the campaign before flipping status.

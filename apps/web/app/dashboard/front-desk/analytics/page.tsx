@@ -14,7 +14,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import pb from "../../../../lib/pb";
-import { isSuperAdminClient } from "../../../../lib/hooks/useEffectivePlan";
 import {
   analyticsRangeLabel,
   formatVisitDuration,
@@ -45,13 +44,14 @@ export default function AnalyticsPage() {
   }, []);
 
   useEffect(() => {
-    const admin = isSuperAdminClient((pb.authStore.record as { email?: string } | null)?.email);
-    setIsAdmin(admin);
-    if (admin) void load(range);
+    // W91 — any authenticated user; creds resolve per-user (own → operator).
+    const authed = pb.authStore.isValid;
+    setIsAdmin(authed);
+    if (authed) void load(range);
   }, [load, range]);
 
   if (isAdmin === false) {
-    return <Shell><div style={{ ...card, textAlign: "center", padding: "40px" }}><p className="text-sm" style={{ color: "#9090A8" }}>Your site analytics will live here once your account is connected.</p></div></Shell>;
+    return <Shell><div style={{ ...card, textAlign: "center", padding: "40px" }}><p className="text-sm" style={{ color: "#9090A8" }}>Sign in to see your site analytics.</p></div></Shell>;
   }
 
   return (
@@ -70,7 +70,7 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {error && <div className="px-4 py-3 rounded-xl text-xs mb-4" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "#F59E0B" }}>{error}</div>}
+      {error && <div className="px-4 py-3 rounded-xl text-xs mb-4" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "#F59E0B" }}>{error}{error.includes("connected") && <> <a href="/dashboard/settings#connect-your-tools" style={{ color: "#A07BFF", textDecoration: "underline" }}>Connect your tools →</a></>}</div>}
 
       {loading ? <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
         : !view ? null
