@@ -30,6 +30,7 @@ function setFetch() {
     const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
     calls.push({ url, method, body });
     if (url.includes("/contacts/records?") && method === "GET") return { ok: true, json: async () => ({ items: [] }) };
+    if (method === "GET" && /\/(tasks|followups|leads)\/records\/[^?]+$/.test(url)) return { ok: true, json: async () => ({ user: "userA", status: "pending" }) };
     if (method === "POST") {
       const col = url.match(/\/collections\/([^/]+)\/records/)?.[1] ?? "x";
       return { ok: true, json: async () => ({ id: col === "contacts" ? "c-1" : col === "tasks" ? "t-1" : "x-1" }) };
@@ -57,6 +58,18 @@ describe("POST /api/intent/commit", () => {
     const res = await POST(req({ intent_type: "create_task", fields: { title: "Call accountant" } }));
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, intent_type: "create_task", record_id: "t-1" });
+  });
+
+  it("dispatches a delegate intent (draft_campaign) and returns its completion message", async () => {
+    const res = await POST(req({ intent_type: "draft_campaign", fields: { message_summary: "spring launch" } }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).expected_completion_message).toMatch(/Marketing/);
+  });
+
+  it("dispatches a UI status-update intent (update_task_status)", async () => {
+    const res = await POST(req({ intent_type: "update_task_status", fields: { task_id: "t-1", new_status: "done" } }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ ok: true, intent_type: "update_task_status" });
   });
 
   it("records a Vault decision on commit", async () => {

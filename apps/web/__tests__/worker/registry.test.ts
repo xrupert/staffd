@@ -16,6 +16,8 @@ vi.mock("../../app/api/_lib/integrations/twenty/client", () => ({
   TwentyClient: { forCustomer: () => ({ updatePerson: tw.update, createPerson: async () => "x" }) },
 }));
 vi.mock("../../app/api/_lib/upload/extract", () => ({ extractKindFor: () => "text", extractText: async () => ({ ok: true, text: "t" }) }));
+const ds = vi.hoisted(() => ({ create: vi.fn(async () => ({ id: 42 }) as { id: number } | null) }));
+vi.mock("../../app/api/_lib/integrations/docuseal/client", () => ({ DocusealClient: { forCustomer: () => ({ createSubmission: ds.create }) } }));
 
 import { WORKER_HANDLERS, isWorkerTask } from "../../app/api/_lib/worker/handlers";
 
@@ -29,7 +31,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("worker registry", () => {
   it("registers exactly the known handler keys", () => {
-    expect(Object.keys(WORKER_HANDLERS).sort()).toEqual(["document_extraction_worker", "listmonk_subscribe_worker", "mirror_retry_worker", "twenty_update_worker"]);
+    expect(Object.keys(WORKER_HANDLERS).sort()).toEqual(["document_extraction_worker", "docuseal_send_worker", "listmonk_subscribe_worker", "mirror_retry_worker", "twenty_update_worker"]);
   });
   it("isWorkerTask is true for known specialist_ids, false otherwise", () => {
     expect(isWorkerTask("mirror_retry_worker")).toBe(true);
@@ -48,6 +50,40 @@ describe("listmonk_subscribe_worker", () => {
   it("throws on a failed subscribe so W71 retries", async () => {
     lm.add.mockResolvedValue(false);
     await expect(WORKER_HANDLERS.listmonk_subscribe_worker!(task("listmonk_subscribe_worker", { email: "j@x.com" }), ctx)).rejects.toThrow();
+  });
+});
+
+describe("docuseal_send_worker", () => {
+  function dsFetch() {
+    return vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (url.includes("/documents/records/") && method === "GET") return { ok: true, json: async () => ({ id: "d-1" }) };
+      return { ok: true, json: async () => ({}) };
+    });
+  }
+  it("creates a tenant-tagged submission and stashes the submission id on the document", async () => {
+    vi.stubEnv("DOCUSEAL_TEMPLATE_ID", "5");
+    const f = dsFetch(); vi.stubGlobal("fetch", f);
+    ds.create.mockResolvedValue({ id: 42 });
+    const r = await WORKER_HANDLERS.docuseal_send_worker!(task("docuseal_send_worker", { document_id: "d-1", signer_email: "s@x.com" }), ctx);
+    expect(r.text).toMatch(/signature-sent:42/);
+    expect(ds.create).toHaveBeenCalledWith(expect.objectContaining({ templateId: 5, signerEmail: "s@x.com" }));
+    const patch = f.mock.calls.find((c) => String(c[0]).includes("/documents/records/d-1") && (c[1] as RequestInit)?.method === "PATCH");
+    expect(JSON.parse((patch![1] as RequestInit).body as string)).toMatchObject({ docuseal_submission_id: "42" });
+    vi.unstubAllEnvs();
+  });
+  it("throws when DOCUSEAL_TEMPLATE_ID is not configured", async () => {
+    vi.stubEnv("DOCUSEAL_TEMPLATE_ID", "");
+    vi.stubGlobal("fetch", dsFetch());
+    await expect(WORKER_HANDLERS.docuseal_send_worker!(task("docuseal_send_worker", { document_id: "d-1", signer_email: "s@x.com" }), ctx)).rejects.toThrow(/template/i);
+    vi.unstubAllEnvs();
+  });
+  it("throws when the submission fails (W71 retry)", async () => {
+    vi.stubEnv("DOCUSEAL_TEMPLATE_ID", "5");
+    vi.stubGlobal("fetch", dsFetch());
+    ds.create.mockResolvedValue(null);
+    await expect(WORKER_HANDLERS.docuseal_send_worker!(task("docuseal_send_worker", { document_id: "d-1", signer_email: "s@x.com" }), ctx)).rejects.toThrow();
+    vi.unstubAllEnvs();
   });
 });
 

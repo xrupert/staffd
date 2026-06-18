@@ -46,6 +46,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "tasks",         label: "Tasks",         collection: "tasks" },
   { route: "leads",         label: "Leads",         collection: "leads" },
   { route: "expenses",      label: "Expenses",      collection: "expenses" },
+  // W95.4b — document signature submission id (builds on documents-v2).
+  { route: "documents-v3", label: "Documents — signature id", collection: "documents", detectField: "docuseal_submission_id", note: "adds docuseal_submission_id to documents" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

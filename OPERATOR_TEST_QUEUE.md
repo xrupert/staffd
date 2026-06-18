@@ -71,6 +71,32 @@ set it so the substrate + any future "connect your tools" path works and the
 - `openssl rand -base64 32` → set `INTEGRATION_ENCRYPTION_KEY` in Vercel (Production + Preview), redeploy.
 - ✅ Expected: a 32-byte base64 value present in prod env.
 
+### 10. Set `DOCUSEAL_TEMPLATE_ID` + run documents-v3 migration (W95.4b prereqs)
+`send_for_signature` needs a Docuseal template to create submissions from.
+- Create a minimal test template in Docuseal; set its numeric id as `DOCUSEAL_TEMPLATE_ID` in Vercel (Production), redeploy.
+- `/dashboard/admin/migrations` → run **Documents — signature id** (`documents-v3`).
+- ✅ Done when: `DOCUSEAL_TEMPLATE_ID` set + documents-v3 shows **Created**.
+
+### 11. W95.4b — Docuseal live round-trip (GATING — I could not run the probe)
+The standalone metadata probe needs a super-admin token I don't hold + Sensitive
+`DOCUSEAL_*` creds, so this smoke IS the live verification (deferred from W95.2).
+- After #10, in Command Center: "Send the test contract to chris.rupert@cybridagency.com for signature".
+- Confirm modal → Legal workflow created; after the Legal task drains, `docuseal_send_worker` fires.
+- ✅ Verify: a real Docuseal email arrives; the `documents` row has `docuseal_submission_id`; in the Docuseal admin the submission carries the `staffdCustomerId` metadata tag; a different customer's filter returns zero (tenant isolation). **If the metadata tag is absent/leaky, STOP and tell SA.**
+
+### 12. W95.4b — draft_campaign smoke
+- Command Center: "Draft a launch email for my newsletter" → confirm modal → "Marketing is drafting…".
+- ✅ Verify: a workflow appears (W92 Workflows tab); after Marketing drains, drafted content lands in `documents`.
+
+### 13. W95.4b — disambiguation smoke
+- Command Center: "John at Acme wants consulting, add him" → **two-option modal** ("Capture as lead" / "Just add contact").
+- ✅ Pick "Capture as lead" → a `leads` row; repeat + pick "Just add contact" → a `contacts` row.
+
+### 14. W95.4b — list views + drawer actions
+- Front Desk → tap the **Tasks** card (whole card is the link) → top-10 list, overdue first.
+- Tap a row → drawer opens (Esc/backdrop closes) → "Mark done" flips status, list refetches.
+- Repeat on **Follow-ups** (test "Reschedule" → opens the date modal) and **Leads** (status changes).
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

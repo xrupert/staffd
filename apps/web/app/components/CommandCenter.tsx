@@ -221,11 +221,12 @@ export default function CommandCenter() {
   const [recipientBusy, setRecipientBusy] = useState(false);
   // W95.1 (Model B3) — conversational intent → confirm-to-commit. Runs
   // alongside the normal routing flow; a parsed intent surfaces this modal.
-  const [pendingIntent, setPendingIntent] = useState<IntentResult | null>(null);
+  const [pendingIntents, setPendingIntents] = useState<IntentResult[]>([]);
   const [intentBusy, setIntentBusy] = useState(false);
 
   // Fire-and-forget intent detection on the user's message (non-blocking on
-  // the normal chat flow). Surfaces ConfirmActionModal when confident.
+  // the normal chat flow). Surfaces ConfirmActionModal — single or, when the
+  // message is ambiguous, a two-option chooser (W95.4b).
   async function detectIntent(message: string) {
     try {
       const res = await fetch("/api/intent/extract", {
@@ -234,22 +235,21 @@ export default function CommandCenter() {
         body: JSON.stringify({ message }),
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { intent: IntentResult | null };
-      if (data.intent) setPendingIntent(data.intent);
+      const data = (await res.json()) as { intents: IntentResult[] };
+      if (data.intents?.length) setPendingIntents(data.intents);
     } catch { /* non-blocking — chat continues regardless */ }
   }
 
-  async function commitIntent(editedFields: Record<string, string>) {
-    if (!pendingIntent) return;
+  async function commitIntent(type: string, editedFields: Record<string, string>) {
     setIntentBusy(true);
     try {
       const res = await fetch("/api/intent/commit", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
-        body: JSON.stringify({ intent_type: pendingIntent.type, fields: editedFields, source: "text" }),
+        body: JSON.stringify({ intent_type: type, fields: editedFields, source: "text" }),
       });
       const ok = res.ok;
-      const t = pendingIntent.type;
+      const data = ok ? ((await res.json().catch(() => ({}))) as { expected_completion_message?: string }) : {};
       const done: Record<string, string> = {
         create_contact: `Added ${editedFields.name} to your contacts.`,
         log_interaction: `Logged your ${editedFields.interaction_type || "interaction"} with ${editedFields.contact_name}.`,
@@ -260,10 +260,12 @@ export default function CommandCenter() {
         update_contact: `Updated ${editedFields.contact_identifier}.`,
         log_expense: `Logged ${editedFields.currency || "$"}${editedFields.amount}${editedFields.category ? ` for ${editedFields.category}` : ""}.`,
       };
-      setPendingIntent(null);
-      setMessages((prev) => [...prev, { role: "assistant", content: ok ? (done[t] ?? "Done — your staff have it.") : "Couldn't save that just now — give it another try." }]);
+      // Delegate intents return a "Marketing is drafting…" style message.
+      const msg = ok ? (data.expected_completion_message ?? done[type] ?? "Done — your staff have it.") : "Couldn't save that just now — give it another try.";
+      setPendingIntents([]);
+      setMessages((prev) => [...prev, { role: "assistant", content: msg }]);
     } catch {
-      setPendingIntent(null);
+      setPendingIntents([]);
       setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't save that just now — give it another try." }]);
     } finally {
       setIntentBusy(false);
@@ -1220,12 +1222,12 @@ export default function CommandCenter() {
         onSubmit={(r) => { void submitRecipientAction(r); }}
       />
 
-      {pendingIntent && (
+      {pendingIntents.length > 0 && (
         <ConfirmActionModal
-          intentResult={pendingIntent}
+          intentOptions={pendingIntents}
           busy={intentBusy}
-          onConfirm={(f) => { void commitIntent(f); }}
-          onCancel={() => { if (!intentBusy) setPendingIntent(null); }}
+          onConfirm={(type, f) => { void commitIntent(type, f); }}
+          onCancel={() => { if (!intentBusy) setPendingIntents([]); }}
         />
       )}
     </div>

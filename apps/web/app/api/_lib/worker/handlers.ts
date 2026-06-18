@@ -13,8 +13,10 @@
  */
 
 import type { WorkflowTask } from "../workflow";
+import { pbEscape } from "../pb";
 import { TwentyClient } from "../integrations/twenty/client";
 import { ListmonkClient } from "../integrations/listmonk/client";
+import { DocusealClient } from "../integrations/docuseal/client";
 import { extractKindFor, extractText } from "../upload/extract";
 
 export type HandlerResult = { text: string; tokensActual: number };
@@ -113,9 +115,41 @@ const twentyUpdate: WorkerHandler = async (task, ctx) => {
   return { text: `updated:${p.twenty_record_id}`, tokensActual: 0 };
 };
 
+// ── docuseal_send (W95.4b) — send a document for signature via the operator-
+// shared Docuseal, tenant-tagged. Chained after the Legal task (depends_on).
+const docusealSend: WorkerHandler = async (task, ctx) => {
+  const p = task.input_payload as { document_identifier?: string; document_id?: string; signer_email?: string; signer_name?: string };
+  if (!p.signer_email) throw new Error("docuseal: missing signer email");
+  const templateId = Number(process.env.DOCUSEAL_TEMPLATE_ID ?? "");
+  if (!templateId || Number.isNaN(templateId)) throw new Error("docuseal: DOCUSEAL_TEMPLATE_ID not configured");
+
+  // Resolve the document row (to stash the submission id back on it).
+  let docId = "";
+  if (p.document_id) {
+    const r = await fetch(`${ctx.pb}/api/collections/documents/records/${p.document_id}`, { headers: { Authorization: ctx.adminToken } });
+    if (r.ok) docId = ((await r.json()) as { id: string }).id;
+  } else if (p.document_identifier) {
+    const f = encodeURIComponent(`user = "${pbEscape(task.user)}" && prompt ~ "${pbEscape(p.document_identifier)}"`);
+    const r = await fetch(`${ctx.pb}/api/collections/documents/records?filter=${f}&perPage=1&fields=id`, { headers: { Authorization: ctx.adminToken } });
+    if (r.ok) docId = (((await r.json()) as { items?: { id: string }[] }).items?.[0])?.id ?? "";
+  }
+
+  const sub = await DocusealClient.forCustomer(task.user).createSubmission({
+    templateId, name: p.document_identifier ?? "Document", signerEmail: p.signer_email, signerName: p.signer_name,
+  });
+  if (!sub) throw new Error("docuseal submission failed");
+  if (docId) {
+    await fetch(`${ctx.pb}/api/collections/documents/records/${docId}`, {
+      method: "PATCH", headers: ctx.authHeaders, body: JSON.stringify({ docuseal_submission_id: String(sub.id) }),
+    });
+  }
+  return { text: `signature-sent:${sub.id}`, tokensActual: 0 };
+};
+
 export const WORKER_HANDLERS: Record<string, WorkerHandler> = {
   mirror_retry_worker: mirrorRetry,
   document_extraction_worker: documentExtraction,
   listmonk_subscribe_worker: listmonkSubscribe,
   twenty_update_worker: twentyUpdate,
+  docuseal_send_worker: docusealSend,
 };

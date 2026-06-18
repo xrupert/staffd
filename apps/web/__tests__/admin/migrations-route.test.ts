@@ -125,6 +125,19 @@ describe("GET status — detectField (schema-extension migration)", () => {
     const data = await (await GET(req())).json() as { migrations: { route: string; status: string }[] };
     expect(find(data.migrations).status).toBe("exists");
   });
+
+  it("documents-v3 reports missing/exists by its own detectField (docuseal_submission_id)", async () => {
+    const findV3 = (ms: { route: string; status: string }[]) => ms.find((m) => m.route === "documents-v3")!;
+    // schema has `file` but NOT docuseal_submission_id → v2 exists, v3 missing
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      if (/\/api\/collections\/documents$/.test(url) && method === "GET") return { ok: true, status: 200, json: async () => ({ fields: [{ name: "file" }] }) };
+      if (/\/records/.test(url) && method === "GET") return { ok: true, status: 200, json: async () => ({ items: [] }) };
+      return { ok: true, json: async () => ({}) };
+    }));
+    const data = await (await GET(req())).json() as { migrations: { route: string; status: string }[] };
+    expect(findV3(data.migrations).status).toBe("missing");
+  });
 });
 
 describe("MIGRATION_REGISTRY", () => {

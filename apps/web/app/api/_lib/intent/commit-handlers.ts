@@ -10,7 +10,7 @@
 
 import { adminHeaders, pbUrl, pbEscape } from "../pb";
 import { recordDecision } from "../vault/outcomes";
-import type { IntentType } from "../orchestrator/intent";
+import { routeTask, DEPARTMENT_DEFAULT_AGENT_IDS, type Department } from "@staffd/agents";
 
 export type CommitCtx = { token: string; userId: string; source: string };
 export type CommitResult =
@@ -46,17 +46,26 @@ function enqueue(specialistId: string, payload: Record<string, unknown>, ctx: Co
   }).catch(() => {});
 }
 
-/** Find this user's contact by email or name. Returns id + twenty mirror id. */
-async function findContact(ctx: CommitCtx, by: { email?: string; name?: string }): Promise<{ id: string; twenty_record_id: string } | null> {
+/** Find this user's contact by email or name. Returns id + email + twenty mirror id. */
+async function findContact(ctx: CommitCtx, by: { email?: string; name?: string }): Promise<{ id: string; email: string; twenty_record_id: string } | null> {
   const ors: string[] = [];
   if (by.email) ors.push(`email = "${pbEscape(by.email)}"`);
   if (by.name) ors.push(`name = "${pbEscape(by.name)}"`);
   if (ors.length === 0) return null;
   const filter = encodeURIComponent(`user = "${pbEscape(ctx.userId)}" && (${ors.join(" || ")})`);
-  const res = await fetch(`${pbUrl()}/api/collections/contacts/records?filter=${filter}&perPage=1&fields=id,twenty_record_id`, { headers: { Authorization: ctx.token } });
+  const res = await fetch(`${pbUrl()}/api/collections/contacts/records?filter=${filter}&perPage=1&fields=id,email,twenty_record_id`, { headers: { Authorization: ctx.token } });
   if (!res.ok) return null;
-  const row = ((await res.json()) as { items?: { id: string; twenty_record_id?: string }[] }).items?.[0];
-  return row ? { id: row.id, twenty_record_id: row.twenty_record_id ?? "" } : null;
+  const row = ((await res.json()) as { items?: { id: string; email?: string; twenty_record_id?: string }[] }).items?.[0];
+  return row ? { id: row.id, email: row.email ?? "", twenty_record_id: row.twenty_record_id ?? "" } : null;
+}
+
+/** Load a row and confirm it belongs to the requesting user (defensive — row
+ *  rules already enforce, but status handlers double-check). */
+async function pbGetOwned(collection: string, id: string, ctx: CommitCtx): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${pbUrl()}/api/collections/${collection}/records/${id}`, { headers: { Authorization: ctx.token } });
+  if (!res.ok) return null;
+  const row = (await res.json()) as Record<string, unknown>;
+  return row.user === ctx.userId ? row : null;
 }
 
 function decide(ctx: CommitCtx, kind: string, title: string, sourceId: string): void {
@@ -106,7 +115,7 @@ const addToEmailList: CommitHandler = async (f, ctx) => {
   if (!contact) {
     const rec = await pbCreate("contacts", { user: ctx.userId, name: f.name ?? email, email, twenty_mirror_status: "pending" }, ctx.token);
     if (!rec.ok) return { ok: false, status: 502, error: "save_failed" };
-    contact = { id: rec.id, twenty_record_id: "" };
+    contact = { id: rec.id, email, twenty_record_id: "" };
     enqueue("mirror_retry_worker", { vendor: "twenty", record_id: rec.id, fields: { name: f.name ?? email, email } }, ctx);
   }
   // Listmonk subscribe — on the bus (Standard #20), no inline vendor call.
@@ -170,7 +179,76 @@ const logExpense: CommitHandler = async (f, ctx) => {
   return { ok: true, record_id: rec.id };
 };
 
-export const COMMIT_HANDLERS: Record<IntentType, CommitHandler> = {
+// ── delegate-to-specialist (W95.4b) — create a workflow + first task(s) on the
+// W71/W72 substrate; the specialist does the work, W72 reconcile enriches Vault.
+async function createWorkflow(name: string, rootGoal: string, ctx: CommitCtx): Promise<string> {
+  const wf = await pbCreate("workflows", { user: ctx.userId, name, status: "pending", root_goal: rootGoal, started_at: nowIso() }, ctx.token);
+  return wf.ok ? wf.id : "";
+}
+async function createTaskRow(wfId: string, specialistId: string, dept: string, payload: Record<string, unknown>, dependsOn: string[], ctx: CommitCtx): Promise<string> {
+  const t = await pbCreate("workflow_tasks", {
+    workflow_id: wfId, user: ctx.userId, specialist_id: specialistId, department_id: dept,
+    input_payload: payload, output_payload: null, status: "pending", depends_on: dependsOn,
+    retry_count: 0, error: "", started_at: "", completed_at: "", cost_estimate_tokens: 0, cost_actual_tokens: 0,
+  }, ctx.token);
+  return t.ok ? t.id : "";
+}
+function specialistFor(dept: Department, text: string): string {
+  try { const m = routeTask(text, dept); if (m?.id) return m.id; } catch { /* fall through */ }
+  return DEPARTMENT_DEFAULT_AGENT_IDS[dept];
+}
+
+const draftCampaign: CommitHandler = async (f, ctx) => {
+  const summary = (f.message_summary ?? "").trim();
+  if (!summary) return { ok: false, status: 400, error: "message_summary_required" };
+  const wfId = await createWorkflow(`Email campaign — ${f.occasion || summary.slice(0, 40)}`, summary, ctx);
+  if (!wfId) return { ok: false, status: 502, error: "workflow_create_failed" };
+  const agent = specialistFor("marketing", summary);
+  const task = `Draft an email campaign. Goal: ${summary}.${f.occasion ? ` Occasion: ${f.occasion}.` : ""}${f.subject_hint ? ` Subject idea: ${f.subject_hint}.` : ""} Audience: ${f.target_audience || "all subscribers"}.`;
+  await createTaskRow(wfId, agent, "marketing", { task, fields: f }, [], ctx);
+  return { ok: true, record_id: wfId, extra: { workflow_id: wfId, expected_completion_message: "Marketing is drafting your campaign — I'll let you know when it's ready." } };
+};
+
+const sendForSignature: CommitHandler = async (f, ctx) => {
+  const docId = (f.document_identifier ?? "").trim();
+  if (!docId) return { ok: false, status: 400, error: "document_identifier_required" };
+  // Resolve signer email: explicit > contact lookup by name/email.
+  let signerEmail = (f.signer_email ?? "").trim();
+  if (!signerEmail) {
+    const ref = (f.signer_contact ?? f.signer_name ?? "").trim();
+    if (ref) { const c = await findContact(ctx, { email: ref, name: ref }); signerEmail = c?.email ?? ""; }
+  }
+  const wfId = await createWorkflow(`Signature — ${docId.slice(0, 40)}`, `Send "${docId}" for signature`, ctx);
+  if (!wfId) return { ok: false, status: 502, error: "workflow_create_failed" };
+  // Task 1: Legal prepares/reviews the document.
+  const legalTask = await createTaskRow(wfId, specialistFor("legal", `prepare ${docId} for signature`), "legal", { task: `Prepare "${docId}" for signature${f.notes ? ` (${f.notes})` : ""}.`, fields: f }, [], ctx);
+  // Task 2: Docuseal send — depends on the Legal task completing first.
+  await createTaskRow(wfId, "docuseal_send_worker", "system", { document_identifier: docId, signer_email: signerEmail, signer_name: f.signer_name ?? "" }, legalTask ? [legalTask] : [], ctx);
+  decide(ctx, "signature_requested", `Requested signature on "${docId}"${signerEmail ? ` from ${signerEmail}` : ""}`, wfId);
+  return { ok: true, record_id: wfId, extra: { workflow_id: wfId, expected_completion_message: "Legal is preparing your document for signature — I'll let you know once it's sent." } };
+};
+
+const delegate = (subtype: string): CommitHandler => (subtype === "draft_campaign" ? draftCampaign : sendForSignature);
+
+// ── status updates (W95.4b) — UI-triggered from list drawers, not extracted.
+// STAFFD-native only, no vendor mirror. Ownership double-checked defensively.
+function statusHandler(collection: string, idKey: string, kind: string): CommitHandler {
+  return async (f, ctx) => {
+    const id = (f[idKey] ?? "").trim();
+    const status = (f.new_status ?? "").trim();
+    if (!id || !status) return { ok: false, status: 400, error: "id_and_status_required" };
+    const owned = await pbGetOwned(collection, id, ctx);
+    if (!owned) return { ok: false, status: 404, error: "not_found" };
+    const patch: Record<string, unknown> = { status };
+    if (collection === "followups" && f.new_due_date) patch.due_date = f.new_due_date;
+    const ok = await pbPatch(collection, id, patch, ctx.token);
+    if (!ok) return { ok: false, status: 502, error: "save_failed" };
+    decide(ctx, kind, `${collection.slice(0, -1)} → ${status}`, id);
+    return { ok: true, record_id: id };
+  };
+}
+
+export const COMMIT_HANDLERS: Record<string, CommitHandler> = {
   create_contact: createContact,
   log_interaction: logInteraction,
   schedule_followup: scheduleFollowup,
@@ -179,4 +257,11 @@ export const COMMIT_HANDLERS: Record<IntentType, CommitHandler> = {
   capture_lead: captureLead,
   update_contact: updateContact,
   log_expense: logExpense,
+  // delegate intents → workflow creation
+  draft_campaign: delegate("draft_campaign"),
+  send_for_signature: delegate("send_for_signature"),
+  // UI-triggered status updates (list-view drawers)
+  update_task_status: statusHandler("tasks", "task_id", "task_status_changed"),
+  update_followup_status: statusHandler("followups", "followup_id", "followup_status_changed"),
+  update_lead_status: statusHandler("leads", "lead_id", "lead_status_changed"),
 };

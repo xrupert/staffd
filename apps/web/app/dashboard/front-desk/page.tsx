@@ -158,9 +158,9 @@ export default function FrontDeskHome() {
               <>
                 <p className="text-xs font-semibold uppercase tracking-widest mt-8 mb-3" style={{ color: "#5B21E8" }}>Your work</p>
                 <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
-                  <WorkCard icon="✅" title="Tasks" primary={`${work.tasks.pending} open`} ask="Show me my open tasks" />
-                  <WorkCard icon="🔔" title="Follow-ups" primary={`${work.followups.upcoming} upcoming`} secondary={work.followups.overdue ? `${work.followups.overdue} overdue` : undefined} ask="What follow-ups do I have coming up?" />
-                  <WorkCard icon="🌱" title="Leads" primary={`${work.leads.new} new`} secondary={[work.leads.qualified ? `${work.leads.qualified} qualified` : "", work.leads.converted ? `${work.leads.converted} won` : ""].filter(Boolean).join(" · ") || undefined} ask="Walk me through my open leads" />
+                  <WorkCard icon="✅" title="Tasks" primary={`${work.tasks.pending} open`} href="/dashboard/front-desk/tasks" />
+                  <WorkCard icon="🔔" title="Follow-ups" primary={`${work.followups.upcoming} upcoming`} secondary={work.followups.overdue ? `${work.followups.overdue} overdue` : undefined} href="/dashboard/front-desk/followups" />
+                  <WorkCard icon="🌱" title="Leads" primary={`${work.leads.new} new`} secondary={[work.leads.qualified ? `${work.leads.qualified} qualified` : "", work.leads.converted ? `${work.leads.converted} won` : ""].filter(Boolean).join(" · ") || undefined} href="/dashboard/front-desk/leads" />
                 </div>
               </>
             )}
@@ -171,19 +171,19 @@ export default function FrontDeskHome() {
   );
 }
 
-function WorkCard({ icon, title, primary, secondary, ask }: { icon: string; title: string; primary: string; secondary?: string; ask: string }) {
+function WorkCard({ icon, title, primary, secondary, href }: { icon: string; title: string; primary: string; secondary?: string; href: string }) {
+  // Standard #27 — the entire card is the click target (Fitts' Law); the visible
+  // count links straight to its list view (Jakob's/Goal-Gradient — no dead-end).
   return (
-    <div style={cardStyle}>
+    <a href={href} style={{ ...cardStyle, display: "block", textDecoration: "none" }} className="transition-colors hover:border-[#5B21E8]/50">
       <div className="flex items-center gap-2 mb-2">
         <span style={{ fontSize: "16px" }}>{icon}</span>
         <p className="font-semibold text-sm" style={{ color: "#F0F0F8" }}>{title}</p>
       </div>
       <p className="text-sm font-medium" style={{ color: "#F0F0F8" }}>{primary}</p>
       {secondary && <p className="text-xs mt-0.5" style={{ color: "#E0B060" }}>{secondary}</p>}
-      <a href={`/dashboard?ask=${encodeURIComponent(ask)}`} className="text-xs px-3 py-1.5 rounded-lg inline-block mt-3 transition-colors hover:text-white" style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.30)", color: "#A07BFF", textDecoration: "none" }}>
-        Ask your staff →
-      </a>
-    </div>
+      <p className="text-xs mt-3" style={{ color: "#A07BFF" }}>View all →</p>
+    </a>
   );
 }
 
