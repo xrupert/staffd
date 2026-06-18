@@ -23,7 +23,6 @@ import pb from "../../../lib/pb";
 import {
   buildSpecialistPrompt,
   summarizeEmail,
-  summarizeAnalytics,
   frontDeskEmptyStates,
   type OpsCard,
 } from "../../../lib/operations";
@@ -74,7 +73,19 @@ export default function FrontDeskHome() {
     if (!authed) return;
 
     void loadCard("/api/integrations/listmonk", setEmail, (d) => summarizeEmail(d as never));
-    void loadCard("/api/integrations/plausible", setAnalytics, (d) => summarizeAnalytics(d as never));
+
+    // W95.6.y — Site Analytics reads the customer's OWN site (site-per-customer).
+    // No provisioned site → empty state; else visitors/pageviews summary.
+    void (async () => {
+      try {
+        const res = await fetch("/api/front-desk/analytics?period=7d", { headers: { Authorization: pb.authStore.token } });
+        if (!res.ok) { setAnalytics({ summary: "", connected: false, loading: false }); return; }
+        const d = (await res.json()) as { hasSite: boolean; aggregate?: { visitors: number; pageviews: number } | null };
+        if (!d.hasSite) { setAnalytics({ summary: "", connected: false, loading: false }); return; }
+        const a = d.aggregate;
+        setAnalytics({ summary: `${a?.visitors ?? 0} visitor${a?.visitors === 1 ? "" : "s"}, ${a?.pageviews ?? 0} pageview${a?.pageviews === 1 ? "" : "s"} (7d).`, connected: true, loading: false });
+      } catch { setAnalytics({ summary: "", connected: false, loading: false }); }
+    })();
 
     // W95.6 — Support Inbox reads the customer's OWN Chatwoot inbox (inbox-per-
     // customer partition), not the operator-wide route. Empty → empty state;

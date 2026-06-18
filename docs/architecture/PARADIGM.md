@@ -69,6 +69,31 @@ pattern without SA review. If you find yourself writing a second `if
 (type === …)` ladder or a parallel handler map, stop — append to the existing
 registry, or consult SA before adding a new one.
 
+### Recipe-driven workflow assembly
+
+The registry pattern composes vertically, not just horizontally. A single
+customer intent can fan out into a *chain* of workers, and which second worker
+fires is itself a registry lookup — the **recipe** (W95.6.x).
+
+A commit handler stamps a `recipe_id` on the workflow it creates (e.g.
+`reply_to_ticket`, `send_for_signature`). When the workflow's review step is
+approved, `app/api/workflows/[id]/[action]/route.ts` reads that `recipe_id`
+through the `SECOND_WORKER` map to decide which worker carries out the
+customer-facing side effect:
+
+| `recipe_id` | second worker |
+|---|---|
+| `reply_to_ticket` | `chatwoot_send_worker` |
+| `send_for_signature` | `docuseal_send_worker` |
+
+This keeps the *first* worker (drafting) and the *second* worker (the audited,
+vendor-touching send) decoupled: the review gate sits between them, and the
+draft is frozen until a human approves. Adding a new recipe = append one
+`SECOND_WORKER` entry (plus the drafting worker it points at). Note `SECOND_WORKER`
+is a `const` map colocated with the approve/cancel route — **not** a separate
+registry beside `WORKER_HANDLERS` — because it is purely the review-resume edge,
+not a dispatch surface of its own.
+
 ## What this paradigm is NOT
 
 - **Not blockchain** — no crypto chaining, consensus, or distributed ledger.

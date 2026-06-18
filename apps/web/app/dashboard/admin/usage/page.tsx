@@ -18,7 +18,7 @@ import { usageBadge, type UserType } from "../../../api/_lib/usage";
 const card: React.CSSProperties = { background: "#111118", border: "1px solid #2A2A38", borderRadius: "16px", padding: "20px" };
 const tabBtn = (on: boolean): React.CSSProperties => ({ background: on ? "rgba(91,33,232,0.15)" : "#1A1A24", border: `1px solid ${on ? "rgba(91,33,232,0.5)" : "#2A2A38"}`, color: on ? "#A07BFF" : "#7070A0", borderRadius: "10px", padding: "8px 14px", fontSize: "13px", cursor: "pointer" });
 
-type Roster = { id: string; email: string; type: UserType; plan: string; lastActivity: string | null; docCount: number; churn: string; isOperator: boolean };
+type Roster = { id: string; email: string; type: UserType; plan: string; lastActivity: string | null; docCount: number; churn: string; isOperator: boolean; plausibleSiteId: string | null };
 type Usage = {
   users: { total: number; byType: Record<string, number>; byPlan: Record<string, number>; activity: Record<string, number>; churn: { expired: number; expiring: number }; roster: Roster[] };
   departments: { byDept: { department: string; count: number; lastAt: string }[]; specialists: { agent_name: string; department: string; count: number }[] };
@@ -93,6 +93,30 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 
 function UsersTab({ d, onOpen }: { d: Usage["users"]; onOpen: (id: string) => void }) {
+  // W95.6.y — operator-side Plausible site provisioning. The CE has no Sites
+  // API, so the operator creates the site manually then stores its id here.
+  // Local roster state so saves/clears reflect immediately without a refetch.
+  const [roster, setRoster] = useState<Roster[]>(d.roster);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [val, setVal] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const save = useCallback(async (userId: string, siteId: string) => {
+    setBusy(true);
+    try {
+      const trimmed = siteId.trim();
+      const res = await fetch(`/api/admin/plausible/${encodeURIComponent(userId)}`, {
+        method: trimmed ? "POST" : "DELETE",
+        headers: { Authorization: pb.authStore.token, "Content-Type": "application/json" },
+        body: trimmed ? JSON.stringify({ site_id: trimmed }) : undefined,
+      });
+      if (res.ok) {
+        setRoster((rs) => rs.map((r) => (r.id === userId ? { ...r, plausibleSiteId: trimmed || null } : r)));
+        setEditing(null);
+      }
+    } finally { setBusy(false); }
+  }, []);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -112,17 +136,46 @@ function UsersTab({ d, onOpen }: { d: Usage["users"]; onOpen: (id: string) => vo
           <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6060A0" }}>Roster</p>
           <p className="text-xs" style={{ color: "#5A5A70" }}>{Object.entries(d.byPlan).filter(([, n]) => n > 0).map(([p, n]) => `${p}: ${n}`).join(" · ")}</p>
         </div>
+        <p className="text-xs mb-2" style={{ color: "#5A5A70" }}>
+          <span style={{ color: "#22C55E" }}>●</span> = site analytics provisioned. Click the dot to set/clear a customer&apos;s Plausible site id (operator creates the site manually — there&apos;s no Sites API).
+        </p>
         <div className="flex flex-col gap-1">
-          {d.roster.map((u) => {
+          {roster.map((u) => {
             const badge = usageBadge(u.type);
+            const hasSite = !!u.plausibleSiteId;
+            const isEditing = editing === u.id;
             return (
-              <button key={u.id} onClick={() => onOpen(u.id)} className="text-left flex items-center justify-between gap-3 px-3 py-2 rounded-lg hover:bg-white/5" style={{ background: u.isOperator ? "rgba(91,33,232,0.05)" : "transparent", border: "1px solid #1E1E2A", cursor: "pointer" }}>
-                <span className="min-w-0 flex items-center gap-2">
-                  {badge && <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: `${badge.color}22`, color: badge.color, border: `1px solid ${badge.color}55` }}>{badge.label}</span>}
-                  <span className="text-xs truncate" style={{ color: "#D0D0E8" }}>{u.email}</span>
-                </span>
-                <span className="text-xs flex-shrink-0" style={{ color: "#5A5A70" }}>{u.plan} · {u.docCount} docs · {u.lastActivity ? new Date(u.lastActivity).toLocaleDateString() : "never"}</span>
-              </button>
+              <div key={u.id} className="flex flex-col rounded-lg" style={{ background: u.isOperator ? "rgba(91,33,232,0.05)" : "transparent", border: "1px solid #1E1E2A" }}>
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
+                  <button onClick={() => onOpen(u.id)} className="text-left min-w-0 flex items-center gap-2 flex-1" style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    {badge && <span className="text-xs px-1.5 py-0.5 rounded flex-shrink-0" style={{ background: `${badge.color}22`, color: badge.color, border: `1px solid ${badge.color}55` }}>{badge.label}</span>}
+                    <span className="text-xs truncate" style={{ color: "#D0D0E8" }}>{u.email}</span>
+                  </button>
+                  <span className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs" style={{ color: "#5A5A70" }}>{u.plan} · {u.docCount} docs · {u.lastActivity ? new Date(u.lastActivity).toLocaleDateString() : "never"}</span>
+                    <button
+                      onClick={() => { setEditing(isEditing ? null : u.id); setVal(u.plausibleSiteId ?? ""); }}
+                      title={hasSite ? `Site: ${u.plausibleSiteId}` : "No site analytics — click to provision"}
+                      className="text-sm flex-shrink-0"
+                      style={{ background: "none", border: "none", cursor: "pointer", color: hasSite ? "#22C55E" : "#3A3A4A", lineHeight: 1 }}
+                    >●</button>
+                  </span>
+                </div>
+                {isEditing && (
+                  <div className="flex items-center gap-2 px-3 pb-2.5">
+                    <input
+                      value={val}
+                      onChange={(e) => setVal(e.target.value)}
+                      placeholder="plausible site id (e.g. acme.com)"
+                      className="text-xs flex-1 rounded-lg px-2.5 py-1.5"
+                      style={{ background: "#0E0E16", border: "1px solid #2A2A38", color: "#D0D0E8", outline: "none" }}
+                    />
+                    <button onClick={() => void save(u.id, val)} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg btn-primary text-white font-semibold" style={{ opacity: busy ? 0.5 : 1 }}>Save</button>
+                    {hasSite && <button onClick={() => void save(u.id, "")} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#F59E0B", opacity: busy ? 0.5 : 1, cursor: "pointer" }}>Clear</button>}
+                    <button onClick={() => setEditing(null)} className="text-xs px-2 py-1.5 rounded-lg" style={{ background: "none", border: "none", color: "#5A5A70", cursor: "pointer" }}>Cancel</button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

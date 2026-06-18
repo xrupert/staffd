@@ -80,8 +80,9 @@ export async function GET(req: Request) {
   type WfRow = { user: string; status: string; created: string; completed_at?: string | null };
   type DecRow = { decision_kind?: string; user?: string };
   type LogRow = { operation_detail?: string; created?: string; user?: string };
+  type BizRow = { user: string; plausible_site_id?: string };
 
-  const [users, subs, docs, convos, workflows, decisions, transitions, taskTotal, taskSucceeded] = await Promise.all([
+  const [users, subs, docs, convos, workflows, decisions, transitions, businesses, taskTotal, taskSucceeded] = await Promise.all([
     listItems<UserRow>(`${pb}/api/collections/users/records?perPage=${USER_CAP}&fields=id,email,created&sort=-created`, token), // Capped at USER_CAP — paginate at scale.
     listItems<SubRow>(`${pb}/api/collections/subscriptions/records?perPage=${USER_CAP}&fields=user,plan,active_until,image_credits_used,video_credits_used,agent_credits_topup`, token),
     listItems<DocRow>(`${pb}/api/collections/documents/records?perPage=${DOC_CAP}&fields=user,department,agent_name,created&sort=-created`, token), // Capped at DOC_CAP — paginate at scale.
@@ -89,6 +90,7 @@ export async function GET(req: Request) {
     listItems<WfRow>(`${pb}/api/collections/workflows/records?perPage=${WF_CAP}&fields=user,status,created,completed_at&sort=-created`, token), // Capped at WF_CAP — paginate at scale.
     listItems<DecRow>(`${pb}/api/collections/vault_decisions/records?perPage=${DECISION_CAP}&fields=decision_kind,user`, token), // Capped at DECISION_CAP — paginate at scale.
     listItems<LogRow>(`${pb}/api/collections/super_admin_usage_log/records?filter=${encodeURIComponent(`operation_type = "workflow_transition"`)}&perPage=${TRANSITION_RECENT}&sort=-created&fields=operation_detail,created,user`, token),
+    listItems<BizRow>(`${pb}/api/collections/businesses/records?perPage=${USER_CAP}&fields=user,plausible_site_id`, token), // W95.6.y — site-per-customer provisioning state.
     totalItems(`${pb}/api/collections/workflow_tasks/records?perPage=1&fields=id`, token),
     totalItems(`${pb}/api/collections/workflow_tasks/records?filter=${encodeURIComponent(`status = "succeeded"`)}&perPage=1&fields=id`, token),
   ]);
@@ -105,6 +107,10 @@ export async function GET(req: Request) {
 
   const subByUser = new Map<string, SubRow>();
   for (const s of subs) subByUser.set(s.user, s);
+
+  // W95.6.y — per-customer Plausible site id (operator-provisioned, no Sites API).
+  const plausibleByUser = new Map<string, string>();
+  for (const b of businesses) if (b.plausible_site_id) plausibleByUser.set(b.user, b.plausible_site_id);
 
   // ── Tab 1: Users ──
   const byType: Record<UserType, number> = { "super-admin": 0, comp: 0, customer: 0 };
@@ -127,7 +133,7 @@ export async function GET(req: Request) {
     if (churn === "expired") expired++;
     else if (churn === "expiring") expiring++;
     if (roster.length < ROSTER_CAP) {
-      roster.push({ id: u.id, email: u.email, type, plan, lastActivity: last, docCount: docCountByUser.get(u.id) ?? 0, churn, isOperator: type !== "customer" });
+      roster.push({ id: u.id, email: u.email, type, plan, lastActivity: last, docCount: docCountByUser.get(u.id) ?? 0, churn, isOperator: type !== "customer", plausibleSiteId: plausibleByUser.get(u.id) ?? null });
     }
   }
 

@@ -75,6 +75,10 @@ function stubPb(now = "2026-06-16T00:00:00Z") {
     if (u.includes("super_admin_usage_log")) return json({ items: [
       { operation_detail: "wf-1: running → completed", created: "2026-06-15T00:00:00Z", user: "u1" },
     ] });
+    if (u.includes("/businesses/records")) return json({ items: [
+      { user: "u1", plausible_site_id: "acme.com" }, // W95.6.y — provisioned
+      { user: "u2", plausible_site_id: "" },          // not provisioned
+    ] });
     return json({ items: [], totalItems: 0 });
   });
 }
@@ -111,6 +115,10 @@ describe("GET /api/admin/usage", () => {
     expect(operatorRow.plan).toBe("agency"); // W92.1 — operator shows effective Agency tier
     const compRow = d.users.roster.find((r: { email: string }) => r.email.includes("jrw-solutions"));
     expect(compRow.plan).toBe("agency"); // comp user shows Agency, not stored "starter"
+    // W95.6.y — roster carries per-user Plausible provisioning state.
+    const custRow = d.users.roster.find((r: { id: string }) => r.id === "u1");
+    expect(custRow.plausibleSiteId).toBe("acme.com");
+    expect(compRow.plausibleSiteId).toBeNull();
     // Tab 2 — Departments
     expect(d.departments.byDept.find((x: { department: string }) => x.department === "marketing").count).toBe(2);
     expect(d.departments.specialists[0]).toHaveProperty("agent_name");

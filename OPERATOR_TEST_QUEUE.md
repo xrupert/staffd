@@ -135,6 +135,18 @@ Same blocker as Docuseal: no super-admin token + Sensitive `CHATWOOT_*` creds, s
 - **send_for_signature retroactive review:** re-run a signature request → Legal's draft now pauses at **Drafts** → Approve before Docuseal sends.
 - ✅ Confirm tombstone-on-cancel: cancel a draft, then confirm the send never fires.
 
+### 23. W95.6.y — per-customer Site Analytics + operator provisioning
+- Run **Businesses — analytics site id** (`businesses-v3`) via `/dashboard/admin/migrations`.
+- **Provision a site (operator):** in the real Plausible admin, create a site for a test customer's domain. Then `/dashboard/admin/usage` → **Users** tab → click the **●** dot on that customer's row → paste the Plausible site id → **Save**. The dot turns green.
+- **Customer view:** as that customer, Front Desk → the **Site Analytics** card shows a real visitors/pageviews summary → click **Open analytics →** → `/dashboard/front-desk/analytics` renders 4 metric cards + visitor sparkline + Top pages / Top sources, with a 7d/30d toggle. **Zero "Plausible" branding** anywhere customer-facing.
+- **Empty state:** a customer with NO provisioned site sees "Site tracking isn't set up yet — your specialist can help connect your site" + an **Ask your specialist →** link (no error, no vendor name).
+- **Clear:** back in admin Users, open the dot → **Clear** → dot greys out → customer reverts to the empty state.
+
+### 24. W95.6.y — Plausible CE live probe (could not run — same creds blocker)
+No super-admin token + Sensitive `PLAUSIBLE_*` creds, so the live read is yours to verify.
+- ✅ Confirm the CE Stats API shape matches what `PlausibleClient` expects: `/api/v1/stats/aggregate` returns `{results:{visitors:{value},pageviews:{value},bounce_rate:{value},visit_duration:{value}}}`; `/timeseries` returns `{results:[{date,visitors,pageviews}]}`; `/breakdown?property=event:page|visit:source` returns `{results:[{page|source,visitors}]}`. If the CE version differs (e.g. v2 Stats API), tell me and I'll repoint the mapping.
+- ✅ Tenant isolation: a customer's analytics page shows ONLY their own `site_id`'s stats; a different customer with a different `site_id` sees different data; an unprovisioned customer never sees another tenant's numbers.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

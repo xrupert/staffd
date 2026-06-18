@@ -147,4 +147,11 @@ describe("MIGRATION_REGISTRY", () => {
     expect(MIGRATION_REGISTRY.find((m) => m.route === "admin-migration-log")!.bootstrap).toBe(true);
     expect(MIGRATION_REGISTRY.find((m) => m.route === "contacts")!.bootstrap).toBeFalsy();
   });
+
+  it("includes the W95.6.y businesses-v3 site-id migration (detectField guards idempotency)", () => {
+    const v3 = MIGRATION_REGISTRY.find((m) => m.route === "businesses-v3")!;
+    expect(v3).toBeTruthy();
+    expect(v3.collection).toBe("businesses");
+    expect(v3.detectField).toBe("plausible_site_id"); // re-runs report "exists" once the field is present
+  });
 });
