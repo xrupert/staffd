@@ -23,7 +23,6 @@ import pb from "../../../lib/pb";
 import {
   buildSpecialistPrompt,
   summarizeEmail,
-  summarizeInbox,
   summarizeAnalytics,
   frontDeskEmptyStates,
   type OpsCard,
@@ -73,8 +72,23 @@ export default function FrontDeskHome() {
     if (!authed) return;
 
     void loadCard("/api/integrations/listmonk", setEmail, (d) => summarizeEmail(d as never));
-    void loadCard("/api/integrations/chatwoot?status=open", setInbox, (d) => summarizeInbox(d as never));
     void loadCard("/api/integrations/plausible", setAnalytics, (d) => summarizeAnalytics(d as never));
+
+    // W95.6 — Support Inbox reads the customer's OWN Chatwoot inbox (inbox-per-
+    // customer partition), not the operator-wide route. Empty → empty state;
+    // with data → "X open · latest from Y about Z".
+    void (async () => {
+      try {
+        const res = await fetch("/api/front-desk/inbox", { headers: { Authorization: pb.authStore.token } });
+        if (!res.ok) { setInbox({ summary: "", connected: false, loading: false }); return; }
+        const d = (await res.json()) as { conversations?: { sender: string; snippet: string }[] };
+        const convos = d.conversations ?? [];
+        if (convos.length === 0) { setInbox({ summary: "", connected: false, loading: false }); return; }
+        const top = convos[0]!;
+        const about = top.snippet ? ` about "${top.snippet}"` : "";
+        setInbox({ summary: `${convos.length} open · latest from ${top.sender}${about}.`, connected: true, loading: false });
+      } catch { setInbox({ summary: "", connected: false, loading: false }); }
+    })();
 
     // W95.1 — Sales Pipeline reads STAFFD-native contacts (Model B3 source of
     // truth), not the vendor backend. Empty (total 0) → the "no contacts yet"
@@ -150,7 +164,7 @@ export default function FrontDeskHome() {
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
               <OpsCardView title="Email Campaigns" icon="📧" card="email" state={email} drill={{ href: "/dashboard/front-desk/campaigns", label: "Open campaigns →" }} />
               <OpsCardView title="Sales Pipeline" icon="📇" card="pipeline" state={pipeline} />
-              <OpsCardView title="Support Inbox" icon="🎫" card="inbox" state={inbox} />
+              <OpsCardView title="Support Inbox" icon="🎫" card="inbox" state={inbox} drill={{ href: "/dashboard/front-desk/inbox", label: "Open inbox →" }} />
               <OpsCardView title="Site Analytics" icon="📈" card="analytics" state={analytics} drill={{ href: "/dashboard/front-desk/analytics", label: "Open analytics →" }} />
             </div>
 

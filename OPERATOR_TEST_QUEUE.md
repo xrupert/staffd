@@ -118,6 +118,16 @@ The standalone metadata probe needs a super-admin token I don't hold + Sensitive
 ### 19. W95.5 — super-admin activity log
 - `/dashboard/admin/activity` (super-admin) → recent autopilot fires listed with status; **Undo** works on rows still in-window.
 
+### 20. W95.6 — Chatwoot read live smoke
+- Run **Businesses — support inbox id** (`businesses-v2`) via `/dashboard/admin/migrations`.
+- Front Desk → click the **Support Inbox** card → `/dashboard/front-desk/inbox`.
+- ✅ At least one conversation renders (if none, create one in the Chatwoot admin against the `staffd-<userId>` inbox first). Click a row → drawer shows the thread oldest-first. **Reply** is disabled with a "coming in next update" tooltip. **Zero "Chatwoot" branding** anywhere.
+
+### 21. W95.6 — Chatwoot live probe (GATING W95.6.1 — I could not run it)
+Same blocker as Docuseal: no super-admin token + Sensitive `CHATWOOT_*` creds, so this is the live verification.
+- Manually exercise `ChatwootClient` against the operator instance: `findOrCreateInbox()` creates an inbox named **`staffd-<userId>`**; `listConversations()` filtered by that inbox returns **ONLY this customer's** conversations.
+- ✅ Tenant isolation: a different `staffdCustomerId` (different user) sees a different/empty inbox. **If isolation fails, STOP before W95.6.1 ships reply/resolve.**
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

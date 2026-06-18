@@ -51,6 +51,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   // W95.5 — progressive autopilot.
   { route: "autopilot-prefs",     label: "Autopilot preferences", collection: "autopilot_prefs" },
   { route: "autopilot-audit-log", label: "Autopilot audit log",   collection: "autopilot_audit_log" },
+  // W95.6 — Chatwoot inbox-per-customer id on businesses.
+  { route: "businesses-v2", label: "Businesses — support inbox id", collection: "businesses", detectField: "chatwoot_inbox_id", note: "adds chatwoot_inbox_id to businesses" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",
