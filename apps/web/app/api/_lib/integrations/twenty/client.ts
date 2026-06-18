@@ -79,6 +79,27 @@ export class TwentyClient {
     return rec?.id ?? null;
   }
 
+  /**
+   * Update an existing tenant Person by its Twenty id (W95.4a). Returns true on
+   * success. The id was minted for THIS tenant on create; we still scope writes
+   * to fields only (the tenant tag is immutable). Returns false on failure.
+   */
+  async updatePerson(personId: string, input: { name?: string; email?: string; phone?: string }): Promise<boolean> {
+    const id = (personId ?? "").trim();
+    if (!id) return false;
+    const data: Record<string, unknown> = {};
+    if (input.name) data.name = { firstName: input.name, lastName: "" };
+    if (input.email) data.emails = { primaryEmail: input.email };
+    if (input.phone) data.phones = { primaryPhoneNumber: input.phone };
+    if (Object.keys(data).length === 0) return true; // nothing to change
+
+    const res = await twentyGraphql(
+      `mutation Update($id: UUID!, $data: PersonUpdateInput!) { updatePerson(id: $id, data: $data) { id } }`,
+      { id, data },
+    );
+    return !!res && !res.errors?.length && !!(res.data?.updatePerson as { id?: string } | undefined)?.id;
+  }
+
   /** List this tenant's people only — filter is always injected. */
   async listPeople(limit = 25): Promise<TwentyPerson[]> {
     const res = await twentyGraphql(

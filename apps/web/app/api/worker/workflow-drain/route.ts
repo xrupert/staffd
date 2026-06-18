@@ -24,8 +24,7 @@ import type {
   ReconcileDeps,
 } from "../../_lib/workflow";
 import { logWorkflowTransition } from "../../_lib/auth/super-admin-logging";
-import { TwentyClient } from "../../_lib/integrations/twenty/client";
-import { extractKindFor, extractText } from "../../_lib/upload/extract";
+import { WORKER_HANDLERS } from "../../_lib/worker/handlers";
 
 const TASKS_PER_TICK = 10;
 
@@ -109,63 +108,12 @@ export async function GET(req: Request) {
     },
 
     runAgent: async (task: WorkflowTask) => {
-      // W95.2 — mirror-retry tasks are NOT agent work. Re-attempt the vendor
-      // mirror (currently Twenty contacts) and patch the STAFFD-native row on
-      // success. Throwing lets W71's retry/exhaustion handle repeated failure.
-      if (task.specialist_id === "mirror_retry_worker") {
-        const p = task.input_payload as { vendor?: string; record_id?: string; fields?: { name?: string; email?: string; phone?: string } };
-        if (p.vendor === "twenty" && p.record_id && p.fields?.name) {
-          const twentyId = await TwentyClient.forCustomer(task.user).createPerson({ name: p.fields.name, email: p.fields.email, phone: p.fields.phone });
-          if (!twentyId) throw new Error("twenty mirror retry failed");
-          await fetch(`${pb}/api/collections/contacts/records/${p.record_id}`, {
-            method: "PATCH", headers: authHeaders,
-            body: JSON.stringify({ twenty_record_id: twentyId, twenty_mirror_status: "synced", last_mirror_attempt: new Date().toISOString() }),
-          });
-          return { text: `mirrored:${twentyId}`, tokensActual: 0 };
-        }
-        throw new Error("unsupported mirror-retry payload");
-      }
-
-      // W95.3.5 — document extraction tasks. Load the uploaded file, extract
-      // text (pdf/docx/native), write it to documents.output. On failure the
-      // throw triggers W71 retry; on the FINAL attempt (retry_count >= 2) we
-      // record an honest error state instead of throwing, so the task completes.
-      if (task.specialist_id === "document_extraction_worker") {
-        const p = task.input_payload as { document_id?: string; ext?: string };
-        if (!p.document_id) throw new Error("extraction: missing document_id");
-        const patchDoc = (patch: Record<string, unknown>) =>
-          fetch(`${pb}/api/collections/documents/records/${p.document_id}`, { method: "PATCH", headers: authHeaders, body: JSON.stringify(patch) });
-
-        const docRes = await fetch(`${pb}/api/collections/documents/records/${p.document_id}`, { headers: { Authorization: adminToken } });
-        if (!docRes.ok) throw new Error(`extraction: document ${p.document_id} not found (${docRes.status})`);
-        const doc = (await docRes.json()) as { id: string; file?: string };
-        const kind = extractKindFor(p.ext ?? (doc.file?.split(".").pop() ?? ""));
-        if (!kind || !doc.file) {
-          await patchDoc({ extraction_status: "error", output: "[No extractable text for this file type.]" });
-          return { text: "extraction:skipped", tokensActual: 0 };
-        }
-
-        // Protected files need a short-lived file token.
-        let fileToken = "";
-        try {
-          const tk = await fetch(`${pb}/api/files/token`, { method: "POST", headers: authHeaders });
-          if (tk.ok) fileToken = ((await tk.json()) as { token?: string }).token ?? "";
-        } catch { /* try without token */ }
-        const fileUrl = `${pb}/api/files/documents/${p.document_id}/${encodeURIComponent(doc.file)}${fileToken ? `?token=${fileToken}` : ""}`;
-        const blobRes = await fetch(fileUrl, { headers: { Authorization: adminToken } });
-        if (!blobRes.ok) throw new Error(`extraction: file fetch failed (${blobRes.status})`);
-        const buf = new Uint8Array(await blobRes.arrayBuffer());
-
-        const result = await extractText(buf, kind);
-        if (result.ok) {
-          await patchDoc({ output: result.text || "[Document uploaded — no readable text found.]", extraction_status: "extracted" });
-          return { text: `extracted:${result.text.length}`, tokensActual: 0 };
-        }
-        if ((task.retry_count ?? 0) >= 2) {
-          await patchDoc({ extraction_status: "error", output: `[We couldn't read this file automatically. Your specialist can still work from the file name and your description.]` });
-          return { text: "extraction:failed-final", tokensActual: 0 };
-        }
-        throw new Error(`extraction failed: ${result.reason ?? "unknown"}`);
+      // W95.4a — system/bus tasks (vendor mirrors, document extraction, …) are
+      // NOT agent work. Each is keyed by specialist_id in WORKER_HANDLERS; the
+      // handler does the work and any throw flows into W71's retry/exhaustion.
+      const handler = WORKER_HANDLERS[task.specialist_id ?? ""];
+      if (handler) {
+        return handler(task, { pb, adminToken, authHeaders });
       }
 
       const res = await fetch(`${baseUrl}/api/agent`, {

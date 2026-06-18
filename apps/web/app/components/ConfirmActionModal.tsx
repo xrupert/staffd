@@ -16,16 +16,40 @@ import { useEffect, useState } from "react";
 
 export type IntentResult = { type: string; fields: Record<string, string>; confidence: number };
 
-// Per-intent presentation: human title + which fields to show, in order.
-const INTENT_UI: Record<string, { title: string; fields: { key: string; label: string }[] }> = {
+// Per-intent presentation: human title + which fields to show + the required
+// field that gates Confirm. STAFFD voice — no vendor names anywhere.
+const INTENT_UI: Record<string, { title: string; required: string; fields: { key: string; label: string }[] }> = {
   create_contact: {
-    title: "Add this contact?",
-    fields: [
-      { key: "name", label: "Name" },
-      { key: "email", label: "Email" },
-      { key: "phone", label: "Phone" },
-      { key: "context", label: "Context" },
-    ],
+    title: "Add this contact?", required: "name",
+    fields: [{ key: "name", label: "Name" }, { key: "email", label: "Email" }, { key: "phone", label: "Phone" }, { key: "context", label: "Context" }],
+  },
+  log_interaction: {
+    title: "Log this interaction?", required: "contact_name",
+    fields: [{ key: "contact_name", label: "Who" }, { key: "interaction_type", label: "Type" }, { key: "notes", label: "Notes" }, { key: "occurred_at", label: "When" }],
+  },
+  schedule_followup: {
+    title: "Schedule this follow-up?", required: "contact_name",
+    fields: [{ key: "contact_name", label: "Who" }, { key: "due_date", label: "When" }, { key: "notes", label: "Notes" }],
+  },
+  add_to_email_list: {
+    title: "Add to your email list?", required: "email",
+    fields: [{ key: "email", label: "Email" }, { key: "name", label: "Name" }, { key: "list_name", label: "List" }],
+  },
+  create_task: {
+    title: "Add this task?", required: "title",
+    fields: [{ key: "title", label: "Task" }, { key: "due_date", label: "Due" }, { key: "notes", label: "Notes" }],
+  },
+  capture_lead: {
+    title: "Capture this lead?", required: "name",
+    fields: [{ key: "name", label: "Name" }, { key: "company", label: "Company" }, { key: "email", label: "Email" }, { key: "phone", label: "Phone" }, { key: "interest_summary", label: "Interest" }, { key: "source", label: "Source" }],
+  },
+  update_contact: {
+    title: "Update this contact?", required: "contact_identifier",
+    fields: [{ key: "contact_identifier", label: "Contact" }, { key: "new_name", label: "New name" }, { key: "new_email", label: "New email" }, { key: "new_phone", label: "New phone" }, { key: "new_context", label: "New context" }],
+  },
+  log_expense: {
+    title: "Log this expense?", required: "amount",
+    fields: [{ key: "amount", label: "Amount" }, { key: "currency", label: "Currency" }, { key: "category", label: "Category" }, { key: "description", label: "Description" }, { key: "occurred_at", label: "When" }, { key: "client_name", label: "Client" }],
   },
 };
 
@@ -44,9 +68,10 @@ export default function ConfirmActionModal({
   onConfirm: (editedFields: Record<string, string>) => void;
   onCancel: () => void;
 }) {
-  const ui = INTENT_UI[intentResult.type] ?? { title: "Confirm?", fields: Object.keys(intentResult.fields).map((k) => ({ key: k, label: k })) };
+  const ui = INTENT_UI[intentResult.type] ?? { title: "Confirm?", required: Object.keys(intentResult.fields)[0] ?? "", fields: Object.keys(intentResult.fields).map((k) => ({ key: k, label: k })) };
   const [fields, setFields] = useState<Record<string, string>>(intentResult.fields);
   useEffect(() => setFields(intentResult.fields), [intentResult]);
+  const canConfirm = !ui.required || !!(fields[ui.required] ?? "").trim();
 
   return (
     <div style={overlay} onClick={busy ? undefined : onCancel}>
@@ -70,10 +95,10 @@ export default function ConfirmActionModal({
 
         <div className="flex items-center gap-2">
           <button
-            disabled={busy || !(fields.name ?? "").trim()}
+            disabled={busy || !canConfirm}
             onClick={() => onConfirm(fields)}
             className="btn-primary px-4 py-2 rounded-xl text-xs font-semibold text-white"
-            style={{ opacity: busy || !(fields.name ?? "").trim() ? 0.5 : 1 }}
+            style={{ opacity: busy || !canConfirm ? 0.5 : 1 }}
           >
             {busy ? "Saving…" : "Confirm"}
           </button>

@@ -40,6 +40,12 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
     detectField: "file",
     note: "adds file (25MB) + source + extraction_status to the existing documents collection",
   },
+  // W95.4a — conversational confirm-to-commit collections.
+  { route: "interactions",  label: "Interactions",  collection: "interactions" },
+  { route: "followups",     label: "Follow-ups",    collection: "followups" },
+  { route: "tasks",         label: "Tasks",         collection: "tasks" },
+  { route: "leads",         label: "Leads",         collection: "leads" },
+  { route: "expenses",      label: "Expenses",      collection: "expenses" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

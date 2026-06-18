@@ -46,6 +46,8 @@ export default function FrontDeskHome() {
   const [inbox, setInbox] = useState<CardState>(INITIAL);
   const [analytics, setAnalytics] = useState<CardState>(INITIAL);
   const [meetings, setMeetings] = useState<{ label: string; when: string }[] | null>(null);
+  // W95.4a — confirm-to-commit work counts (tasks / follow-ups / leads).
+  const [work, setWork] = useState<{ tasks: { pending: number }; followups: { upcoming: number; overdue: number }; leads: { new: number; qualified: number; converted: number } } | null>(null);
 
   const loadCard = useCallback(
     async (path: string, set: (s: CardState) => void, summarize: (d: unknown) => string) => {
@@ -86,6 +88,15 @@ export default function FrontDeskHome() {
         const latest = d.recentName ? ` · latest ${d.recentName}` : "";
         setPipeline({ summary: `${d.total} contact${d.total === 1 ? "" : "s"}${latest}.`, connected: true, loading: false });
       } catch { setPipeline({ summary: "", connected: false, loading: false }); }
+    })();
+
+    // W95.4a — "your work" counts (tasks / follow-ups / leads). Soft-fail to
+    // null (collections may not be migrated yet) → the section just hides.
+    void (async () => {
+      try {
+        const res = await fetch(`/api/front-desk/summary?pbToken=${encodeURIComponent(pb.authStore.token)}`);
+        if (res.ok) setWork(await res.json());
+      } catch { /* hide section */ }
     })();
 
     // Calendar contextual strip — today's bookings (existing substrate).
@@ -142,10 +153,37 @@ export default function FrontDeskHome() {
               <OpsCardView title="Support Inbox" icon="🎫" card="inbox" state={inbox} />
               <OpsCardView title="Site Analytics" icon="📈" card="analytics" state={analytics} drill={{ href: "/dashboard/front-desk/analytics", label: "Open analytics →" }} />
             </div>
+
+            {work && (work.tasks.pending + work.followups.upcoming + work.leads.new + work.leads.qualified + work.leads.converted > 0) && (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-widest mt-8 mb-3" style={{ color: "#5B21E8" }}>Your work</p>
+                <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}>
+                  <WorkCard icon="✅" title="Tasks" primary={`${work.tasks.pending} open`} ask="Show me my open tasks" />
+                  <WorkCard icon="🔔" title="Follow-ups" primary={`${work.followups.upcoming} upcoming`} secondary={work.followups.overdue ? `${work.followups.overdue} overdue` : undefined} ask="What follow-ups do I have coming up?" />
+                  <WorkCard icon="🌱" title="Leads" primary={`${work.leads.new} new`} secondary={[work.leads.qualified ? `${work.leads.qualified} qualified` : "", work.leads.converted ? `${work.leads.converted} won` : ""].filter(Boolean).join(" · ") || undefined} ask="Walk me through my open leads" />
+                </div>
+              </>
+            )}
           </>
         )}
       </div>
     </main>
+  );
+}
+
+function WorkCard({ icon, title, primary, secondary, ask }: { icon: string; title: string; primary: string; secondary?: string; ask: string }) {
+  return (
+    <div style={cardStyle}>
+      <div className="flex items-center gap-2 mb-2">
+        <span style={{ fontSize: "16px" }}>{icon}</span>
+        <p className="font-semibold text-sm" style={{ color: "#F0F0F8" }}>{title}</p>
+      </div>
+      <p className="text-sm font-medium" style={{ color: "#F0F0F8" }}>{primary}</p>
+      {secondary && <p className="text-xs mt-0.5" style={{ color: "#E0B060" }}>{secondary}</p>}
+      <a href={`/dashboard?ask=${encodeURIComponent(ask)}`} className="text-xs px-3 py-1.5 rounded-lg inline-block mt-3 transition-colors hover:text-white" style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.30)", color: "#A07BFF", textDecoration: "none" }}>
+        Ask your staff →
+      </a>
+    </div>
   );
 }
 

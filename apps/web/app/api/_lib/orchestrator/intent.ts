@@ -1,5 +1,5 @@
 /**
- * W95.1 — conversational intent extraction (Model B3).
+ * Conversational intent extraction (Model B3) — W95.1 + W95.4a.
  *
  * Sibling to analyzer.ts, NOT an extension of it: the analyzer classifies a
  * finished specialist deliverable → action affordances (post-hoc); this reads a
@@ -7,14 +7,23 @@
  * a confirmation preview before committing.
  *
  * Reuses the existing callLLM plumbing (no new Anthropic call site — W61′
- * 9-site allowlist preserved). V1 handles ONE type, create_contact; everything
- * else returns null and the normal specialist flow proceeds unchanged. New
- * parsers are added here in W95.4 without touching callers.
+ * 9-site allowlist preserved). W95.4a adds 7 intents to the original
+ * create_contact; everything else returns null and normal routing proceeds.
+ * Fields are a FLAT string map (the modal + commit path stay generic); update's
+ * "new_*" keys and expense's string "amount" are normalized at commit.
  */
 
 import { callLLM } from "./llm";
 
-export type IntentType = "create_contact";
+export type IntentType =
+  | "create_contact"
+  | "log_interaction"
+  | "schedule_followup"
+  | "add_to_email_list"
+  | "create_task"
+  | "capture_lead"
+  | "update_contact"
+  | "log_expense";
 
 export type IntentResult = {
   type: IntentType;
@@ -22,28 +31,41 @@ export type IntentResult = {
   confidence: number;
 };
 
-/**
- * Confidence floor for surfacing the confirmation modal. 0.7 chosen
- * deliberately: extraction false-positives are cheap (the modal lets the user
- * cancel and the normal chat continues), but a too-low bar would interrupt
- * ordinary questions with a contact form. 0.7 keeps "I met Jane, email x" in
- * while letting "what should I email a new lead?" fall through to routing.
- * Tunable as we instrument confirm/edit/reject rates (W95.1 deliverable).
- */
 export const INTENT_CONFIDENCE_THRESHOLD = 0.7;
 
-const SYSTEM = `You extract a single actionable INTENT from a small-business owner's message, if one is clearly present.
+/** Allowed flat field keys per intent + the one that MUST be present. */
+export const INTENT_FIELDS: Record<IntentType, { keys: string[]; required: string }> = {
+  create_contact:    { keys: ["name", "email", "phone", "context"], required: "name" },
+  log_interaction:   { keys: ["contact_name", "interaction_type", "notes", "occurred_at"], required: "contact_name" },
+  schedule_followup: { keys: ["contact_name", "due_date", "notes"], required: "contact_name" },
+  add_to_email_list: { keys: ["email", "name", "list_name"], required: "email" },
+  create_task:       { keys: ["title", "due_date", "notes"], required: "title" },
+  capture_lead:      { keys: ["name", "email", "company", "phone", "interest_summary", "source"], required: "name" },
+  update_contact:    { keys: ["contact_identifier", "new_name", "new_email", "new_phone", "new_context"], required: "contact_identifier" },
+  log_expense:       { keys: ["amount", "currency", "category", "description", "occurred_at", "client_name"], required: "amount" },
+};
 
-Only one intent type exists right now: "create_contact" — the user is telling you about a person to add to their contacts (a name, usually with an email/phone, often with context like where they met).
+const KNOWN = new Set(Object.keys(INTENT_FIELDS));
 
-Return STRICT JSON, no prose, in this shape:
-{"type":"create_contact","fields":{"name":"...","email":"...","phone":"...","context":"..."},"confidence":0.0-1.0}
+const SYSTEM = `You extract a single actionable INTENT from a small-business owner's message, if one is clearly present. Return STRICT JSON, no prose.
+
+Intent types and their fields (use these exact field keys; omit keys you can't fill):
+- create_contact — add/remember a person. fields: name(req), email, phone, context
+- log_interaction — they just talked to someone. fields: contact_name(req), interaction_type(call|email|meeting|other), notes, occurred_at
+- schedule_followup — remind them to follow up with someone. fields: contact_name(req), due_date, notes
+- add_to_email_list — add someone to a newsletter/campaign list. fields: email(req), name, list_name
+- create_task — a personal to-do for the owner. fields: title(req), due_date, notes
+- capture_lead — a sales lead with interest. fields: name(req), email, company, phone, interest_summary, source
+- update_contact — change a known contact's details. fields: contact_identifier(req, current name or email), new_name, new_email, new_phone, new_context
+- log_expense — record a business expense. fields: amount(req, digits only e.g. "45"), currency, category, description, occurred_at, client_name
+
+Shape: {"type":"<one of the above>","fields":{...},"confidence":0.0-1.0}
 
 Rules:
-- Only emit create_contact when the message is clearly about adding/remembering a specific person. A question ("how do I find leads?") is NOT a contact.
-- name is required; email/phone/context optional (omit keys you can't fill).
-- confidence reflects how clearly this is a contact-capture instruction.
-- If there is NO clear contact-capture intent, return exactly: {"type":"none","confidence":0}`;
+- Emit an intent ONLY when the message is clearly that action. A question ("how do I find leads?") is NOT an intent.
+- Pick the SINGLE best-fitting type. Prefer capture_lead over create_contact when there's clear buying interest; prefer update_contact when changing an existing person's details.
+- confidence reflects how clearly this is that instruction.
+- If there is NO clear intent, return exactly: {"type":"none","confidence":0}`;
 
 /**
  * Extract an intent from a user message. Returns null when no supported intent
@@ -68,15 +90,19 @@ export async function extractIntent(userMessage: string, vaultContext?: string):
     return null;
   }
 
-  if (parsed.type !== "create_contact") return null;
+  const type = parsed.type ?? "";
+  if (!KNOWN.has(type)) return null;
+  const spec = INTENT_FIELDS[type as IntentType];
+
   const confidence = typeof parsed.confidence === "number" ? parsed.confidence : 0;
   const rawFields = (parsed.fields ?? {}) as Record<string, unknown>;
   const fields: Record<string, string> = {};
-  for (const k of ["name", "email", "phone", "context"]) {
+  for (const k of spec.keys) {
     const v = rawFields[k];
     if (typeof v === "string" && v.trim()) fields[k] = v.trim();
+    else if (typeof v === "number") fields[k] = String(v);
   }
-  if (!fields.name) return null; // name is required to be a real contact
+  if (!fields[spec.required]) return null; // required field missing → not a real intent
 
-  return { type: "create_contact", fields, confidence };
+  return { type: type as IntentType, fields, confidence };
 }

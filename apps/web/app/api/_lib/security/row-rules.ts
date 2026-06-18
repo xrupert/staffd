@@ -189,6 +189,12 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
     systemManaged: true,
     note: "W95.3.4 — operator-only audit of in-app PB migrations. Admin-token-only (super-admin route gate + ADMIN_ONLY rule tier). No customer rows.",
   },
+  // W95.4a — conversational confirm-to-commit collections (all USER_OWNED).
+  { name: "interactions", rules: USER_OWNED_RULES },
+  { name: "followups", rules: USER_OWNED_RULES },
+  { name: "tasks", rules: USER_OWNED_RULES },
+  { name: "leads", rules: USER_OWNED_RULES },
+  { name: "expenses", rules: USER_OWNED_RULES },
 ];
 
 /** Quick lookup helper. */

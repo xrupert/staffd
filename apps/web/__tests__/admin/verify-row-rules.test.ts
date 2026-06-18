@@ -248,7 +248,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W95.1 — 28 = 27 + contacts (STAFFD-native Model B3 contacts)
     // W95.3 — 29 = 28 + upload_sessions (per-customer cold-start upload ledger)
     // W95.3.4 — 30 = 29 + admin_migration_log (operator migration audit log)
-    expect(body.collections_checked).toBe(30);
+    // W95.4a — 35 = 30 + interactions, followups, tasks, leads, expenses
+    expect(body.collections_checked).toBe(35);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

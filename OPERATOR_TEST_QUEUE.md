@@ -40,6 +40,21 @@ curl -X POST -H 'x-setup-secret: <CURRENT_OR_ROTATED_SECRET>' \
 - `/dashboard/upload` → "Upload your documents" → upload one PDF and one `.txt`.
 - ✅ Expected: `.txt` → **Ready** instantly with a text preview; PDF → **Processing…** then **Ready** within ~30s (the workflow-drain cron extracts it). A corrupt/scanned PDF → **"Couldn't read"** with the honest fallback message.
 
+### 6. Run the W95.4a migrations via the in-app trigger
+- `/dashboard/admin/migrations` → **Run all pending**.
+- ✅ Expected: interactions, followups, tasks, leads, expenses all show **Created**.
+
+### 7. Smoke: the 7 new conversational intents (W95.4a)
+In the Command Center, say each and confirm the modal → check the result:
+- "I just called Jane Doe about pricing" → **Log this interaction?** → logs an interaction.
+- "Remind me to follow up with Jane next Tuesday" → **Schedule this follow-up?** → Front Desk "Follow-ups" count rises.
+- "Add jane@x.com to my newsletter list" → **Add to your email list?** → contact + email-list subscribe (the customer's list gets the subscriber).
+- "Add a task to call my accountant tomorrow" → **Add this task?** → Front Desk "Tasks" count rises.
+- "Got a lead — John at Acme, john@acme.com, wants consulting" → **Capture this lead?** → Front Desk "Leads" count rises; contact mirrored to the CRM.
+- "Jane Doe's new email is jane@new.com" → **Update this contact?** → contact updated; CRM mirror updated.
+- "Log $45 for office supplies" → **Log this expense?** → expense recorded.
+- ✅ Expected: each modal shows STAFFD-voice copy (no vendor names), confirm writes the row, and the Front Desk "Your work" cards reflect the counts.
+
 ---
 
 ## ✅ DONE

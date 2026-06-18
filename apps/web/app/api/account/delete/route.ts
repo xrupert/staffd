@@ -43,6 +43,12 @@ const CASCADE_COLLECTIONS_USER = [
   "businesses",
   "user_integrations", // W91 — erase stored vendor creds on account delete (GDPR Art. 17)
   "contacts",          // W95.1 — erase STAFFD-native contacts on account delete (GDPR Art. 17)
+  "upload_sessions",   // W95.3 — per-customer cold-start upload ledger
+  "interactions",      // W95.4a — logged interactions
+  "followups",         // W95.4a — scheduled follow-ups
+  "tasks",             // W95.4a — owner to-dos
+  "leads",             // W95.4a — captured leads
+  "expenses",          // W95.4a — logged expenses
   "subscriptions",
 ] as const;
 

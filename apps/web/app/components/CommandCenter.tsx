@@ -249,11 +249,22 @@ export default function CommandCenter() {
         body: JSON.stringify({ intent_type: pendingIntent.type, fields: editedFields, source: "text" }),
       });
       const ok = res.ok;
+      const t = pendingIntent.type;
+      const done: Record<string, string> = {
+        create_contact: `Added ${editedFields.name} to your contacts.`,
+        log_interaction: `Logged your ${editedFields.interaction_type || "interaction"} with ${editedFields.contact_name}.`,
+        schedule_followup: `Set a follow-up with ${editedFields.contact_name}${editedFields.due_date ? ` for ${editedFields.due_date}` : ""}.`,
+        add_to_email_list: `Added ${editedFields.email} to your email list.`,
+        create_task: `Added "${editedFields.title}" to your tasks.`,
+        capture_lead: `Captured ${editedFields.name}${editedFields.company ? ` at ${editedFields.company}` : ""} as a lead.`,
+        update_contact: `Updated ${editedFields.contact_identifier}.`,
+        log_expense: `Logged ${editedFields.currency || "$"}${editedFields.amount}${editedFields.category ? ` for ${editedFields.category}` : ""}.`,
+      };
       setPendingIntent(null);
-      setMessages((prev) => [...prev, { role: "assistant", content: ok ? `Added ${editedFields.name} to your contacts.` : "Couldn't save that contact — try again." }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: ok ? (done[t] ?? "Done — your staff have it.") : "Couldn't save that just now — give it another try." }]);
     } catch {
       setPendingIntent(null);
-      setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't save that contact — try again." }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't save that just now — give it another try." }]);
     } finally {
       setIntentBusy(false);
     }
