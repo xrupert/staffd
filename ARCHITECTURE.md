@@ -5,6 +5,8 @@
 > If you handed this document and the repo to a senior application architect, they should be able to recreate the entire product. This is also the spec the build team uses to know what's done, what's drifting, and what's next.
 >
 > Last consolidated: November 2026.
+>
+> **Paradigm:** STAFFD is registry-driven plug-n-play with append-only event sourcing — read [docs/architecture/PARADIGM.md](docs/architecture/PARADIGM.md) (canonical) before adding any dispatch pattern. Engineering Standards: [docs/architecture/STANDARDS.md](docs/architecture/STANDARDS.md).
 
 ---
 

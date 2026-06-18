@@ -70,6 +70,10 @@ pnpm exec turbo build --filter=docs
 
 ### Develop
 
+> **Before you build:** STAFFD follows a registry-driven plug-n-play paradigm —
+> see [docs/architecture/PARADIGM.md](docs/architecture/PARADIGM.md). Engineering
+> conventions are codified in [docs/architecture/STANDARDS.md](docs/architecture/STANDARDS.md).
+
 To develop all apps and packages, run the following command:
 
 With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):

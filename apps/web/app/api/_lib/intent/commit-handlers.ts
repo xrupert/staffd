@@ -129,7 +129,8 @@ const addToEmailList: CommitHandler = async (f, ctx) => {
     enqueue("mirror_retry_worker", { vendor: "twenty", record_id: rec.id, fields: { name: f.name ?? email, email } }, ctx);
   }
   // Listmonk subscribe — on the bus (Standard #20), no inline vendor call.
-  enqueue("listmonk_subscribe_worker", { email, name: f.name ?? "" }, ctx);
+  // record_id lets the worker tombstone-check the source contact (W95.5.1).
+  enqueue("listmonk_subscribe_worker", { email, name: f.name ?? "", record_id: contact.id }, ctx);
   decide(ctx, "email_list_subscribed", `Added ${email} to the email list`, contact.id);
   // previous_state powers undo: only delete the contact on undo if WE created it.
   return { ok: true, record_id: contact.id, extra: { previous_state: { contact_was_new: contactWasNew, email } } };

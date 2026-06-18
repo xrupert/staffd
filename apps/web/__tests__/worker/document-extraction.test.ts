@@ -20,7 +20,7 @@ vi.mock("../../app/api/_lib/upload/extract", () => ({
 
 vi.mock("../../app/api/_lib/integrations/twenty/client", () => ({ TwentyClient: { forCustomer: () => ({ createPerson: async () => "x" }) } }));
 vi.mock("../../app/api/_lib/auth/super-admin-logging", () => ({ logWorkflowTransition: vi.fn() }));
-vi.mock("../../app/api/_lib/pb", () => ({ pbUrl: () => "https://pb.test", getAdminToken: async () => "admin-token" }));
+vi.mock("../../app/api/_lib/pb", () => ({ pbUrl: () => "https://pb.test", getAdminToken: async () => "admin-token", pbEscape: (s: string) => s }));
 
 import { GET } from "../../app/api/worker/workflow-drain/route";
 

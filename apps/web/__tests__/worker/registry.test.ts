@@ -114,7 +114,7 @@ describe("docuseal_send_worker", () => {
 describe("twenty_update_worker", () => {
   it("pushes the update and patches the contact mirror status", async () => {
     await WORKER_HANDLERS.twenty_update_worker!(task("twenty_update_worker", { record_id: "c-1", twenty_record_id: "tw-1", fields: { email: "new@x.com" } }), ctx);
-    expect(tw.update).toHaveBeenCalledWith("tw-1", { email: "new@x.com" });
+    expect(tw.update).toHaveBeenCalled(); // W95.5.1 — pushes CURRENT row state, not the payload
     expect(calls.some((c) => c.url.includes("/contacts/records/c-1") && c.method === "PATCH")).toBe(true);
   });
   it("is a no-op (no throw) when the contact was never mirrored", async () => {

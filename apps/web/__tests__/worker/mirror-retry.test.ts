@@ -24,6 +24,7 @@ vi.mock("../../app/api/_lib/integrations/twenty/client", () => ({
 vi.mock("../../app/api/_lib/pb", () => ({
   pbUrl: () => "https://pb.test",
   getAdminToken: async () => "admin-token",
+  pbEscape: (s: string) => s,
 }));
 
 vi.mock("../../app/api/_lib/auth/super-admin-logging", () => ({ logWorkflowTransition: vi.fn() }));

@@ -34,10 +34,28 @@ export function isWorkerTask(specialistId: string | null | undefined): boolean {
   return !!specialistId && specialistId in WORKER_HANDLERS;
 }
 
+/**
+ * W95.5.1 — undo-mirror race guard. The STAFFD-native row is the source of
+ * truth: a CREATE-type vendor mirror must NOT proceed if the row the user is
+ * mirroring has been deleted (undo deletes it) or has an undone autopilot
+ * fire. Returns the tombstone reason, or null to proceed.
+ */
+async function tombstoneReason(ctx: WorkerContext, collection: string, recordId: string): Promise<"deleted" | "undone" | null> {
+  const r = await fetch(`${ctx.pb}/api/collections/${collection}/records/${recordId}`, { headers: { Authorization: ctx.adminToken } });
+  if (r.status === 404) return "deleted";
+  const f = encodeURIComponent(`target_record_id = "${pbEscape(recordId)}" && undone_at != ""`);
+  const a = await fetch(`${ctx.pb}/api/collections/autopilot_audit_log/records?filter=${f}&perPage=1&fields=id`, { headers: { Authorization: ctx.adminToken } });
+  if (a.ok && (((await a.json()) as { items?: unknown[] }).items?.length ?? 0) > 0) return "undone";
+  return null;
+}
+
 // ── twenty_mirror_retry (W95.2) — initial/retry mirror of a STAFFD contact ──
 const mirrorRetry: WorkerHandler = async (task, ctx) => {
   const p = task.input_payload as { vendor?: string; record_id?: string; fields?: { name?: string; email?: string; phone?: string } };
   if (p.vendor === "twenty" && p.record_id && p.fields?.name) {
+    // Race guard: don't mirror a contact the user already deleted/undid.
+    const ts = await tombstoneReason(ctx, "contacts", p.record_id);
+    if (ts) { console.log(`mirror_retry tombstoned-${ts} record=${p.record_id}`); return { text: `tombstoned-${ts}`, tokensActual: 0 }; }
     const twentyId = await TwentyClient.forCustomer(task.user).createPerson({ name: p.fields.name, email: p.fields.email, phone: p.fields.phone });
     if (!twentyId) throw new Error("twenty mirror retry failed");
     await fetch(`${ctx.pb}/api/collections/contacts/records/${p.record_id}`, {
@@ -88,9 +106,14 @@ const documentExtraction: WorkerHandler = async (task, ctx) => {
 };
 
 // ── listmonk_subscribe (W95.4a) — add a contact to the customer's list (bus) ──
-const listmonkSubscribe: WorkerHandler = async (task) => {
-  const p = task.input_payload as { email?: string; name?: string };
+const listmonkSubscribe: WorkerHandler = async (task, ctx) => {
+  const p = task.input_payload as { email?: string; name?: string; record_id?: string };
   if (!p.email) throw new Error("listmonk subscribe: missing email");
+  // Race guard: skip if the contact this subscribe came from was deleted/undone.
+  if (p.record_id) {
+    const ts = await tombstoneReason(ctx, "contacts", p.record_id);
+    if (ts) { console.log(`listmonk_subscribe tombstoned-${ts} record=${p.record_id}`); return { text: `tombstoned-${ts}`, tokensActual: 0 }; }
+  }
   if (!ListmonkClient.configured) throw new Error("listmonk not configured");
   const ok = await ListmonkClient.forCustomer(task.user).addSubscriber({ email: p.email, name: p.name });
   if (!ok) throw new Error("listmonk subscribe failed");
@@ -104,7 +127,15 @@ const twentyUpdate: WorkerHandler = async (task, ctx) => {
     // No mirror exists yet — nothing to update (the contact was never mirrored).
     return { text: "twenty update: no mirror to update", tokensActual: 0 };
   }
-  const ok = await TwentyClient.forCustomer(task.user).updatePerson(p.twenty_record_id, p.fields ?? {});
+  // W95.5.1 — push the CURRENT row state, not the (possibly stale/undone) task
+  // payload: if an undo restored the prior values, the row holds the truth.
+  let fields = p.fields ?? {};
+  if (p.record_id) {
+    const r = await fetch(`${ctx.pb}/api/collections/contacts/records/${p.record_id}`, { headers: { Authorization: ctx.adminToken } });
+    if (r.status === 404) { console.log(`twenty_update tombstoned-deleted record=${p.record_id}`); return { text: "tombstoned-deleted", tokensActual: 0 }; }
+    if (r.ok) { const row = (await r.json()) as { name?: string; email?: string; phone?: string }; fields = { name: row.name, email: row.email, phone: row.phone }; }
+  }
+  const ok = await TwentyClient.forCustomer(task.user).updatePerson(p.twenty_record_id, fields);
   if (!ok) throw new Error("twenty update failed");
   if (p.record_id) {
     await fetch(`${ctx.pb}/api/collections/contacts/records/${p.record_id}`, {
