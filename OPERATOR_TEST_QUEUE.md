@@ -55,6 +55,27 @@ In the Command Center, say each and confirm the modal → check the result:
 - "Log $45 for office supplies" → **Log this expense?** → expense recorded.
 - ✅ Expected: each modal shows STAFFD-voice copy (no vendor names), confirm writes the row, and the Front Desk "Your work" cards reflect the counts.
 
+### 8. Enable Google sign-in (FC-4, earlier session — was never added here)
+The "Continue with Google" button ships but shows "not enabled yet" until the
+PB OAuth2 provider is configured.
+- In the PocketBase admin console → Settings → Auth providers → **Google** → enable + paste the Google Cloud OAuth Client ID/Secret.
+- ✅ Expected: "Continue with Google" on login/signup completes → new user lands on onboarding, returning user on dashboard.
+- (May already be done — there's no way for me to detect PB-console state; confirm or tick off.)
+
+### 9. Set `INTEGRATION_ENCRYPTION_KEY` (W91, earlier session — was never added here)
+Confirmed **not set in Production**. The W91 per-user credential substrate
+(AES-256-GCM) throws without it. Currently **dormant** (the customer connect
+flow was rolled back in W91-rollback / Model B3), so nothing breaks today — but
+set it so the substrate + any future "connect your tools" path works and the
+`user_integrations` crypto tests reflect prod.
+- `openssl rand -base64 32` → set `INTEGRATION_ENCRYPTION_KEY` in Vercel (Production + Preview), redeploy.
+- ✅ Expected: a 32-byte base64 value present in prod env.
+
+> Swept from earlier-session reports (W91, FC-4) on request — these two were
+> surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
+> W71 workflow-tasks migration were also flagged historically but are already
+> DONE (verified live), so they're not listed.
+
 ---
 
 ## ✅ DONE
