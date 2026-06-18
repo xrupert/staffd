@@ -249,7 +249,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W95.3 — 29 = 28 + upload_sessions (per-customer cold-start upload ledger)
     // W95.3.4 — 30 = 29 + admin_migration_log (operator migration audit log)
     // W95.4a — 35 = 30 + interactions, followups, tasks, leads, expenses
-    expect(body.collections_checked).toBe(35);
+    // W95.5 — 37 = 35 + autopilot_prefs, autopilot_audit_log
+    expect(body.collections_checked).toBe(37);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

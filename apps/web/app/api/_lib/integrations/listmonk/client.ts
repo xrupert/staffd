@@ -85,6 +85,20 @@ export class ListmonkClient {
     return res.ok;
   }
 
+  /** Remove a subscriber (by email) from this customer — undo of an add (W95.5).
+   *  Find-by-email within the instance, then delete the subscriber record. */
+  async removeSubscriber(email: string): Promise<boolean> {
+    const e = (email ?? "").trim();
+    if (!e) return false;
+    const q = encodeURIComponent(`subscribers.email = '${e.replace(/'/g, "''")}'`);
+    const found = await lm(`/api/subscribers?query=${q}&per_page=1`);
+    if (!found.ok) return false;
+    const id = (found.json as { data?: { results?: { id: number }[] } })?.data?.results?.[0]?.id;
+    if (!id) return true; // already absent — idempotent
+    const del = await lm(`/api/subscribers/${id}`, { method: "DELETE" });
+    return del.ok;
+  }
+
   /** Subscribers for THIS customer's list only — list filter always injected. */
   async listSubscribers(limit = 25): Promise<{ email: string; name: string }[]> {
     const id = await this.ensureList();

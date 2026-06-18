@@ -11,6 +11,7 @@ import PushNotificationsToggle from "../../components/PushNotificationsToggle";
 import IndustryPacksPanel from "../../components/IndustryPacksPanel";
 import VaultEditor from "../../components/VaultEditor";
 import AutopilotControlsPanel from "../../components/AutopilotControlsPanel";
+import AutomationSettings from "../../components/AutomationSettings";
 import BriefPreferencesPanel from "../../components/BriefPreferencesPanel";
 
 export default function SettingsPage() {
@@ -214,6 +215,9 @@ export default function SettingsPage() {
 
         {/* Autopilot controls (Phase 9) */}
         <AutopilotControlsPanel />
+
+        {/* W95.5 — conversational-intent autopilot (graduated actions) */}
+        <AutomationSettings />
 
         {/* Morning Brief delivery preferences (Phase 26) */}
         <BriefPreferencesPanel />

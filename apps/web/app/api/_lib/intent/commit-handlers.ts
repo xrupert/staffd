@@ -10,7 +10,15 @@
 
 import { adminHeaders, pbUrl, pbEscape } from "../pb";
 import { recordDecision } from "../vault/outcomes";
+import { setEnabled, recordRevocation } from "../autopilot/policy";
 import { routeTask, DEPARTMENT_DEFAULT_AGENT_IDS, type Department } from "@staffd/agents";
+
+/** Audited intents write an autopilot_audit_log row + get an undo toast.
+ *  Maps each to its PRIMARY STAFFD-native collection (for undo). */
+export const AUDITED_TARGET: Record<string, string> = {
+  create_contact: "contacts", capture_lead: "leads", update_contact: "contacts",
+  add_to_email_list: "contacts", log_expense: "expenses",
+};
 
 export type CommitCtx = { token: string; userId: string; source: string };
 export type CommitResult =
@@ -112,16 +120,19 @@ const addToEmailList: CommitHandler = async (f, ctx) => {
   const email = (f.email ?? "").trim();
   if (!email) return { ok: false, status: 400, error: "email_required" };
   let contact = await findContact(ctx, { email });
+  let contactWasNew = false;
   if (!contact) {
     const rec = await pbCreate("contacts", { user: ctx.userId, name: f.name ?? email, email, twenty_mirror_status: "pending" }, ctx.token);
     if (!rec.ok) return { ok: false, status: 502, error: "save_failed" };
     contact = { id: rec.id, email, twenty_record_id: "" };
+    contactWasNew = true;
     enqueue("mirror_retry_worker", { vendor: "twenty", record_id: rec.id, fields: { name: f.name ?? email, email } }, ctx);
   }
   // Listmonk subscribe — on the bus (Standard #20), no inline vendor call.
   enqueue("listmonk_subscribe_worker", { email, name: f.name ?? "" }, ctx);
   decide(ctx, "email_list_subscribed", `Added ${email} to the email list`, contact.id);
-  return { ok: true, record_id: contact.id };
+  // previous_state powers undo: only delete the contact on undo if WE created it.
+  return { ok: true, record_id: contact.id, extra: { previous_state: { contact_was_new: contactWasNew, email } } };
 };
 
 const createTask: CommitHandler = async (f, ctx) => {
@@ -158,11 +169,16 @@ const updateContact: CommitHandler = async (f, ctx) => {
   if (f.new_context) updated.context = f.new_context;
   if (Object.keys(updated).length === 0) return { ok: false, status: 400, error: "no_fields_to_update" };
 
+  // Snapshot prior values of the fields we're about to change → undo restore.
+  const before = await pbGetOwned("contacts", found.id, ctx);
+  const previous_state: Record<string, string> = {};
+  for (const k of Object.keys(updated)) previous_state[k] = (before?.[k] as string) ?? "";
+
   const ok = await pbPatch("contacts", found.id, { ...updated, twenty_mirror_status: "pending" }, ctx.token);
   if (!ok) return { ok: false, status: 502, error: "save_failed" };
   enqueue("twenty_update_worker", { record_id: found.id, twenty_record_id: found.twenty_record_id, fields: { name: updated.name, email: updated.email, phone: updated.phone } }, ctx);
   decide(ctx, "contact_updated", `Updated contact ${updated.name ?? ident}`, found.id);
-  return { ok: true, record_id: found.id };
+  return { ok: true, record_id: found.id, extra: { previous_state, twenty_record_id: found.twenty_record_id } };
 };
 
 const logExpense: CommitHandler = async (f, ctx) => {
@@ -248,6 +264,77 @@ function statusHandler(collection: string, idKey: string, kind: string): CommitH
   };
 }
 
+async function pbDelete(collection: string, id: string, token: string): Promise<boolean> {
+  const res = await fetch(`${pbUrl()}/api/collections/${collection}/records/${id}`, { method: "DELETE", headers: { Authorization: token } });
+  return res.ok;
+}
+
+// ── disable_autopilot (W95.5) — meta-control: turn OFF auto-handling. Always a
+// modal (policy "never"), so it can't auto-disable itself.
+const disableAutopilot: CommitHandler = async (f, ctx) => {
+  const target = (f.intent_type ?? "").trim();
+  if (!target) return { ok: false, status: 400, error: "intent_type_required" };
+  await setEnabled(ctx.userId, target, false, ctx.token);
+  decide(ctx, "autopilot_disabled", `Turned off autopilot for ${target}`, target);
+  return { ok: true, record_id: target };
+};
+
+// ── undo (W95.5) — reverse an autopilot fire within its 10-minute window.
+// Reads the autopilot_audit_log row, reverses the STAFFD-native write + any
+// vendor mirror (via the bus), resets the streak, and starts the 7-day cooldown.
+const undo: CommitHandler = async (f, ctx) => {
+  const auditId = (f.audit_row_id ?? "").trim();
+  if (!auditId) return { ok: false, status: 400, error: "audit_row_id_required" };
+  const a = await pbGetOwned("autopilot_audit_log", auditId, ctx);
+  if (!a) return { ok: false, status: 404, error: "not_found" };
+  if (a.undone_at) return { ok: false, status: 409, error: "already_undone" };
+  if (Date.now() > new Date(a.undo_window_expires_at as string).getTime()) return { ok: false, status: 410, error: "window_expired" };
+
+  const intentType = a.intent_type as string;
+  const collection = a.target_collection as string;
+  const recordId = a.target_record_id as string;
+  const prev = (a.previous_state as Record<string, unknown>) ?? {};
+
+  if (intentType === "update_contact") {
+    // Restore prior field values + re-push to the vendor mirror.
+    const restore: Record<string, string> = {};
+    for (const k of ["name", "email", "phone", "context"]) if (k in prev) restore[k] = String(prev[k] ?? "");
+    await pbPatch(collection, recordId, { ...restore, twenty_mirror_status: "pending" }, ctx.token);
+    const row = await pbGetOwned(collection, recordId, ctx);
+    enqueue("twenty_update_worker", { record_id: recordId, twenty_record_id: (row?.twenty_record_id as string) ?? "", fields: { name: restore.name, email: restore.email, phone: restore.phone } }, ctx);
+  } else {
+    // Create-type reversal: delete the primary row(s) + reverse vendor mirrors.
+    const row = await pbGetOwned(collection, recordId, ctx);
+    if (row) {
+      if (intentType === "capture_lead") {
+        // lead → linked contact carries the Twenty mirror.
+        const contactId = (row.contact as string) ?? "";
+        if (contactId) {
+          const contact = await pbGetOwned("contacts", contactId, ctx);
+          if (contact?.twenty_record_id) enqueue("twenty_delete_worker", { twenty_record_id: contact.twenty_record_id }, ctx);
+          await pbDelete("contacts", contactId, ctx.token);
+        }
+        await pbDelete("leads", recordId, ctx.token);
+      } else if (intentType === "add_to_email_list") {
+        if (row.email) enqueue("listmonk_unsubscribe_worker", { email: row.email }, ctx);
+        if (prev.contact_was_new) {
+          if (row.twenty_record_id) enqueue("twenty_delete_worker", { twenty_record_id: row.twenty_record_id }, ctx);
+          await pbDelete("contacts", recordId, ctx.token);
+        }
+      } else {
+        // create_contact / log_expense
+        if (row.twenty_record_id) enqueue("twenty_delete_worker", { twenty_record_id: row.twenty_record_id }, ctx);
+        await pbDelete(collection, recordId, ctx.token);
+      }
+    }
+  }
+
+  await pbPatch("autopilot_audit_log", auditId, { undone_at: nowIso() }, ctx.token);
+  await recordRevocation(ctx.userId, intentType, ctx.token); // reset streak + disable + 7-day cooldown
+  decide(ctx, "autopilot_undone", `Undid auto ${intentType}`, recordId);
+  return { ok: true, record_id: recordId, extra: { reverted_record_id: recordId } };
+};
+
 export const COMMIT_HANDLERS: Record<string, CommitHandler> = {
   create_contact: createContact,
   log_interaction: logInteraction,
@@ -264,4 +351,7 @@ export const COMMIT_HANDLERS: Record<string, CommitHandler> = {
   update_task_status: statusHandler("tasks", "task_id", "task_status_changed"),
   update_followup_status: statusHandler("followups", "followup_id", "followup_status_changed"),
   update_lead_status: statusHandler("leads", "lead_id", "lead_status_changed"),
+  // W95.5 — autopilot meta-controls
+  disable_autopilot: disableAutopilot,
+  undo,
 };

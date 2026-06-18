@@ -13,45 +13,15 @@
  */
 
 import { callLLM } from "./llm";
+import { INTENT_FIELDS, INTENT_CONFIDENCE_THRESHOLD, DISAMBIGUATION_DELTA, type IntentType, type IntentResult } from "./intent-policy";
 
-export type IntentType =
-  | "create_contact"
-  | "log_interaction"
-  | "schedule_followup"
-  | "add_to_email_list"
-  | "create_task"
-  | "capture_lead"
-  | "update_contact"
-  | "log_expense"
-  | "draft_campaign"
-  | "send_for_signature";
-
-export type IntentResult = {
-  type: IntentType;
-  fields: Record<string, string>;
-  confidence: number;
-};
-
-export const INTENT_CONFIDENCE_THRESHOLD = 0.7;
-/** Two candidates this close at/above the floor → offer both (disambiguation). */
-export const DISAMBIGUATION_DELTA = 0.15;
-
-/** Allowed flat field keys per intent + the one that MUST be present. */
-export const INTENT_FIELDS: Record<IntentType, { keys: string[]; required: string }> = {
-  create_contact:     { keys: ["name", "email", "phone", "context"], required: "name" },
-  log_interaction:    { keys: ["contact_name", "interaction_type", "notes", "occurred_at"], required: "contact_name" },
-  schedule_followup:  { keys: ["contact_name", "due_date", "notes"], required: "contact_name" },
-  add_to_email_list:  { keys: ["email", "name", "list_name"], required: "email" },
-  create_task:        { keys: ["title", "due_date", "notes"], required: "title" },
-  capture_lead:       { keys: ["name", "email", "company", "phone", "interest_summary", "source"], required: "name" },
-  update_contact:     { keys: ["contact_identifier", "new_name", "new_email", "new_phone", "new_context"], required: "contact_identifier" },
-  log_expense:        { keys: ["amount", "currency", "category", "description", "occurred_at", "client_name"], required: "amount" },
-  draft_campaign:     { keys: ["subject_hint", "target_audience", "message_summary", "occasion"], required: "message_summary" },
-  send_for_signature: { keys: ["document_identifier", "signer_name", "signer_email", "signer_contact", "notes"], required: "document_identifier" },
-};
-
-/** Intents that delegate to a specialist (workflow) rather than write a row. */
-export const DELEGATE_INTENTS = new Set<IntentType>(["draft_campaign", "send_for_signature"]);
+// Re-export the llm-free policy surface so existing importers of intent.ts keep
+// working (intent-policy.ts is the heavy-import-free home of these constants).
+export {
+  INTENT_FIELDS, INTENT_CONFIDENCE_THRESHOLD, DISAMBIGUATION_DELTA, AUTOPILOT_TIER_THRESHOLD,
+  autopilotThreshold, DELEGATE_INTENTS,
+} from "./intent-policy";
+export type { IntentType, IntentResult, AutopilotPolicy, IntentSpec } from "./intent-policy";
 
 const KNOWN = new Set(Object.keys(INTENT_FIELDS));
 
@@ -68,6 +38,7 @@ Intent types and their fields (use these exact field keys; omit keys you can't f
 - log_expense — record a business expense. fields: amount(req, digits only), currency, category, description, occurred_at, client_name
 - draft_campaign — ask Marketing to draft an email campaign. fields: message_summary(req), subject_hint, target_audience, occasion
 - send_for_signature — ask Legal to send a document for signature. fields: document_identifier(req), signer_name, signer_email, signer_contact, notes
+- disable_autopilot — turn OFF automatic handling for an action. fields: intent_type(req) — map the user's words to the canonical intent key: "contacts"→create_contact, "leads"→capture_lead, "email list"/"newsletter"→add_to_email_list, "tasks"→create_task, "follow-ups"→schedule_followup, "interactions"→log_interaction, "expenses"→log_expense, "contact updates"→update_contact
 
 Shape: {"intents":[{"type":"<type>","fields":{...},"confidence":0.0-1.0}, ...]}
 Return up to 2 candidates, MOST CONFIDENT FIRST. Include a close second ONLY when the message is genuinely ambiguous between two types (e.g. a person with buying interest = capture_lead AND create_contact). Otherwise return one.

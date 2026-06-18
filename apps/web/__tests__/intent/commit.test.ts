@@ -72,6 +72,15 @@ describe("POST /api/intent/commit", () => {
     expect(await res.json()).toMatchObject({ ok: true, intent_type: "update_task_status" });
   });
 
+  it("W95.5 — an autopilot fire on an audited intent writes the audit log + returns undo info", async () => {
+    const res = await POST(req({ intent_type: "create_contact", fields: { name: "Jane Doe" }, source: "autopilot" }));
+    expect(res.status).toBe(200);
+    const d = await res.json();
+    expect(d.undo_window_seconds).toBe(600);
+    expect(typeof d.audit_row_id).toBe("string");
+    expect(calls.some((c) => c.url.includes("/autopilot_audit_log/records") && c.method === "POST")).toBe(true);
+  });
+
   it("records a Vault decision on commit", async () => {
     await POST(req({ intent_type: "create_contact", fields: { name: "Jane Doe" } }));
     expect(rec.fn).toHaveBeenCalledTimes(1);

@@ -48,6 +48,9 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "expenses",      label: "Expenses",      collection: "expenses" },
   // W95.4b — document signature submission id (builds on documents-v2).
   { route: "documents-v3", label: "Documents — signature id", collection: "documents", detectField: "docuseal_submission_id", note: "adds docuseal_submission_id to documents" },
+  // W95.5 — progressive autopilot.
+  { route: "autopilot-prefs",     label: "Autopilot preferences", collection: "autopilot_prefs" },
+  { route: "autopilot-audit-log", label: "Autopilot audit log",   collection: "autopilot_audit_log" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

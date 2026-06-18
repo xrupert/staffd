@@ -100,6 +100,14 @@ export class TwentyClient {
     return !!res && !res.errors?.length && !!(res.data?.updatePerson as { id?: string } | undefined)?.id;
   }
 
+  /** Delete a tenant Person by id (W95.5 — undo of an autopilot create). */
+  async deletePerson(personId: string): Promise<boolean> {
+    const id = (personId ?? "").trim();
+    if (!id) return false;
+    const res = await twentyGraphql(`mutation Del($id: UUID!) { deletePerson(id: $id) { id } }`, { id });
+    return !!res && !res.errors?.length;
+  }
+
   /** List this tenant's people only — filter is always injected. */
   async listPeople(limit = 25): Promise<TwentyPerson[]> {
     const res = await twentyGraphql(

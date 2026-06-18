@@ -195,6 +195,9 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   { name: "tasks", rules: USER_OWNED_RULES },
   { name: "leads", rules: USER_OWNED_RULES },
   { name: "expenses", rules: USER_OWNED_RULES },
+  // W95.5 — progressive autopilot (graduation state + reversal audit).
+  { name: "autopilot_prefs", rules: USER_OWNED_RULES },
+  { name: "autopilot_audit_log", rules: USER_OWNED_RULES },
 ];
 
 /** Quick lookup helper. */

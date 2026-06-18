@@ -28,6 +28,23 @@ describe("ConfirmActionModal — single mode", () => {
   });
 });
 
+describe("ConfirmActionModal — graduation offer (W95.5)", () => {
+  it("renders the three graduation buttons and reports the chosen path", () => {
+    const onGraduate = vi.fn();
+    render(<ConfirmActionModal intentOptions={[{ type: "create_contact", fields: { name: "Jane" }, confidence: 0.9 }]} showGraduationOffer graduationCount={5} onConfirm={() => {}} onGraduate={onGraduate} onCancel={() => {}} />);
+    expect(screen.getByText("Yes, automate it")).toBeTruthy();
+    expect(screen.getByText("Not yet")).toBeTruthy();
+    expect(screen.getByText("Just this once")).toBeTruthy();
+    fireEvent.click(screen.getByText("Yes, automate it"));
+    expect(onGraduate).toHaveBeenCalledWith("yes", "create_contact", expect.objectContaining({ name: "Jane" }));
+  });
+  it("does not render the offer block when showGraduationOffer is false", () => {
+    render(<ConfirmActionModal intentOptions={[{ type: "create_contact", fields: { name: "Jane" }, confidence: 0.9 }]} onConfirm={() => {}} onCancel={() => {}} />);
+    expect(screen.queryByText("Yes, automate it")).toBeNull();
+    expect(screen.getByText("Confirm")).toBeTruthy();
+  });
+});
+
 describe("ConfirmActionModal — two-option disambiguation", () => {
   it("renders both verbs and commits the chosen option's own fields", () => {
     const onConfirm = vi.fn();

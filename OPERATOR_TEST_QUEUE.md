@@ -97,6 +97,27 @@ The standalone metadata probe needs a super-admin token I don't hold + Sensitive
 - Tap a row → drawer opens (Esc/backdrop closes) → "Mark done" flips status, list refetches.
 - Repeat on **Follow-ups** (test "Reschedule" → opens the date modal) and **Leads** (status changes).
 
+### 15. Run the W95.5 migrations (autopilot)
+- `/dashboard/admin/migrations` → **Run all pending** → `autopilot_prefs` + `autopilot_audit_log` show **Created**.
+
+### 16. W95.5 — graduation + autopilot fire + undo (trivial tier, N=3)
+- In Command Center, do a trivial action 3× cleanly (no edits), e.g. "Add a task to call the bank" three times (vary the task).
+- ✅ On the 3rd confirm modal, the **"Want STAFFD to handle this automatically?"** block appears → click **Yes, automate it**.
+- Do it a 4th time → it should **auto-fire** (no modal) and show a bottom **"Added … · Undo"** toast.
+- Click **Undo** within 10s → toast shows **Reverted**; the task is gone.
+- ✅ Verify an `autopilot_audit_log` row exists (for audited intents) and `autopilot_prefs.enabled` flipped back off after undo.
+
+### 17. W95.5 — audited tier undo reverses the vendor mirror
+- Graduate `create_contact` (audited, N=5): confirm 5× cleanly → Yes.
+- Next time, it auto-fires + toast. **Undo** → the STAFFD contact is deleted AND a `twenty_delete_worker` task is enqueued (CRM person removed on next drain).
+
+### 18. W95.5 — disable via conversation + Settings
+- "turn off autopilot for tasks" → confirm modal → autopilot for tasks is off.
+- `/dashboard/settings` → **Automation** section → toggle any graduated action on/off; state persists on reload.
+
+### 19. W95.5 — super-admin activity log
+- `/dashboard/admin/activity` (super-admin) → recent autopilot fires listed with status; **Undo** works on rows still in-window.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

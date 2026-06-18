@@ -14,6 +14,7 @@ import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
 import ActionRecipientModal, { type RecipientKind } from "./ActionRecipientModal";
 import ConfirmActionModal, { type IntentResult } from "./ConfirmActionModal";
+import UndoToast from "./UndoToast";
 import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 interface Message {
@@ -222,54 +223,88 @@ export default function CommandCenter() {
   // W95.1 (Model B3) — conversational intent → confirm-to-commit. Runs
   // alongside the normal routing flow; a parsed intent surfaces this modal.
   const [pendingIntents, setPendingIntents] = useState<IntentResult[]>([]);
+  const [graduationOffer, setGraduationOffer] = useState(false);
   const [intentBusy, setIntentBusy] = useState(false);
+  const [undoToast, setUndoToast] = useState<{ auditRowId: string; message: string } | null>(null);
 
-  // Fire-and-forget intent detection on the user's message (non-blocking on
-  // the normal chat flow). Surfaces ConfirmActionModal — single or, when the
-  // message is ambiguous, a two-option chooser (W95.4b).
+  function successCopy(type: string, f: Record<string, string>, data: { expected_completion_message?: string }): string {
+    const done: Record<string, string> = {
+      create_contact: `Added ${f.name} to your contacts.`,
+      log_interaction: `Logged your ${f.interaction_type || "interaction"} with ${f.contact_name}.`,
+      schedule_followup: `Set a follow-up with ${f.contact_name}${f.due_date ? ` for ${f.due_date}` : ""}.`,
+      add_to_email_list: `Added ${f.email} to your email list.`,
+      create_task: `Added "${f.title}" to your tasks.`,
+      capture_lead: `Captured ${f.name}${f.company ? ` at ${f.company}` : ""} as a lead.`,
+      update_contact: `Updated ${f.contact_identifier}.`,
+      log_expense: `Logged ${f.currency || "$"}${f.amount}${f.category ? ` for ${f.category}` : ""}.`,
+    };
+    return data.expected_completion_message ?? done[type] ?? "Done — your staff have it.";
+  }
+
+  // Detection runs alongside the normal chat flow. The server tells us whether
+  // to auto-fire (autopilot enabled), offer graduation, or just show the modal
+  // (incl. the two-option chooser). Ambiguity never auto-fires.
   async function detectIntent(message: string) {
     try {
       const res = await fetch("/api/intent/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ message }),
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { intents: IntentResult[] };
-      if (data.intents?.length) setPendingIntents(data.intents);
+      const data = (await res.json()) as { intents: IntentResult[]; autofire?: boolean; graduationOffer?: boolean };
+      if (!data.intents?.length) return;
+      if (data.autofire) { void commitIntent(data.intents[0]!.type, data.intents[0]!.fields, "autopilot", false); return; }
+      setGraduationOffer(!!data.graduationOffer);
+      setPendingIntents(data.intents);
     } catch { /* non-blocking — chat continues regardless */ }
   }
 
-  async function commitIntent(type: string, editedFields: Record<string, string>) {
+  async function commitIntent(type: string, fields: Record<string, string>, source: string, edited: boolean) {
     setIntentBusy(true);
     try {
       const res = await fetch("/api/intent/commit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
-        body: JSON.stringify({ intent_type: type, fields: editedFields, source: "text" }),
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+        body: JSON.stringify({ intent_type: type, fields, source, edited }),
       });
       const ok = res.ok;
-      const data = ok ? ((await res.json().catch(() => ({}))) as { expected_completion_message?: string }) : {};
-      const done: Record<string, string> = {
-        create_contact: `Added ${editedFields.name} to your contacts.`,
-        log_interaction: `Logged your ${editedFields.interaction_type || "interaction"} with ${editedFields.contact_name}.`,
-        schedule_followup: `Set a follow-up with ${editedFields.contact_name}${editedFields.due_date ? ` for ${editedFields.due_date}` : ""}.`,
-        add_to_email_list: `Added ${editedFields.email} to your email list.`,
-        create_task: `Added "${editedFields.title}" to your tasks.`,
-        capture_lead: `Captured ${editedFields.name}${editedFields.company ? ` at ${editedFields.company}` : ""} as a lead.`,
-        update_contact: `Updated ${editedFields.contact_identifier}.`,
-        log_expense: `Logged ${editedFields.currency || "$"}${editedFields.amount}${editedFields.category ? ` for ${editedFields.category}` : ""}.`,
-      };
-      // Delegate intents return a "Marketing is drafting…" style message.
-      const msg = ok ? (data.expected_completion_message ?? done[type] ?? "Done — your staff have it.") : "Couldn't save that just now — give it another try.";
-      setPendingIntents([]);
-      setMessages((prev) => [...prev, { role: "assistant", content: msg }]);
+      const data = ok ? ((await res.json().catch(() => ({}))) as { expected_completion_message?: string; audit_row_id?: string }) : {};
+      const msg = ok ? successCopy(type, fields, data) : "Couldn't save that just now — give it another try.";
+      setPendingIntents([]); setGraduationOffer(false);
+      if (source === "autopilot" && ok && data.audit_row_id) {
+        // Silent fire — the toast IS the notification (with Undo).
+        setUndoToast({ auditRowId: data.audit_row_id, message: msg });
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: msg }]);
+      }
     } catch {
-      setPendingIntents([]);
+      setPendingIntents([]); setGraduationOffer(false);
       setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't save that just now — give it another try." }]);
     } finally {
       setIntentBusy(false);
     }
+  }
+
+  // Modal Confirm / disambiguation pick. `edited` only meaningful for the
+  // single-option case where the chosen type matches what we parsed.
+  function handleConfirm(type: string, fields: Record<string, string>) {
+    const original = pendingIntents[0];
+    const edited = !!original && pendingIntents.length === 1 && type === original.type && JSON.stringify(fields) !== JSON.stringify(original.fields);
+    void commitIntent(type, fields, "text", edited);
+  }
+
+  async function handleGraduate(choice: "yes" | "not_yet" | "just_once", type: string, fields: Record<string, string>) {
+    if (choice === "yes") await fetch("/api/autopilot/enable", { method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token }, body: JSON.stringify({ intent_type: type }) }).catch(() => {});
+    if (choice === "not_yet") await fetch("/api/autopilot/decline", { method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token }, body: JSON.stringify({ intent_type: type }) }).catch(() => {});
+    void commitIntent(type, fields, "text", false);
+  }
+
+  function cancelIntent() {
+    if (intentBusy) return;
+    const t = pendingIntents[0];
+    if (t && pendingIntents.length === 1) {
+      void fetch("/api/autopilot/cancel", { method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token }, body: JSON.stringify({ intent_type: t.type }) }).catch(() => {});
+    }
+    setPendingIntents([]); setGraduationOffer(false);
   }
 
   useEffect(() => {
@@ -1226,9 +1261,15 @@ export default function CommandCenter() {
         <ConfirmActionModal
           intentOptions={pendingIntents}
           busy={intentBusy}
-          onConfirm={(type, f) => { void commitIntent(type, f); }}
-          onCancel={() => { if (!intentBusy) setPendingIntents([]); }}
+          showGraduationOffer={graduationOffer}
+          onConfirm={(type, f) => { handleConfirm(type, f); }}
+          onGraduate={(choice, type, f) => { void handleGraduate(choice, type, f); }}
+          onCancel={cancelIntent}
         />
+      )}
+
+      {undoToast && (
+        <UndoToast auditRowId={undoToast.auditRowId} message={undoToast.message} onClose={() => setUndoToast(null)} />
       )}
     </div>
   );

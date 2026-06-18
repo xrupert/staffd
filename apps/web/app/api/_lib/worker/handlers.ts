@@ -146,10 +146,37 @@ const docusealSend: WorkerHandler = async (task, ctx) => {
   return { text: `signature-sent:${sub.id}`, tokensActual: 0 };
 };
 
+// ── undo reversal handlers (W95.5) — undo a vendor mirror created by autopilot.
+const twentyDelete: WorkerHandler = async (task) => {
+  const p = task.input_payload as { twenty_record_id?: string };
+  if (!p.twenty_record_id) return { text: "twenty delete: nothing to delete", tokensActual: 0 };
+  const ok = await TwentyClient.forCustomer(task.user).deletePerson(p.twenty_record_id);
+  if (!ok) throw new Error("twenty delete failed");
+  return { text: `deleted:${p.twenty_record_id}`, tokensActual: 0 };
+};
+
+const listmonkUnsubscribe: WorkerHandler = async (task) => {
+  const p = task.input_payload as { email?: string };
+  if (!p.email) return { text: "listmonk unsubscribe: no email", tokensActual: 0 };
+  if (!ListmonkClient.configured) throw new Error("listmonk not configured");
+  const ok = await ListmonkClient.forCustomer(task.user).removeSubscriber(p.email);
+  if (!ok) throw new Error("listmonk unsubscribe failed");
+  return { text: `unsubscribed:${p.email}`, tokensActual: 0 };
+};
+
+// send_for_signature is `never` policy, so autopilot can't fire it and undo
+// never reaches here in V1. Stub keeps the reversal pattern in place.
+const docusealVoid: WorkerHandler = async () => {
+  throw new Error("docuseal_void_worker not yet implemented (send_for_signature is never-autopilot)");
+};
+
 export const WORKER_HANDLERS: Record<string, WorkerHandler> = {
   mirror_retry_worker: mirrorRetry,
   document_extraction_worker: documentExtraction,
   listmonk_subscribe_worker: listmonkSubscribe,
   twenty_update_worker: twentyUpdate,
   docuseal_send_worker: docusealSend,
+  twenty_delete_worker: twentyDelete,
+  listmonk_unsubscribe_worker: listmonkUnsubscribe,
+  docuseal_void_worker: docusealVoid,
 };

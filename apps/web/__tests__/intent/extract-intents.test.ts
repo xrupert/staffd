@@ -33,6 +33,7 @@ describe("extractIntent — positive parse per type", () => {
     { type: "log_expense", fields: { amount: "45" }, check: { amount: "45" } },
     { type: "draft_campaign", fields: { message_summary: "launch announcement" }, check: { message_summary: "launch announcement" } },
     { type: "send_for_signature", fields: { document_identifier: "consulting agreement", signer_name: "Jane" }, check: { document_identifier: "consulting agreement" } },
+    { type: "disable_autopilot", fields: { intent_type: "create_contact" }, check: { intent_type: "create_contact" } },
   ];
   for (const c of cases) {
     it(`parses ${c.type}`, async () => {

@@ -49,6 +49,8 @@ const CASCADE_COLLECTIONS_USER = [
   "tasks",             // W95.4a — owner to-dos
   "leads",             // W95.4a — captured leads
   "expenses",          // W95.4a — logged expenses
+  "autopilot_prefs",   // W95.5 — autopilot graduation state
+  "autopilot_audit_log", // W95.5 — autopilot reversal audit
   "subscriptions",
 ] as const;
 

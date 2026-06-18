@@ -44,12 +44,20 @@ function uiFor(type: string, fields: Record<string, string>) {
 export default function ConfirmActionModal({
   intentOptions,
   busy = false,
+  showGraduationOffer = false,
+  graduationCount,
   onConfirm,
+  onGraduate,
   onCancel,
 }: {
   intentOptions: IntentResult[];
   busy?: boolean;
+  /** W95.5 — render the "automate it next time?" block above the buttons. */
+  showGraduationOffer?: boolean;
+  graduationCount?: number;
   onConfirm: (type: string, editedFields: Record<string, string>) => void;
+  /** W95.5 — graduation choice; parent enables/declines then commits. */
+  onGraduate?: (choice: "yes" | "not_yet" | "just_once", type: string, editedFields: Record<string, string>) => void;
   onCancel: () => void;
 }) {
   const single = intentOptions[0]!;
@@ -102,13 +110,29 @@ export default function ConfirmActionModal({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <button disabled={busy || !canConfirm} onClick={() => onConfirm(single.type, fields)}
-            className="btn-primary px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ opacity: busy || !canConfirm ? 0.5 : 1 }}>
-            {busy ? "Saving…" : "Confirm"}
-          </button>
-          <button disabled={busy} onClick={onCancel} className="px-4 py-2 rounded-xl text-xs" style={{ background: "transparent", border: "1px solid #2A2A38", color: "#7070A0" }}>Cancel</button>
-        </div>
+        {showGraduationOffer && onGraduate ? (
+          <>
+            <div className="rounded-xl px-4 py-3 mb-3" style={{ background: "rgba(91,33,232,0.08)", border: "1px solid rgba(91,33,232,0.25)" }}>
+              <p className="text-xs mb-2.5" style={{ color: "#C8C0F0" }}>
+                Your specialist has gotten this right {graduationCount ?? "several"} times. Want STAFFD to handle it automatically next time?
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button disabled={busy || !canConfirm} onClick={() => onGraduate("yes", single.type, fields)} className="btn-primary px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ opacity: busy || !canConfirm ? 0.5 : 1 }}>Yes, automate it</button>
+                <button disabled={busy || !canConfirm} onClick={() => onGraduate("not_yet", single.type, fields)} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E0" }}>Not yet</button>
+                <button disabled={busy || !canConfirm} onClick={() => onGraduate("just_once", single.type, fields)} className="px-3 py-1.5 rounded-lg text-xs" style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E0" }}>Just this once</button>
+              </div>
+            </div>
+            <button disabled={busy} onClick={onCancel} className="px-4 py-2 rounded-xl text-xs" style={{ background: "transparent", border: "1px solid #2A2A38", color: "#7070A0" }}>Cancel</button>
+          </>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button disabled={busy || !canConfirm} onClick={() => onConfirm(single.type, fields)}
+              className="btn-primary px-4 py-2 rounded-xl text-xs font-semibold text-white" style={{ opacity: busy || !canConfirm ? 0.5 : 1 }}>
+              {busy ? "Saving…" : "Confirm"}
+            </button>
+            <button disabled={busy} onClick={onCancel} className="px-4 py-2 rounded-xl text-xs" style={{ background: "transparent", border: "1px solid #2A2A38", color: "#7070A0" }}>Cancel</button>
+          </div>
+        )}
       </div>
     </div>
   );
