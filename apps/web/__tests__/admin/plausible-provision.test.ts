@@ -53,6 +53,19 @@ describe("POST/DELETE /api/admin/plausible/[userId] (W95.6.y)", () => {
     expect((await post("u1", "acme.com")).status).toBe(403);
   });
 
+  // W95.7 — auth before body validation: an unauthenticated EMPTY post is 403
+  // (not 400), consistent with DELETE; auth passes → empty body is 400.
+  it("auth runs before body validation (anonymous empty POST → 403, not 400)", async () => {
+    adminMock.ok = false;
+    expect((await post("u1", "")).status).toBe(403);
+    expect((await post("u1", undefined)).status).toBe(403);
+  });
+
+  it("super-admin empty POST → 400 (validation runs after auth passes)", async () => {
+    adminMock.ok = true;
+    expect((await post("u1", "   ")).status).toBe(400);
+  });
+
   it("POST sets plausible_site_id on the business row", async () => {
     const res = await post("u1", "acme.com");
     expect(res.status).toBe(200);

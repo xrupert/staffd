@@ -10,6 +10,29 @@
 
 ---
 
+## 0. V1 Substrate Complete ✅
+
+> **Date:** 2026-06-18 · **Marker commit:** `W95.7` (see `git log --grep "W95.7"`; exact SHA recorded in [STAFFD_TRACK.md](STAFFD_TRACK.md) post-W95.7 row). The Model-B3 substrate is feature-complete and shippable as the V1 fallback. L4 (W73–W75 — workflow planner / recipes / exceptional ship) continues on top of it.
+
+**What "substrate complete" means:** a customer can run their whole business through STAFFD by conversation + upload, with every vendor backend invisible and partitioned per-customer. Verify live at `/dashboard/admin/health` (or `GET /api/admin/health`) — green everywhere = healthy.
+
+**The 13 canonical V1 intents** (confirm-to-commit; `INTENT_FIELDS` / `COMMIT_HANDLERS`):
+`create_contact`, `log_interaction`, `schedule_followup`, `add_to_email_list`, `create_task`, `capture_lead`, `update_contact`, `log_expense`, `draft_campaign`, `send_for_signature`, `reply_to_ticket`, `resolve_ticket`, `tag_conversation`. *(`disable_autopilot` + `undo` are meta-controls, not business intents.)*
+
+**The 5 vendor backends** (operator-shared infrastructure; each reached ONLY via its `forCustomer(userId)` leak-guard client, `staffdCustomerId` = PB userId):
+
+| Backend | Surface | Partition mechanism |
+|---|---|---|
+| Twenty (CRM) | Sales Pipeline | per-record `staffdCustomerId` tag (app-layer filter mandatory) |
+| Listmonk (email) | Email Campaigns | list-per-customer — `staffd-<userId>` list |
+| Chatwoot (support) | Support Inbox | inbox-per-customer — `businesses.chatwoot_inbox_id` |
+| Docuseal (e-sign) | Send for signature | per-submission metadata tag (client-side filtered) |
+| Plausible (analytics) | Site Analytics | site-per-customer — `businesses.plausible_site_id` (operator-provisioned; no Sites API) |
+
+STAFFD-native PocketBase collections are the source of truth; vendor writes are async mirrors via the W71 task bus (`mirror_retry_worker` heals failures). See [docs/architecture/PARADIGM.md](docs/architecture/PARADIGM.md) for the registry catalog and [docs/architecture/STANDARDS.md](docs/architecture/STANDARDS.md) for the engineering standards (esp. #20 substrate reuse, #24 never weaken a gate, #28 registry-extension, #29 doc/code drift-guard).
+
+---
+
 ## 1. The Vision
 
 **STAFFD is an AI-powered hiring platform for small businesses.** You hire a full staff — Marketing, Sales, Legal, HR, Finance, Operations, Paid Media, Design, Reputation, and The CEO — for less than one freelancer. 83+ named specialists across 10 departments are on call the moment you sign up.

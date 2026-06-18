@@ -3,10 +3,13 @@
 /**
  * /dashboard/front-desk/campaigns — Email Campaigns native surface (W80.2).
  *
- * List / detail / compose over the operator's email tool, in STAFFD's shell.
- * No vendor name appears anywhere. Super-admin gated; the write route is
- * authed and the reads were gated in W80.1. "Make this smart →" hands the
- * draft to the email specialist via the Command Center (surface→specialist).
+ * List / detail / compose over the customer's OWN email campaigns, in STAFFD's
+ * shell. W95.7 repointed this off the operator-wide route onto the per-customer
+ * /api/front-desk/campaigns (list-per-customer partition) so the Front Desk is
+ * fully per-customer. A campaign always sends to the customer's own subscribers
+ * — no list picker, no cross-tenant audience. No vendor name appears anywhere.
+ * "Make this smart →" hands the draft to the email specialist via the Command
+ * Center (surface→specialist).
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -16,7 +19,6 @@ import { campaignStatusLabel, buildCampaignSmartPrompt } from "../../../../lib/o
 
 type Campaign = { id: number; name: string; status: string; sent: number; toSend: number; openRate: number; sendAt: string | null; createdAt: string | null };
 type Detail = { id: number; name: string; subject: string; status: string; sent: number; toSend: number; views: number; clicks: number; bounces: number; openRate: number; sendAt: string | null; preview: string };
-type ListOption = { id: number; name: string; subscribers: number };
 type View = "list" | "detail" | "compose";
 
 const card: React.CSSProperties = { background: "#111118", border: "1px solid #2A2A38", borderRadius: "16px", padding: "20px" };
@@ -32,13 +34,11 @@ export default function CampaignsPage() {
   const [view, setView] = useState<View>("list");
   const [campaigns, setCampaigns] = useState<Campaign[] | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [lists, setLists] = useState<ListOption[]>([]);
   const [error, setError] = useState("");
 
   // Compose form
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [chosen, setChosen] = useState<number[]>([]);
   const [sendAt, setSendAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -46,10 +46,11 @@ export default function CampaignsPage() {
   const loadList = useCallback(async () => {
     setError("");
     try {
-      const res = await api("/api/integrations/listmonk?limit=50");
-      if (res.status === 503) { setCampaigns([]); setError("No campaigns yet — your specialist can draft one."); return; }
+      const res = await api("/api/front-desk/campaigns?limit=50");
       if (!res.ok) { setCampaigns([]); setError("Couldn't load campaigns."); return; }
-      setCampaigns((await res.json()).campaigns ?? []);
+      const d = (await res.json()) as { connected?: boolean; campaigns?: Campaign[] };
+      if (d.connected === false) { setCampaigns([]); setError("No campaigns yet — your specialist can draft one."); return; }
+      setCampaigns(d.campaigns ?? []);
     } catch { setCampaigns([]); setError("Couldn't load campaigns."); }
   }, []);
 
@@ -63,32 +64,28 @@ export default function CampaignsPage() {
   async function openDetail(id: number) {
     setView("detail"); setDetail(null);
     try {
-      const res = await api(`/api/integrations/listmonk?campaign_id=${id}`);
+      const res = await api(`/api/front-desk/campaigns?campaign_id=${id}`);
       if (res.ok) setDetail((await res.json()).campaign);
     } catch { /* detail stays null → "couldn't load" */ }
   }
 
-  async function openCompose() {
-    setView("compose"); setSubject(""); setBody(""); setChosen([]); setSendAt(""); setNotice("");
-    try {
-      const res = await api("/api/integrations/listmonk?resource=lists");
-      if (res.ok) setLists((await res.json()).lists ?? []);
-    } catch { /* no lists → send to no one until picked */ }
+  function openCompose() {
+    setView("compose"); setSubject(""); setBody(""); setSendAt(""); setNotice("");
   }
 
   async function createDraft(): Promise<number | null> {
-    const res = await fetch("/api/integrations/listmonk", {
+    const res = await api("/api/front-desk/campaigns", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject, body, listIds: chosen, userId: pb.authStore.record?.id }),
+      body: JSON.stringify({ subject, body }),
     });
     const data = (await res.json()) as { success?: boolean; campaignId?: number };
     return res.ok && data.success ? (data.campaignId ?? null) : null;
   }
 
   async function changeStatus(campaignId: number, action: "send" | "schedule") {
-    return api("/api/integrations/listmonk", {
+    return api("/api/front-desk/campaigns", {
       method: "PUT", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campaignId, action, sendAt: action === "schedule" ? new Date(sendAt).toISOString() : undefined, userId: pb.authStore.record?.id }),
+      body: JSON.stringify({ campaignId, action, sendAt: action === "schedule" ? new Date(sendAt).toISOString() : undefined }),
     });
   }
 
@@ -182,14 +179,7 @@ export default function CampaignsPage() {
                 <textarea style={{ ...input, minHeight: "160px", lineHeight: 1.6, resize: "vertical" }} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Write your email…" />
               </Field>
               <Field label="Send to">
-                {lists.length === 0 ? <p className="text-xs" style={{ color: "#5A5A70" }}>No audiences available.</p> : (
-                  <div className="flex flex-wrap gap-2">
-                    {lists.map((l) => {
-                      const on = chosen.includes(l.id);
-                      return <button key={l.id} onClick={() => setChosen((p) => on ? p.filter((x) => x !== l.id) : [...p, l.id])} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: on ? "rgba(91,33,232,0.15)" : "#1A1A24", border: `1px solid ${on ? "rgba(91,33,232,0.5)" : "#2A2A38"}`, color: on ? "#A07BFF" : "#7070A0", cursor: "pointer" }}>{l.name} ({l.subscribers.toLocaleString()})</button>;
-                    })}
-                  </div>
-                )}
+                <p className="text-xs" style={{ color: "#7070A0" }}>Your subscribers. Build your audience by uploading contacts or asking your specialist.</p>
               </Field>
               <Field label="Schedule for (optional)"><input type="datetime-local" style={input} value={sendAt} onChange={(e) => setSendAt(e.target.value)} /></Field>
 

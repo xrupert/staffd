@@ -49,21 +49,6 @@ export default function FrontDeskHome() {
   // W95.6.x — drafts awaiting the owner's review (delegate review step).
   const [draftCount, setDraftCount] = useState<number | null>(null);
 
-  const loadCard = useCallback(
-    async (path: string, set: (s: CardState) => void, summarize: (d: unknown) => string) => {
-      try {
-        const sep = path.includes("?") ? "&" : "?";
-        const res = await fetch(`${path}${sep}pbToken=${encodeURIComponent(pb.authStore.token)}`);
-        if (res.status === 503) { set({ summary: "Not connected yet.", connected: false, loading: false }); return; }
-        if (!res.ok) { set({ summary: "Couldn't load.", connected: true, loading: false }); return; }
-        set({ summary: summarize(await res.json()), connected: true, loading: false });
-      } catch {
-        set({ summary: "Couldn't load.", connected: true, loading: false });
-      }
-    },
-    [],
-  );
-
   useEffect(() => {
     // W91 — open to every authenticated user. Each card resolves the user's
     // own creds (operator falls back to env); missing creds → per-card
@@ -72,7 +57,18 @@ export default function FrontDeskHome() {
     setIsAdmin(authed);
     if (!authed) return;
 
-    void loadCard("/api/integrations/listmonk", setEmail, (d) => summarizeEmail(d as never));
+    // W95.7 — Email Campaigns reads the customer's OWN campaigns (list-per-
+    // customer partition), not the operator-wide route. Empty → empty state.
+    void (async () => {
+      try {
+        const res = await fetch("/api/front-desk/campaigns?limit=5", { headers: { Authorization: pb.authStore.token } });
+        if (!res.ok) { setEmail({ summary: "", connected: false, loading: false }); return; }
+        const d = (await res.json()) as { campaigns?: { name?: string; sent?: number }[] };
+        const list = d.campaigns ?? [];
+        if (list.length === 0) { setEmail({ summary: "", connected: false, loading: false }); return; }
+        setEmail({ summary: summarizeEmail(d as never), connected: true, loading: false });
+      } catch { setEmail({ summary: "", connected: false, loading: false }); }
+    })();
 
     // W95.6.y — Site Analytics reads the customer's OWN site (site-per-customer).
     // No provisioned site → empty state; else visitors/pageviews summary.
@@ -150,7 +146,7 @@ export default function FrontDeskHome() {
         })));
       } catch { setMeetings([]); }
     })();
-  }, [loadCard]);
+  }, []);
 
   return (
     <main className="min-h-screen" style={{ background: "#09090F" }}>

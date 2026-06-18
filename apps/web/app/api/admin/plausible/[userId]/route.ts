@@ -23,10 +23,8 @@ async function audit(pb: string, token: string, opUser: string, detail: string) 
   }).catch(() => {});
 }
 
-async function setSite(req: Request, params: Ctx["params"], value: string): Promise<Response> {
-  let me: { id: string; email: string };
-  try { me = await requireSuperAdmin(req); } catch (err) { return toAuthErrorResponse(err); }
-  const { userId } = await params;
+/** Persist the (already-validated) site id; assumes auth already passed. */
+async function persistSite(opUserId: string, userId: string, value: string): Promise<Response> {
   let token: string;
   try { token = await getAdminToken(); } catch { return Response.json({ error: "PocketBase not configured" }, { status: 503 }); }
   const pb = pbUrl();
@@ -34,18 +32,26 @@ async function setSite(req: Request, params: Ctx["params"], value: string): Prom
   if (!bizId) return Response.json({ error: "no_business_row" }, { status: 404 });
   const res = await fetch(`${pb}/api/collections/businesses/records/${bizId}`, { method: "PATCH", headers: adminHeaders(token), body: JSON.stringify({ plausible_site_id: value }) });
   if (!res.ok) return Response.json({ error: "save_failed" }, { status: 502 });
-  await audit(pb, token, me.id, `${value ? "set" : "cleared"} plausible_site_id for ${userId}${value ? ` = ${value}` : ""}`);
+  await audit(pb, token, opUserId, `${value ? "set" : "cleared"} plausible_site_id for ${userId}${value ? ` = ${value}` : ""}`);
   return Response.json({ ok: true, plausible_site_id: value });
 }
 
 export async function POST(req: Request, { params }: Ctx) {
+  // Auth FIRST (W95.7) — consistent with DELETE; an anonymous caller always
+  // gets 401, never a 400 that would leak that the endpoint exists / its shape.
+  let me: { id: string; email: string };
+  try { me = await requireSuperAdmin(req); } catch (err) { return toAuthErrorResponse(err); }
   let body: { site_id?: string };
   try { body = await req.json(); } catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
   const site = (body.site_id ?? "").trim();
   if (!site) return Response.json({ error: "site_id_required" }, { status: 400 });
-  return setSite(req, params, site);
+  const { userId } = await params;
+  return persistSite(me.id, userId, site);
 }
 
 export async function DELETE(req: Request, { params }: Ctx) {
-  return setSite(req, params, "");
+  let me: { id: string; email: string };
+  try { me = await requireSuperAdmin(req); } catch (err) { return toAuthErrorResponse(err); }
+  const { userId } = await params;
+  return persistSite(me.id, userId, "");
 }

@@ -46,6 +46,12 @@ const SURFACES: AdminSurface[] = [
     description: "Fleet-wide activity: users by type/plan, department + specialist output, integration outcomes, workflow execution stats.",
     status: "live",
   },
+  {
+    href: "/dashboard/admin/health",
+    title: "Substrate Health",
+    description: "V1 substrate self-check: collections, intent handlers, workers, migrations, recipes, and vendor backends — all green or red.",
+    status: "live",
+  },
 ];
 
 const DEFERRED_VIEWERS = [

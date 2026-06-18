@@ -147,6 +147,18 @@ No super-admin token + Sensitive `PLAUSIBLE_*` creds, so the live read is yours 
 - ✅ Confirm the CE Stats API shape matches what `PlausibleClient` expects: `/api/v1/stats/aggregate` returns `{results:{visitors:{value},pageviews:{value},bounce_rate:{value},visit_duration:{value}}}`; `/timeseries` returns `{results:[{date,visitors,pageviews}]}`; `/breakdown?property=event:page|visit:source` returns `{results:[{page|source,visitors}]}`. If the CE version differs (e.g. v2 Stats API), tell me and I'll repoint the mapping.
 - ✅ Tenant isolation: a customer's analytics page shows ONLY their own `site_id`'s stats; a different customer with a different `site_id` sees different data; an unprovisioned customer never sees another tenant's numbers.
 
+### 25. W95.7 — Substrate health check smoke
+- Run any remaining pending migrations via `/dashboard/admin/migrations`.
+- Navigate `/dashboard/admin/health`.
+- ✅ Confirm all-green: every expected collection present, every intent wired, every worker registered, every migration applied, recipes in sync. (`GET /api/admin/health` returns the same JSON for external monitoring.)
+- If any red: report and resolve before declaring V1 substrate ready. (Vendor backends showing "off" is OK — it just means that env isn't set in this environment; not a failure.)
+
+### 26. W95.7 — Front Desk full smoke (verify substrate complete)
+- Log in as operator (or a comp test user) and open `/dashboard/front-desk`.
+- ✅ Each card renders real **per-customer** data (or an honest empty state): Tasks / Follow-ups / Leads · Drafts pending review · **Email Campaigns** · Sales Pipeline · Support Inbox · Site Analytics.
+- ✅ **Email Campaigns is now per-customer** (W95.7 repoint): the card + `/dashboard/front-desk/campaigns` show ONLY this customer's campaigns; composing sends to "your subscribers" (the customer's own list) — there is no list-picker exposing other tenants' audiences. Draft → Send → confirm the campaign appears for this customer only.
+- ✅ Every card is clickable to its drill-in where one exists; zero "Twenty" / "Chatwoot" / "Plausible" / "Listmonk" / "Docuseal" visible anywhere customer-facing.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

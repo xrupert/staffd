@@ -14,7 +14,9 @@ import { adminHeaders, getAdminToken, pbUrl } from "../../../_lib/pb";
 import { whoAmI } from "../../../_lib/integrations/identity";
 import { recordDecision } from "../../../_lib/vault/outcomes";
 
-const SECOND_WORKER: Record<string, string> = { reply_to_ticket: "chatwoot_send_worker", send_for_signature: "docuseal_send_worker" };
+// W95.7 — exported so the substrate health check can introspect the recipe
+// registry (recipe_id → second worker). Behaviour unchanged.
+export const SECOND_WORKER: Record<string, string> = { reply_to_ticket: "chatwoot_send_worker", send_for_signature: "docuseal_send_worker" };
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string; action: string }> }) {
   const me = await whoAmI(req);

@@ -801,7 +801,7 @@ export default function DepartmentRoom({
         setIntegrationMsg(data.message ?? "Failed to create ticket.");
       } else {
         setIntegrationStatus("sent");
-        setIntegrationMsg(data.conversationUrl ? `Ticket opened → ${data.conversationUrl}` : "Ticket opened in Chatwoot.");
+        setIntegrationMsg(data.conversationUrl ? `Ticket opened → ${data.conversationUrl}` : "Support ticket opened.");
       }
     } catch {
       setIntegrationStatus("error");

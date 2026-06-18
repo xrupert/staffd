@@ -127,6 +127,16 @@ New features extend an existing registry (see [PARADIGM.md](./PARADIGM.md)); a
 new dispatch pattern requires SA review. *Why: codified from the W95.x registry
 work — divergent dispatch patterns are the main maintainability risk.*
 
+### #29 — Canonical Docs Mirroring Code Need a Drift-Guard Test
+When a canonical architecture doc reproduces in-code structure (a registry
+table, a recipe map, an intent/worker list), ship a CI test that fails when the
+doc and the code disagree. The test reads both sides and asserts they match, so
+the doc cannot silently rot. *Why: origin example is `paradigm-recipes.test.ts`
+(W95.6.y) guarding the PARADIGM.md recipe table against the `SECOND_WORKER`
+map; W95.7's substrate health check generalizes the idea at runtime. (The
+dispatch numbered this "#28"; #28 was already assigned to Registry-Extension,
+so it lands here as #29 per the append convention — Standard #16.)*
+
 ---
 
 *New Standards append here with the next free number. If SA supplies the missing
