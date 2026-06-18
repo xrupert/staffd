@@ -38,6 +38,9 @@ Intent types and their fields (use these exact field keys; omit keys you can't f
 - log_expense — record a business expense. fields: amount(req, digits only), currency, category, description, occurred_at, client_name
 - draft_campaign — ask Marketing to draft an email campaign. fields: message_summary(req), subject_hint, target_audience, occasion
 - send_for_signature — ask Legal to send a document for signature. fields: document_identifier(req), signer_name, signer_email, signer_contact, notes
+- reply_to_ticket — draft a reply to a support conversation. fields: message_summary(req — what to say), conversation_identifier (sender name/email or id), tone (friendly|formal|apologetic)
+- resolve_ticket — mark a support conversation resolved/closed. fields: conversation_identifier(req — sender name/email or id)
+- tag_conversation — label a support conversation. fields: label(req), conversation_identifier
 - disable_autopilot — turn OFF automatic handling for an action. fields: intent_type(req) — map the user's words to the canonical intent key: "contacts"→create_contact, "leads"→capture_lead, "email list"/"newsletter"→add_to_email_list, "tasks"→create_task, "follow-ups"→schedule_followup, "interactions"→log_interaction, "expenses"→log_expense, "contact updates"→update_contact
 
 Shape: {"intents":[{"type":"<type>","fields":{...},"confidence":0.0-1.0}, ...]}

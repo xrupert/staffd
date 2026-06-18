@@ -128,6 +128,13 @@ Same blocker as Docuseal: no super-admin token + Sensitive `CHATWOOT_*` creds, s
 - Manually exercise `ChatwootClient` against the operator instance: `findOrCreateInbox()` creates an inbox named **`staffd-<userId>`**; `listConversations()` filtered by that inbox returns **ONLY this customer's** conversations.
 - ✅ Tenant isolation: a different `staffdCustomerId` (different user) sees a different/empty inbox. **If isolation fails, STOP before W95.6.1 ships reply/resolve.**
 
+### 22. W95.6.x — review step + Chatwoot writes
+- Run **Workflows — review step** (`workflows-v2`) via `/dashboard/admin/migrations`.
+- **Reply end-to-end:** Front Desk inbox → open a conversation → **Reply** → "Thanks, I'll get back to you Friday" → after Reputation drains (~1–2 min), the **Drafts** card shows it → open → tweak → **Approve & Send** → the reply appears in Chatwoot and reaches the customer. (Cancel instead → workflow cancelled, nothing sends.)
+- **Resolve / tag (direct):** "resolve John's ticket" + "tag the latest ticket urgent" → confirm modals → verify status/label changed in the Chatwoot admin.
+- **send_for_signature retroactive review:** re-run a signature request → Legal's draft now pauses at **Drafts** → Approve before Docuseal sends.
+- ✅ Confirm tombstone-on-cancel: cancel a draft, then confirm the send never fires.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

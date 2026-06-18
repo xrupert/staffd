@@ -30,14 +30,15 @@ describe("InboxPage", () => {
     await waitFor(() => expect(screen.getByText("Acme Co")).toBeTruthy());
   });
 
-  it("opens a drawer with the thread and a disabled Reply", async () => {
+  it("opens a drawer with the thread and a functional Reply (W95.6.x) that opens the draft modal", async () => {
     render(<InboxPage />);
     await waitFor(() => expect(screen.getByText("Acme Co")).toBeTruthy());
     fireEvent.click(screen.getByText("Acme Co"));
     await waitFor(() => expect(screen.getByText("we're on it")).toBeTruthy());
-    const reply = screen.getByText(/Reply/);
-    expect((reply as HTMLButtonElement).disabled).toBe(true);
-    expect(reply.getAttribute("title")).toMatch(/coming/i);
+    const reply = screen.getByText("Reply");
+    expect((reply as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(reply);
+    expect(screen.getByText(/Have my specialist draft it/)).toBeTruthy(); // reply modal opened
   });
 
   it("shows the STAFFD-voice empty state (no vendor name) when clear", async () => {

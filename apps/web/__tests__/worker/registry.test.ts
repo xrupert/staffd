@@ -18,12 +18,16 @@ vi.mock("../../app/api/_lib/integrations/twenty/client", () => ({
 vi.mock("../../app/api/_lib/upload/extract", () => ({ extractKindFor: () => "text", extractText: async () => ({ ok: true, text: "t" }) }));
 const ds = vi.hoisted(() => ({ create: vi.fn(async () => ({ id: 42 }) as { id: number } | null) }));
 vi.mock("../../app/api/_lib/integrations/docuseal/client", () => ({ DocusealClient: { forCustomer: () => ({ createSubmission: ds.create }) } }));
+const ch = vi.hoisted(() => ({ configured: true, resolveId: vi.fn(async () => 7 as number | null), resolve: vi.fn(async () => true), tag: vi.fn(async () => true), send: vi.fn(async () => true) }));
+vi.mock("../../app/api/_lib/integrations/chatwoot/client", () => ({
+  ChatwootClient: { get configured() { return ch.configured; }, forCustomer: () => ({ resolveConversationId: ch.resolveId, resolveConversation: ch.resolve, addLabel: ch.tag, sendMessage: ch.send }) },
+}));
 
 import { WORKER_HANDLERS, isWorkerTask } from "../../app/api/_lib/worker/handlers";
 
 const ctx = { pb: "https://pb.test", adminToken: "tok", authHeaders: { Authorization: "tok", "Content-Type": "application/json" } };
-function task(specialist: string, payload: Record<string, unknown>): any {
-  return { id: "t", workflow_id: "", user: "userA", specialist_id: specialist, department_id: "system", input_payload: payload, status: "pending", depends_on: [], retry_count: 0 };
+function task(specialist: string, payload: Record<string, unknown>, wfId = ""): any {
+  return { id: "t", workflow_id: wfId, user: "userA", specialist_id: specialist, department_id: "system", input_payload: payload, status: "pending", depends_on: [], retry_count: 0 };
 }
 let calls: { url: string; method: string }[];
 beforeEach(() => { lm.configured = true; lm.add.mockClear(); lm.add.mockResolvedValue(true); lm.remove.mockClear(); lm.remove.mockResolvedValue(true); tw.update.mockClear(); tw.update.mockResolvedValue(true); tw.del.mockClear(); tw.del.mockResolvedValue(true); calls = []; vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => { calls.push({ url, method: init?.method ?? "GET" }); return { ok: true, json: async () => ({}) }; })); });
@@ -32,6 +36,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("worker registry", () => {
   it("registers exactly the known handler keys", () => {
     expect(Object.keys(WORKER_HANDLERS).sort()).toEqual([
+      "chatwoot_resolve_worker", "chatwoot_send_worker", "chatwoot_tag_worker",
       "document_extraction_worker", "docuseal_send_worker", "docuseal_void_worker",
       "listmonk_subscribe_worker", "listmonk_unsubscribe_worker", "mirror_retry_worker",
       "twenty_delete_worker", "twenty_update_worker",
@@ -54,6 +59,37 @@ describe("listmonk_subscribe_worker", () => {
   it("throws on a failed subscribe so W71 retries", async () => {
     lm.add.mockResolvedValue(false);
     await expect(WORKER_HANDLERS.listmonk_subscribe_worker!(task("listmonk_subscribe_worker", { email: "j@x.com" }), ctx)).rejects.toThrow();
+  });
+});
+
+describe("Chatwoot write workers (W95.6.x)", () => {
+  beforeEach(() => { ch.configured = true; ch.resolveId.mockResolvedValue(7); ch.resolve.mockClear(); ch.resolve.mockResolvedValue(true); ch.tag.mockClear(); ch.tag.mockResolvedValue(true); ch.send.mockClear(); ch.send.mockResolvedValue(true); });
+
+  it("chatwoot_resolve_worker resolves the conversation", async () => {
+    const r = await WORKER_HANDLERS.chatwoot_resolve_worker!(task("chatwoot_resolve_worker", { conversation_identifier: "Acme" }), ctx);
+    expect(ch.resolve).toHaveBeenCalledWith(7);
+    expect(r.text).toMatch(/resolved/);
+  });
+  it("chatwoot_tag_worker adds the label", async () => {
+    await WORKER_HANDLERS.chatwoot_tag_worker!(task("chatwoot_tag_worker", { conversation_identifier: "Acme", label: "urgent" }), ctx);
+    expect(ch.tag).toHaveBeenCalledWith(7, "urgent");
+  });
+  it("chatwoot_send_worker sends the REVIEWED draft from the parent workflow", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.includes("/workflows/records/")) return { ok: true, json: async () => ({ status: "running", draft_output: "the approved reply" }) };
+      return { ok: true, json: async () => ({}) };
+    }));
+    await WORKER_HANDLERS.chatwoot_send_worker!(task("chatwoot_send_worker", { conversation_identifier: "Acme" }, "wf-1"), ctx);
+    expect(ch.send).toHaveBeenCalledWith(7, "the approved reply");
+  });
+  it("chatwoot_send_worker tombstones (no send) when the workflow was cancelled", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.includes("/workflows/records/")) return { ok: true, json: async () => ({ status: "cancelled", draft_output: "x" }) };
+      return { ok: true, json: async () => ({}) };
+    }));
+    const r = await WORKER_HANDLERS.chatwoot_send_worker!(task("chatwoot_send_worker", { conversation_identifier: "Acme" }, "wf-1"), ctx);
+    expect(r.text).toBe("tombstoned-cancelled");
+    expect(ch.send).not.toHaveBeenCalled();
   });
 });
 

@@ -18,6 +18,9 @@ export type IntentType =
   | "log_expense"
   | "draft_campaign"
   | "send_for_signature"
+  | "reply_to_ticket"
+  | "resolve_ticket"
+  | "tag_conversation"
   | "disable_autopilot";
 
 export type IntentResult = {
@@ -53,6 +56,10 @@ export const INTENT_FIELDS: Record<IntentType, IntentSpec> = {
   log_expense:        { keys: ["amount", "currency", "category", "description", "occurred_at", "client_name"], required: "amount", autopilotPolicy: "audited" },
   draft_campaign:     { keys: ["subject_hint", "target_audience", "message_summary", "occasion"], required: "message_summary", autopilotPolicy: "never" },
   send_for_signature: { keys: ["document_identifier", "signer_name", "signer_email", "signer_contact", "notes"], required: "document_identifier", autopilotPolicy: "never" },
+  // W95.6.x — Chatwoot writes. All `never` (customer-facing / status changes).
+  reply_to_ticket:    { keys: ["conversation_identifier", "message_summary", "tone"], required: "message_summary", autopilotPolicy: "never" },
+  resolve_ticket:     { keys: ["conversation_identifier"], required: "conversation_identifier", autopilotPolicy: "never" },
+  tag_conversation:   { keys: ["conversation_identifier", "label"], required: "label", autopilotPolicy: "never" },
   disable_autopilot:  { keys: ["intent_type"], required: "intent_type", autopilotPolicy: "never" },
 };
 

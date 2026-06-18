@@ -21,6 +21,24 @@ export default function InboxPage() {
   const [convos, setConvos] = useState<Conversation[] | null>(null);
   const [active, setActive] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[] | null>(null);
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [replyText, setReplyText] = useState("");
+  const [replyTone, setReplyTone] = useState("");
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  const submitReply = useCallback(async () => {
+    if (!active || !replyText.trim()) return;
+    setReplyBusy(true);
+    try {
+      await fetch("/api/intent/commit", {
+        method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+        body: JSON.stringify({ intent_type: "reply_to_ticket", source: "ui", fields: { conversation_identifier: String(active.id), message_summary: replyText, tone: replyTone } }),
+      });
+      setNotice("Reputation is drafting your reply — review it under Drafts.");
+    } catch { setNotice("Couldn't start that draft — try again."); }
+    finally { setReplyBusy(false); setReplyOpen(false); setReplyText(""); setReplyTone(""); setActive(null); }
+  }, [active, replyText, replyTone]);
 
   const load = useCallback(async () => {
     try {
@@ -47,6 +65,7 @@ export default function InboxPage() {
         </header>
 
         <h1 className="font-bold mb-5" style={{ color: "#F0F0F8", fontSize: "1.5rem" }}>Support inbox</h1>
+        {notice && <p className="text-sm mb-4 rounded-lg px-3 py-2" style={{ background: "rgba(91,33,232,0.08)", border: "1px solid rgba(91,33,232,0.25)", color: "#C8C0F0" }}>{notice}</p>}
 
         {convos === null ? <p className="text-sm" style={{ color: "#7070A0" }}>Loading…</p>
           : convos.length === 0 ? <p className="text-sm" style={{ color: "#9090A8" }}>Inbox clear — your specialist will draft replies as messages come in.</p>
@@ -82,12 +101,35 @@ export default function InboxPage() {
                   ))}
                 </div>
               )}
-            <button disabled title="Coming in next update" className="text-xs px-3 py-2 rounded-lg font-medium" style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#5A5A70", cursor: "not-allowed" }}>
-              Reply (coming in next update)
+            <button onClick={() => setReplyOpen(true)} className="text-xs px-3 py-2 rounded-lg font-medium btn-primary text-white">
+              Reply
             </button>
           </>
         )}
       </SideDrawer>
+
+      {replyOpen && active && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", padding: "16px" }} onClick={() => { if (!replyBusy) setReplyOpen(false); }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: "16px", padding: "20px", width: "100%", maxWidth: "440px" }}>
+            <p className="font-semibold text-sm mb-1" style={{ color: "#F0F0F8" }}>Reply to {active.sender}</p>
+            <p className="text-xs mb-4" style={{ color: "#7070A0" }}>Tell your specialist what to say — they&apos;ll draft it for your review before it sends.</p>
+            <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={4} placeholder="e.g. Thanks for reaching out — I'll get back to you Friday"
+              className="w-full mb-3 rounded-lg p-3 text-sm" style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#F0F0F8", outline: "none" }} />
+            <select value={replyTone} onChange={(e) => setReplyTone(e.target.value)} className="w-full mb-4 rounded-lg p-2 text-sm" style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#D0D0E0" }}>
+              <option value="">Default tone</option>
+              <option value="friendly">Friendly</option>
+              <option value="formal">Formal</option>
+              <option value="apologetic">Apologetic</option>
+            </select>
+            <div className="flex gap-2">
+              <button disabled={replyBusy || !replyText.trim()} onClick={() => void submitReply()} className="btn-primary px-4 py-2 rounded-xl text-xs font-semibold text-white disabled:opacity-50">
+                {replyBusy ? "Starting…" : "Have my specialist draft it"}
+              </button>
+              <button disabled={replyBusy} onClick={() => setReplyOpen(false)} className="px-4 py-2 rounded-xl text-xs" style={{ background: "transparent", border: "1px solid #2A2A38", color: "#7070A0" }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

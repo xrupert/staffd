@@ -153,6 +153,38 @@ export class ChatwootClient {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
+  /** Resolve a free-text identifier (conversation id, sender name, or email) to
+   *  a conversation id within THIS customer's inbox. Numeric → used directly. */
+  async resolveConversationId(identifier: string): Promise<number | null> {
+    const raw = (identifier ?? "").trim();
+    if (!raw) return null;
+    if (/^\d+$/.test(raw)) return Number(raw);
+    const convos = await this.listConversations({ status: "open", limit: 50 });
+    const lc = raw.toLowerCase();
+    const hit = convos.find((c) => c.sender.toLowerCase().includes(lc));
+    return hit?.id ?? null;
+  }
+
+  // ── Writes (W95.6.x) — all inbox-scoped via the resolved conversation. ──
+
+  /** Resolve (close) a conversation. */
+  async resolveConversation(conversationId: number): Promise<boolean> {
+    const res = await cw(`/accounts/${cfg().acct}/conversations/${conversationId}/toggle_status`, { method: "POST", body: JSON.stringify({ status: "resolved" }) });
+    return res.ok;
+  }
+
+  /** Add a label/tag to a conversation. */
+  async addLabel(conversationId: number, label: string): Promise<boolean> {
+    const res = await cw(`/accounts/${cfg().acct}/conversations/${conversationId}/labels`, { method: "POST", body: JSON.stringify({ labels: [label] }) });
+    return res.ok;
+  }
+
+  /** Post an outgoing message (the approved reply draft). */
+  async sendMessage(conversationId: number, body: string): Promise<boolean> {
+    const res = await cw(`/accounts/${cfg().acct}/conversations/${conversationId}/messages`, { method: "POST", body: JSON.stringify({ content: body, message_type: "outgoing", private: false }) });
+    return res.ok;
+  }
+
   async getConversation(conversationId: number): Promise<Conversation | null> {
     const res = await cw(`/accounts/${cfg().acct}/conversations/${conversationId}`);
     if (!res.ok) return null;

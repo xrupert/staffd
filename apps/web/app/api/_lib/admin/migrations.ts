@@ -53,6 +53,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "autopilot-audit-log", label: "Autopilot audit log",   collection: "autopilot_audit_log" },
   // W95.6 — Chatwoot inbox-per-customer id on businesses.
   { route: "businesses-v2", label: "Businesses — support inbox id", collection: "businesses", detectField: "chatwoot_inbox_id", note: "adds chatwoot_inbox_id to businesses" },
+  // W95.6.x — workflow review step (draft approval before customer-facing send).
+  { route: "workflows-v2", label: "Workflows — review step", collection: "workflows", detectField: "draft_output", note: "adds review_required + draft_output to workflows" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

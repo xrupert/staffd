@@ -34,6 +34,9 @@ describe("extractIntent — positive parse per type", () => {
     { type: "draft_campaign", fields: { message_summary: "launch announcement" }, check: { message_summary: "launch announcement" } },
     { type: "send_for_signature", fields: { document_identifier: "consulting agreement", signer_name: "Jane" }, check: { document_identifier: "consulting agreement" } },
     { type: "disable_autopilot", fields: { intent_type: "create_contact" }, check: { intent_type: "create_contact" } },
+    { type: "reply_to_ticket", fields: { conversation_identifier: "John", message_summary: "we can do next week", tone: "friendly" }, check: { message_summary: "we can do next week" } },
+    { type: "resolve_ticket", fields: { conversation_identifier: "John" }, check: { conversation_identifier: "John" } },
+    { type: "tag_conversation", fields: { conversation_identifier: "John", label: "pricing" }, check: { label: "pricing" } },
   ];
   for (const c of cases) {
     it(`parses ${c.type}`, async () => {

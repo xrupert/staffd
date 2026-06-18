@@ -47,6 +47,8 @@ export default function FrontDeskHome() {
   const [meetings, setMeetings] = useState<{ label: string; when: string }[] | null>(null);
   // W95.4a — confirm-to-commit work counts (tasks / follow-ups / leads).
   const [work, setWork] = useState<{ tasks: { pending: number }; followups: { upcoming: number; overdue: number }; leads: { new: number; qualified: number; converted: number } } | null>(null);
+  // W95.6.x — drafts awaiting the owner's review (delegate review step).
+  const [draftCount, setDraftCount] = useState<number | null>(null);
 
   const loadCard = useCallback(
     async (path: string, set: (s: CardState) => void, summarize: (d: unknown) => string) => {
@@ -113,6 +115,14 @@ export default function FrontDeskHome() {
       } catch { /* hide section */ }
     })();
 
+    // W95.6.x — drafts awaiting review count.
+    void (async () => {
+      try {
+        const res = await fetch("/api/front-desk/drafts", { headers: { Authorization: pb.authStore.token } });
+        if (res.ok) setDraftCount(((await res.json()).drafts as unknown[])?.length ?? 0);
+      } catch { /* hide */ }
+    })();
+
     // Calendar contextual strip — today's bookings (existing substrate).
     void (async () => {
       try {
@@ -160,6 +170,13 @@ export default function FrontDeskHome() {
                   : `Today: ${meetings.map((m) => `${m.label} (${m.when})`).join(" · ")}`}
               </p>
             </div>
+
+            {draftCount !== null && draftCount > 0 && (
+              <a href="/dashboard/front-desk/drafts" className="rounded-xl px-4 py-3 mb-4 flex items-center gap-3 transition-colors hover:border-[#5B21E8]/60" style={{ background: "rgba(91,33,232,0.08)", border: "1px solid rgba(91,33,232,0.25)", textDecoration: "none" }}>
+                <span style={{ fontSize: "15px" }}>✍️</span>
+                <p className="text-xs" style={{ color: "#C8C0F0" }}>{draftCount} draft{draftCount === 1 ? "" : "s"} awaiting your review →</p>
+              </a>
+            )}
 
             <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
               <OpsCardView title="Email Campaigns" icon="📧" card="email" state={email} drill={{ href: "/dashboard/front-desk/campaigns", label: "Open campaigns →" }} />

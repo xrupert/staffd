@@ -142,14 +142,24 @@ export async function GET(req: Request) {
         headers: { Authorization: adminToken },
       });
       if (!res.ok) return null;
-      const r = (await res.json()) as { id: string; user?: string; status?: string; aggregation_doc_id?: string; started_at?: string };
+      const r = (await res.json()) as { id: string; user?: string; status?: string; aggregation_doc_id?: string; started_at?: string; review_required?: boolean; draft_output?: string };
       return {
         id: r.id,
         user: r.user ?? "",
         status: (r.status as WorkflowStatus) || "pending",
         aggregation_doc_id: r.aggregation_doc_id || null,
         started_at: r.started_at || null,
+        review_required: !!r.review_required,
+        draft_output: r.draft_output || null,
       } satisfies WorkflowRecord;
+    },
+    getDraftOutput: async (workflowId) => {
+      // The draft is the earliest task's output (the specialist's work product).
+      const f = encodeURIComponent(`(workflow_id = "${workflowId}")`);
+      const res = await fetch(`${pb}/api/collections/workflow_tasks/records?filter=${f}&perPage=1&sort=created&fields=output_payload`, { headers: { Authorization: adminToken } });
+      if (!res.ok) return "";
+      const t = (((await res.json()) as { items?: { output_payload?: { text?: string } }[] }).items ?? [])[0];
+      return t?.output_payload?.text ?? "";
     },
     getTaskStatuses: async (workflowId) => {
       const f = encodeURIComponent(`(workflow_id = "${workflowId}")`);

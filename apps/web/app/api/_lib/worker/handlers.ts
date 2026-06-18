@@ -17,6 +17,7 @@ import { pbEscape } from "../pb";
 import { TwentyClient } from "../integrations/twenty/client";
 import { ListmonkClient } from "../integrations/listmonk/client";
 import { DocusealClient } from "../integrations/docuseal/client";
+import { ChatwootClient } from "../integrations/chatwoot/client";
 import { extractKindFor, extractText } from "../upload/extract";
 
 export type HandlerResult = { text: string; tokensActual: number };
@@ -40,6 +41,15 @@ export function isWorkerTask(specialistId: string | null | undefined): boolean {
  * mirroring has been deleted (undo deletes it) or has an undone autopilot
  * fire. Returns the tombstone reason, or null to proceed.
  */
+/** W95.6.x — the parent workflow's reviewed draft + whether it was cancelled. */
+async function workflowDraft(ctx: WorkerContext, workflowId: string): Promise<{ draft: string; cancelled: boolean }> {
+  if (!workflowId) return { draft: "", cancelled: false };
+  const r = await fetch(`${ctx.pb}/api/collections/workflows/records/${workflowId}`, { headers: { Authorization: ctx.adminToken } });
+  if (!r.ok) return { draft: "", cancelled: true }; // gone → treat as cancelled (tombstone)
+  const w = (await r.json()) as { status?: string; draft_output?: string };
+  return { draft: w.draft_output ?? "", cancelled: w.status === "cancelled" };
+}
+
 async function tombstoneReason(ctx: WorkerContext, collection: string, recordId: string): Promise<"deleted" | "undone" | null> {
   const r = await fetch(`${ctx.pb}/api/collections/${collection}/records/${recordId}`, { headers: { Authorization: ctx.adminToken } });
   if (r.status === 404) return "deleted";
@@ -151,6 +161,13 @@ const twentyUpdate: WorkerHandler = async (task, ctx) => {
 const docusealSend: WorkerHandler = async (task, ctx) => {
   const p = task.input_payload as { document_identifier?: string; document_id?: string; signer_email?: string; signer_name?: string };
   if (!p.signer_email) throw new Error("docuseal: missing signer email");
+  // W95.6.x — only send the REVIEWED draft. If the workflow was cancelled at
+  // the review step, exit cleanly (tombstone). (draft_output is the reviewed
+  // contract text; V1 still sends via DOCUSEAL_TEMPLATE_ID — see W95.4b note.)
+  if (task.workflow_id) {
+    const { cancelled } = await workflowDraft(ctx, task.workflow_id);
+    if (cancelled) { console.log(`docuseal_send tombstoned-cancelled wf=${task.workflow_id}`); return { text: "tombstoned-cancelled", tokensActual: 0 }; }
+  }
   const templateId = Number(process.env.DOCUSEAL_TEMPLATE_ID ?? "");
   if (!templateId || Number.isNaN(templateId)) throw new Error("docuseal: DOCUSEAL_TEMPLATE_ID not configured");
 
@@ -201,6 +218,43 @@ const docusealVoid: WorkerHandler = async () => {
   throw new Error("docuseal_void_worker not yet implemented (send_for_signature is never-autopilot)");
 };
 
+// ── Chatwoot writes (W95.6.x). resolve/tag are direct; send reads the reviewed
+// draft from the parent workflow. All resolve the identifier via the leak-guard.
+const chatwootResolve: WorkerHandler = async (task) => {
+  const p = task.input_payload as { conversation_identifier?: string };
+  if (!ChatwootClient.configured) throw new Error("chatwoot not configured");
+  const client = ChatwootClient.forCustomer(task.user);
+  const id = await client.resolveConversationId(p.conversation_identifier ?? "");
+  if (!id) return { text: "chatwoot resolve: conversation not found", tokensActual: 0 };
+  if (!(await client.resolveConversation(id))) throw new Error("chatwoot resolve failed");
+  return { text: `resolved:${id}`, tokensActual: 0 };
+};
+
+const chatwootTag: WorkerHandler = async (task) => {
+  const p = task.input_payload as { conversation_identifier?: string; label?: string };
+  if (!p.label) throw new Error("chatwoot tag: missing label");
+  if (!ChatwootClient.configured) throw new Error("chatwoot not configured");
+  const client = ChatwootClient.forCustomer(task.user);
+  const id = await client.resolveConversationId(p.conversation_identifier ?? "");
+  if (!id) return { text: "chatwoot tag: conversation not found", tokensActual: 0 };
+  if (!(await client.addLabel(id, p.label))) throw new Error("chatwoot tag failed");
+  return { text: `tagged:${id}`, tokensActual: 0 };
+};
+
+const chatwootSend: WorkerHandler = async (task, ctx) => {
+  const p = task.input_payload as { conversation_identifier?: string };
+  // Send the REVIEWED draft from the parent workflow; skip if cancelled.
+  const { draft, cancelled } = await workflowDraft(ctx, task.workflow_id ?? "");
+  if (cancelled) { console.log(`chatwoot_send tombstoned-cancelled wf=${task.workflow_id}`); return { text: "tombstoned-cancelled", tokensActual: 0 }; }
+  if (!draft) throw new Error("chatwoot send: no approved draft");
+  if (!ChatwootClient.configured) throw new Error("chatwoot not configured");
+  const client = ChatwootClient.forCustomer(task.user);
+  const id = await client.resolveConversationId(p.conversation_identifier ?? "");
+  if (!id) throw new Error("chatwoot send: conversation not found");
+  if (!(await client.sendMessage(id, draft))) throw new Error("chatwoot send failed");
+  return { text: `replied:${id}`, tokensActual: 0 };
+};
+
 export const WORKER_HANDLERS: Record<string, WorkerHandler> = {
   mirror_retry_worker: mirrorRetry,
   document_extraction_worker: documentExtraction,
@@ -210,4 +264,7 @@ export const WORKER_HANDLERS: Record<string, WorkerHandler> = {
   twenty_delete_worker: twentyDelete,
   listmonk_unsubscribe_worker: listmonkUnsubscribe,
   docuseal_void_worker: docusealVoid,
+  chatwoot_resolve_worker: chatwootResolve,
+  chatwoot_tag_worker: chatwootTag,
+  chatwoot_send_worker: chatwootSend,
 };

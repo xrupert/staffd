@@ -38,7 +38,7 @@ export type AgentResult = {
 
 // ── W72 — Parent Workflow object lifecycle ───────────────────────────────────
 
-export type WorkflowStatus = "pending" | "running" | "completed" | "failed" | "partial";
+export type WorkflowStatus = "pending" | "running" | "completed" | "failed" | "partial" | "awaiting_review" | "cancelled";
 
 export type WorkflowRecord = {
   id: string;
@@ -46,6 +46,10 @@ export type WorkflowRecord = {
   status: WorkflowStatus;
   aggregation_doc_id: string | null;
   started_at: string | null;
+  // W95.6.x — review step: delegate intents that produce customer-facing
+  // artifacts pause here until the owner approves the draft.
+  review_required?: boolean;
+  draft_output?: string | null;
 };
 
 /**
@@ -87,6 +91,8 @@ export type ReconcileDeps = {
   runAggregator: (workflowId: string) => Promise<string>;
   /** Best-effort audit write — one row per status change (W92 trail). */
   logTransition: (e: { workflowId: string; user: string; from: WorkflowStatus; to: WorkflowStatus }) => Promise<void>;
+  /** W95.6.x — the draft task's output text, stored on the workflow at pause. */
+  getDraftOutput?: (workflowId: string) => Promise<string>;
   now?: () => string;
 };
 
@@ -112,11 +118,26 @@ export async function reconcileWorkflow(workflowId: string, deps: ReconcileDeps)
     return { workflowId, from: "pending", to: "pending", aggregated: false, changed: false };
   }
 
+  // W95.6.x — once a workflow is paused for review (or cancelled), reconcile
+  // freezes it: only the approve/cancel endpoints move it forward.
+  if (wf.status === "awaiting_review" || wf.status === "cancelled") {
+    return { workflowId, from: wf.status, to: wf.status, aggregated: !!wf.aggregation_doc_id, changed: false };
+  }
+
   const statuses = await deps.getTaskStatuses(workflowId);
   let aggregated = !!wf.aggregation_doc_id;
   const patch: Record<string, unknown> = {};
 
   const allSucceeded = statuses.length > 0 && statuses.every((s) => s === "succeeded");
+
+  // W95.6.x — review-required workflows pause when their draft task lands: stamp
+  // the draft for the owner to approve, do NOT aggregate or fire downstream.
+  if (wf.review_required && !wf.draft_output && allSucceeded) {
+    const draft = deps.getDraftOutput ? await deps.getDraftOutput(workflowId) : "";
+    await deps.updateWorkflow(workflowId, { status: "awaiting_review", draft_output: draft || "(draft unavailable)" });
+    await deps.logTransition({ workflowId, user: wf.user, from: wf.status, to: "awaiting_review" });
+    return { workflowId, from: wf.status, to: "awaiting_review", aggregated, changed: true };
+  }
   if (allSucceeded && !aggregated) {
     patch.aggregation_doc_id = await deps.runAggregator(workflowId);
     aggregated = true;

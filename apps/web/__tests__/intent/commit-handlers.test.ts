@@ -138,25 +138,48 @@ describe("delegate handlers (W95.4b)", () => {
     expect((tasks[0]!.body as { department_id: string }).department_id).toBe("marketing");
   });
 
-  it("send_for_signature creates a 2-task workflow; the docuseal task depends on the legal task", async () => {
+  it("send_for_signature (W95.6.x) creates a review-required workflow with ONLY the legal draft task", async () => {
     const r = await COMMIT_HANDLERS.send_for_signature!({ document_identifier: "consulting agreement", signer_email: "jane@x.com" }, ctx);
     expect(r).toMatchObject({ ok: true, record_id: "wf-1" });
+    const wf = created("workflows")!.body as { review_required: boolean; recipe_id: string };
+    expect(wf.review_required).toBe(true);
+    expect(wf.recipe_id).toBe("send_for_signature");
     const tasks = wfTasks();
-    expect(tasks).toHaveLength(2);
-    const legal = tasks[0]!.body as { department_id: string };
-    const docuseal = tasks[1]!.body as { specialist_id: string; depends_on: string[]; input_payload: { signer_email: string } };
+    expect(tasks).toHaveLength(1); // docuseal send is enqueued by /approve, not upfront
+    const legal = tasks[0]!.body as { department_id: string; input_payload: { signer_email: string } };
     expect(legal.department_id).toBe("legal");
-    expect(docuseal.specialist_id).toBe("docuseal_send_worker");
-    expect(docuseal.depends_on).toEqual(["wt-1"]); // chained on the legal task
-    expect(docuseal.input_payload.signer_email).toBe("jane@x.com");
+    expect(legal.input_payload.signer_email).toBe("jane@x.com");
     expect(rec.fn).toHaveBeenCalledWith(expect.objectContaining({ decision_kind: "signature_requested" }));
   });
 
   it("send_for_signature resolves the signer email from a contact when not explicit", async () => {
     existing = { id: "c-1", email: "found@x.com", twenty_record_id: "" } as never;
     await COMMIT_HANDLERS.send_for_signature!({ document_identifier: "nda", signer_name: "Jane" }, ctx);
-    const docuseal = wfTasks()[1]!.body as { input_payload: { signer_email: string } };
-    expect(docuseal.input_payload.signer_email).toBe("found@x.com");
+    const legal = wfTasks()[0]!.body as { input_payload: { signer_email: string } };
+    expect(legal.input_payload.signer_email).toBe("found@x.com");
+  });
+});
+
+describe("Chatwoot write intents (W95.6.x)", () => {
+  it("reply_to_ticket creates a review-required workflow (recipe reply_to_ticket) + reputation draft task", async () => {
+    const r = await COMMIT_HANDLERS.reply_to_ticket!({ conversation_identifier: "Acme", message_summary: "we can help", tone: "friendly" }, ctx);
+    expect(r).toMatchObject({ ok: true, record_id: "wf-1" });
+    const wf = created("workflows")!.body as { review_required: boolean; recipe_id: string };
+    expect(wf).toMatchObject({ review_required: true, recipe_id: "reply_to_ticket" });
+    const tasks = wfTasks();
+    expect(tasks).toHaveLength(1); // only the draft task; send enqueued on approve
+    expect((tasks[0]!.body as { department_id: string }).department_id).toBe("reputation");
+  });
+
+  it("resolve_ticket enqueues chatwoot_resolve_worker", async () => {
+    await COMMIT_HANDLERS.resolve_ticket!({ conversation_identifier: "Acme" }, ctx);
+    expect(enqueued("chatwoot_resolve_worker")).toBeDefined();
+  });
+
+  it("tag_conversation enqueues chatwoot_tag_worker with the label; 400 without a label", async () => {
+    await COMMIT_HANDLERS.tag_conversation!({ conversation_identifier: "Acme", label: "urgent" }, ctx);
+    expect((enqueued("chatwoot_tag_worker")!.body as { input_payload: { label: string } }).input_payload.label).toBe("urgent");
+    expect(await COMMIT_HANDLERS.tag_conversation!({ conversation_identifier: "Acme" }, ctx)).toMatchObject({ ok: false, status: 400 });
   });
 });
 

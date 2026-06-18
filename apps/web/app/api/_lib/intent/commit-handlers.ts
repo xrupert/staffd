@@ -198,8 +198,11 @@ const logExpense: CommitHandler = async (f, ctx) => {
 
 // ── delegate-to-specialist (W95.4b) — create a workflow + first task(s) on the
 // W71/W72 substrate; the specialist does the work, W72 reconcile enriches Vault.
-async function createWorkflow(name: string, rootGoal: string, ctx: CommitCtx): Promise<string> {
-  const wf = await pbCreate("workflows", { user: ctx.userId, name, status: "pending", root_goal: rootGoal, started_at: nowIso() }, ctx.token);
+async function createWorkflow(name: string, rootGoal: string, ctx: CommitCtx, opts: { reviewRequired?: boolean; recipeId?: string } = {}): Promise<string> {
+  const wf = await pbCreate("workflows", {
+    user: ctx.userId, name, status: "pending", root_goal: rootGoal, started_at: nowIso(),
+    review_required: !!opts.reviewRequired, recipe_id: opts.recipeId ?? "",
+  }, ctx.token);
   return wf.ok ? wf.id : "";
 }
 async function createTaskRow(wfId: string, specialistId: string, dept: string, payload: Record<string, unknown>, dependsOn: string[], ctx: CommitCtx): Promise<string> {
@@ -235,14 +238,48 @@ const sendForSignature: CommitHandler = async (f, ctx) => {
     const ref = (f.signer_contact ?? f.signer_name ?? "").trim();
     if (ref) { const c = await findContact(ctx, { email: ref, name: ref }); signerEmail = c?.email ?? ""; }
   }
-  const wfId = await createWorkflow(`Signature — ${docId.slice(0, 40)}`, `Send "${docId}" for signature`, ctx);
+  // W95.6.x — review_required: only the Legal draft task is created now. The
+  // Docuseal send is enqueued by the approve endpoint after the owner reviews
+  // the contract draft (no auto-send of a customer-facing artifact).
+  const wfId = await createWorkflow(`Signature — ${docId.slice(0, 40)}`, `Send "${docId}" for signature`, ctx, { reviewRequired: true, recipeId: "send_for_signature" });
   if (!wfId) return { ok: false, status: 502, error: "workflow_create_failed" };
-  // Task 1: Legal prepares/reviews the document.
-  const legalTask = await createTaskRow(wfId, specialistFor("legal", `prepare ${docId} for signature`), "legal", { task: `Prepare "${docId}" for signature${f.notes ? ` (${f.notes})` : ""}.`, fields: f }, [], ctx);
-  // Task 2: Docuseal send — depends on the Legal task completing first.
-  await createTaskRow(wfId, "docuseal_send_worker", "system", { document_identifier: docId, signer_email: signerEmail, signer_name: f.signer_name ?? "" }, legalTask ? [legalTask] : [], ctx);
+  await createTaskRow(wfId, specialistFor("legal", `prepare ${docId} for signature`), "legal", { task: `Prepare "${docId}" for signature${f.notes ? ` (${f.notes})` : ""}.`, fields: f, document_identifier: docId, signer_email: signerEmail, signer_name: f.signer_name ?? "" }, [], ctx);
   decide(ctx, "signature_requested", `Requested signature on "${docId}"${signerEmail ? ` from ${signerEmail}` : ""}`, wfId);
-  return { ok: true, record_id: wfId, extra: { workflow_id: wfId, expected_completion_message: "Legal is preparing your document for signature — I'll let you know once it's sent." } };
+  return { ok: true, record_id: wfId, extra: { workflow_id: wfId, expected_completion_message: "Legal is drafting your document — review it before it goes out for signature." } };
+};
+
+// ── reply_to_ticket (W95.6.x) — delegate to Reputation WITH review step. ──
+const replyToTicket: CommitHandler = async (f, ctx) => {
+  const ident = (f.conversation_identifier ?? "").trim();
+  const summary = (f.message_summary ?? "").trim();
+  if (!ident || !summary) return { ok: false, status: 400, error: "conversation_and_summary_required" };
+  const wfId = await createWorkflow("Support reply", summary, ctx, { reviewRequired: true, recipeId: "reply_to_ticket" });
+  if (!wfId) return { ok: false, status: 502, error: "workflow_create_failed" };
+  await createTaskRow(wfId, specialistFor("reputation", `reply to support ticket: ${summary}`), "reputation",
+    { task: `Draft a ${f.tone || "friendly"} reply to this support conversation. Goal: ${summary}.`, conversation_identifier: ident, message_summary: summary, tone: f.tone ?? "" }, [], ctx);
+  decide(ctx, "reply_drafted", `Drafting a reply to ${ident}`, wfId);
+  return { ok: true, record_id: wfId, extra: { workflow_id: wfId, expected_completion_message: "Reputation is drafting your reply — you'll review it before it sends." } };
+};
+
+// ── resolve_ticket / tag_conversation (W95.6.x) — direct status changes; the
+// worker resolves the identifier → conversation id (keeps Chatwoot in workers).
+const resolveTicket: CommitHandler = async (f, ctx) => {
+  const ident = (f.conversation_identifier ?? "").trim();
+  if (!ident) return { ok: false, status: 400, error: "conversation_identifier_required" };
+  const t = await pbCreate("workflow_tasks", { workflow_id: "", user: ctx.userId, specialist_id: "chatwoot_resolve_worker", department_id: "system", input_payload: { conversation_identifier: ident }, output_payload: null, status: "pending", depends_on: [], retry_count: 0, error: "", started_at: "", completed_at: "", cost_estimate_tokens: 0, cost_actual_tokens: 0 }, ctx.token);
+  if (!t.ok) return { ok: false, status: 502, error: "enqueue_failed" };
+  decide(ctx, "ticket_resolved", `Resolving ticket from ${ident}`, t.id);
+  return { ok: true, record_id: t.id };
+};
+
+const tagConversation: CommitHandler = async (f, ctx) => {
+  const ident = (f.conversation_identifier ?? "").trim();
+  const label = (f.label ?? "").trim();
+  if (!ident || !label) return { ok: false, status: 400, error: "conversation_and_label_required" };
+  const t = await pbCreate("workflow_tasks", { workflow_id: "", user: ctx.userId, specialist_id: "chatwoot_tag_worker", department_id: "system", input_payload: { conversation_identifier: ident, label }, output_payload: null, status: "pending", depends_on: [], retry_count: 0, error: "", started_at: "", completed_at: "", cost_estimate_tokens: 0, cost_actual_tokens: 0 }, ctx.token);
+  if (!t.ok) return { ok: false, status: 502, error: "enqueue_failed" };
+  decide(ctx, "ticket_tagged", `Tagging ${ident} as "${label}"`, t.id);
+  return { ok: true, record_id: t.id };
 };
 
 const delegate = (subtype: string): CommitHandler => (subtype === "draft_campaign" ? draftCampaign : sendForSignature);
@@ -348,6 +385,10 @@ export const COMMIT_HANDLERS: Record<string, CommitHandler> = {
   // delegate intents → workflow creation
   draft_campaign: delegate("draft_campaign"),
   send_for_signature: delegate("send_for_signature"),
+  reply_to_ticket: replyToTicket, // delegate WITH review step (W95.6.x)
+  // Chatwoot direct status changes (W95.6.x)
+  resolve_ticket: resolveTicket,
+  tag_conversation: tagConversation,
   // UI-triggered status updates (list-view drawers)
   update_task_status: statusHandler("tasks", "task_id", "task_status_changed"),
   update_followup_status: statusHandler("followups", "followup_id", "followup_status_changed"),
