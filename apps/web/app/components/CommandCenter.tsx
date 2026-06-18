@@ -12,10 +12,9 @@ import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
-import ActionRecipientModal, { type RecipientKind } from "./ActionRecipientModal";
 import ConfirmActionModal, { type IntentResult } from "./ConfirmActionModal";
 import UndoToast from "./UndoToast";
-import type { ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
+import { FC2_ACTION_INTENT, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
 interface Message {
   role: "user" | "assistant";
@@ -218,8 +217,6 @@ export default function CommandCenter() {
   const [followupSeed, setFollowupSeed] = useState("");
   // FC-2b — recipient modal for the two integration actions that need an
   // email (Chatwoot ticket / Docuseal signature).
-  const [recipientModal, setRecipientModal] = useState<{ kind: RecipientKind } | null>(null);
-  const [recipientBusy, setRecipientBusy] = useState(false);
   // W95.1 (Model B3) — conversational intent → confirm-to-commit. Runs
   // alongside the normal routing flow; a parsed intent surfaces this modal.
   const [pendingIntents, setPendingIntents] = useState<IntentResult[]>([]);
@@ -364,133 +361,34 @@ export default function CommandCenter() {
         { skipConfirm: true, preselectDept: "marketing", preselectAgent: "marketing-email-marketer" }
       );
     },
-    // FC-2 (SA-authorized) — integration platform actions. Fire to the
-    // connected write routes (Twenty / Listmonk); the result surfaces as a
-    // thread message with a deep link. No recipient input needed: CRM gets
-    // an opportunity derived from the task, Listmonk gets a reviewable draft.
-    send_to_crm: () => { void sendToCrm(); },
-    send_email_campaign: () => { void sendEmailCampaign(); },
-    // FC-2b — these need a recipient email, so they open the modal first.
-    open_support_ticket: () => {
-      if (!(lastCompleted?.output ?? "").trim()) { console.warn("[FC-2] open_support_ticket with no output — noop"); return; }
-      setRecipientModal({ kind: "support" });
+    // FC-2 → intent path (W95.7.1). Each button pre-fills its mapped intent and
+    // opens the SAME ConfirmActionModal as text/voice (no silent vendor write),
+    // committing via /api/intent/commit. Works for every customer — the old
+    // /api/integrations/* routes are operator-only now (Standard #22).
+    send_to_crm: () => {
+      const out = (lastCompleted?.output ?? "").trim();
+      if (!out) { console.warn("[FC-2] send_to_crm with no output — noop"); return; }
+      setPendingIntents([{ type: FC2_ACTION_INTENT.send_to_crm!, fields: { context: out.slice(0, 600) }, confidence: 1 }]);
+    },
+    send_email_campaign: () => {
+      const out = (lastCompleted?.output ?? "").trim();
+      if (!out) { console.warn("[FC-2] send_email_campaign with no output — noop"); return; }
+      setPendingIntents([{ type: FC2_ACTION_INTENT.send_email_campaign!, fields: { message_summary: out.slice(0, 1500), subject_hint: (lastCompleted?.task ?? "").slice(0, 120) }, confidence: 1 }]);
     },
     send_for_signature: () => {
-      if (!(lastCompleted?.output ?? "").trim()) { console.warn("[FC-2] send_for_signature with no output — noop"); return; }
-      setRecipientModal({ kind: "signature" });
+      const out = (lastCompleted?.output ?? "").trim();
+      if (!out) { console.warn("[FC-2] send_for_signature with no output — noop"); return; }
+      setPendingIntents([{ type: FC2_ACTION_INTENT.send_for_signature!, fields: { document_identifier: (lastCompleted?.task ?? "Document").slice(0, 120), notes: out.slice(0, 400) }, confidence: 1 }]);
     },
+    // open_support_ticket retired from the button path (W95.7.1) — it created a
+    // NEW support conversation, which no current intent covers. Hidden via
+    // ACTION_UI until a `create_support_thread` intent ships (reported to SA).
   });
 
-  // FC-2 — push a finished artifact to Twenty as an opportunity. Name is
-  // derived from the task; the output rides along as notes. Result (or a
-  // friendly failure) lands in the thread.
-  async function sendToCrm() {
-    const output = lastCompleted?.output ?? "";
-    const task = lastCompleted?.task ?? "";
-    if (!output.trim()) { console.warn("[FC-2] send_to_crm with no completed output — noop"); return; }
-    const name = task.trim().slice(0, 80) || "New opportunity from STAFFD";
-    setMessages((prev) => [...prev, { role: "assistant", content: "Adding this to your CRM…" }]);
-    try {
-      const res = await fetch("/api/integrations/twenty", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "opportunity", name, notes: output.slice(0, 1000), userId: pb.authStore.record?.id }),
-      });
-      const data = (await res.json()) as { success?: boolean; crmUrl?: string; message?: string; error?: string };
-      if (!res.ok || !data.success) {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't add to your CRM — try again." }]);
-        return;
-      }
-      const link = data.crmUrl ? ` [View in CRM](${data.crmUrl})` : "";
-      setMessages((prev) => [...prev, { role: "assistant", content: `Added to your CRM as an opportunity.${link}` }]);
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't reach the CRM: ${err instanceof Error ? err.message : String(err)}` }]);
-    }
-  }
-
-  // FC-2 — turn a finished artifact into a Listmonk draft campaign (subject
-  // from the task, body from the output). Always a DRAFT — the user reviews
-  // + sends from Listmonk, so this is safe to fire on a click.
-  async function sendEmailCampaign() {
-    const output = lastCompleted?.output ?? "";
-    const task = lastCompleted?.task ?? "";
-    if (!output.trim()) { console.warn("[FC-2] send_email_campaign with no completed output — noop"); return; }
-    const subject = task.trim().slice(0, 120) || "New campaign from STAFFD";
-    setMessages((prev) => [...prev, { role: "assistant", content: "Creating an email campaign draft…" }]);
-    try {
-      const res = await fetch("/api/integrations/listmonk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, body: output, userId: pb.authStore.record?.id }),
-      });
-      const data = (await res.json()) as { success?: boolean; campaignUrl?: string; message?: string; error?: string };
-      if (!res.ok || !data.success) {
-        setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't create the campaign — try again." }]);
-        return;
-      }
-      const link = data.campaignUrl ? ` [Review the draft](${data.campaignUrl})` : "";
-      setMessages((prev) => [...prev, { role: "assistant", content: `Created a draft campaign for your review.${link}` }]);
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't reach email: ${err instanceof Error ? err.message : String(err)}` }]);
-    }
-  }
-
-  // FC-2b — the recipient modal collected an email; fire the Chatwoot or
-  // Docuseal write and surface the result (or a friendly failure).
-  async function submitRecipientAction(recipient: { name: string; email: string }) {
-    const modal = recipientModal;
-    if (!modal) return;
-    const output = lastCompleted?.output ?? "";
-    const task = lastCompleted?.task ?? "";
-    if (!output.trim()) { setRecipientModal(null); return; }
-    setRecipientBusy(true);
-    try {
-      if (modal.kind === "support") {
-        const res = await fetch("/api/integrations/chatwoot", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            customerName: recipient.name || "Customer",
-            customerEmail: recipient.email,
-            subject: task.slice(0, 120),
-            reply: output,
-            userId: pb.authStore.record?.id,
-          }),
-        });
-        const data = (await res.json()) as { success?: boolean; conversationUrl?: string; message?: string; error?: string };
-        if (!res.ok || !data.success) {
-          setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't open the support ticket — try again." }]);
-        } else {
-          const link = data.conversationUrl ? ` [Open the conversation](${data.conversationUrl})` : "";
-          setMessages((prev) => [...prev, { role: "assistant", content: `Opened a support ticket with this reply.${link}` }]);
-        }
-      } else {
-        const res = await fetch("/api/integrations/docuseal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: task.slice(0, 120) || "Document for signature",
-            documentContent: output,
-            signerEmail: recipient.email,
-            signerName: recipient.name,
-            userId: pb.authStore.record?.id,
-          }),
-        });
-        const data = (await res.json()) as { success?: boolean; signingUrl?: string; message?: string; error?: string };
-        if (!res.ok || !data.success) {
-          setMessages((prev) => [...prev, { role: "assistant", content: data.message ?? data.error ?? "Couldn't send for signature — try again." }]);
-        } else {
-          const link = data.signingUrl ? ` [Signing link](${data.signingUrl})` : "";
-          setMessages((prev) => [...prev, { role: "assistant", content: `Sent to ${recipient.email} for signature.${link}` }]);
-        }
-      }
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: "assistant", content: `Couldn't reach the service: ${err instanceof Error ? err.message : String(err)}` }]);
-    } finally {
-      setRecipientBusy(false);
-      setRecipientModal(null);
-    }
-  }
+  // W95.7.1 — the FC-2 sendToCrm / sendEmailCampaign / submitRecipientAction
+  // helpers (direct operator-wide /api/integrations/* writes) were removed: the
+  // buttons now go through the intent path (see useActionDispatcher above), which
+  // commits per-customer via /api/intent/commit + the worker-registry mirror.
 
   // W64 B2 (D12) — inline media generation for the Command Center thread.
   // Same /api/integrations/muapi contract as DeptRoom (503 unconfigured,
@@ -1247,14 +1145,6 @@ export default function CommandCenter() {
         department={lastCompleted?.department ?? "marketing"}
         agentName={DEPT_LABELS[lastCompleted?.department ?? ""] ?? "Your team"}
         seedTask={followupSeed}
-      />
-
-      <ActionRecipientModal
-        open={recipientModal !== null}
-        kind={recipientModal?.kind ?? "support"}
-        busy={recipientBusy}
-        onClose={() => { if (!recipientBusy) setRecipientModal(null); }}
-        onSubmit={(r) => { void submitRecipientAction(r); }}
       />
 
       {pendingIntents.length > 0 && (

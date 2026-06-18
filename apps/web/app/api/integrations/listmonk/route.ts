@@ -2,6 +2,10 @@
  * Listmonk integration — creates a draft email campaign from generated content.
  * Requires LISTMONK_URL + LISTMONK_USERNAME + LISTMONK_PASSWORD env vars.
  * Returns 503 with setup instructions when not yet configured.
+ *
+ * ⚠️ OPERATOR-ONLY per Standard #22. Customer-facing email actions go through
+ * /api/intent/commit (draft_campaign) and the per-customer /api/front-desk/campaigns
+ * surface (list-per-customer partition, W95.7/.7.1). Do not call from customer UI.
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";

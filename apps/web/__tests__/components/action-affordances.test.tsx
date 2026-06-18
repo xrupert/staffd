@@ -42,7 +42,8 @@ describe("ACTION_UI — locked label set (W63 Decision 4)", () => {
       export_document:   { label: "Export as document →",    icon: "📄" },
       send_to_crm:         { label: "Add to CRM →",          icon: "📇" },
       send_email_campaign: { label: "Send as campaign →",    icon: "📧" },
-      open_support_ticket: { label: "Open support ticket →", icon: "🎫" },
+      // W95.7.1 — hidden: creating a new support conversation has no covering intent yet.
+      open_support_ticket: { label: "Open support ticket →", icon: "🎫", hidden: true },
       send_for_signature:  { label: "Send for signature →",  icon: "✍️" },
     });
   });
@@ -64,8 +65,8 @@ describe("ActionAffordances (W63)", () => {
       .map((id) => ({ id, confidence: 0.9, reason: `reason for ${id}` }));
     const { container } = render(<ActionAffordances candidates={all} context={CTX} />);
     const buttons = Array.from(container.querySelectorAll("button"));
-    // 10 in vocabulary, 1 hidden (publish_social) → 9 rendered.
-    expect(buttons).toHaveLength(9);
+    // 10 in vocabulary, 2 hidden (publish_social + open_support_ticket W95.7.1) → 8 rendered.
+    expect(buttons).toHaveLength(8);
     for (const b of buttons) {
       expect(b.getAttribute("title")).toMatch(/^reason for /);
     }
@@ -151,19 +152,23 @@ describe("mount wiring + invariants (W63)", () => {
     expect(src).not.toMatch(/agent.{0,5}credit|credits remaining/i);
   });
 
-  it("CommandCenter wires the FC-2 integration handlers (no dead buttons)", () => {
+  it("CommandCenter wires the FC-2 buttons onto the intent path, NOT operator-wide routes (W95.7.1)", () => {
     const src = readFileSync(join(WEB, "app", "components", "CommandCenter.tsx"), "utf8");
-    // Both new vocabulary actions have a registered dispatcher handler.
+    // The migrated actions still have registered dispatcher handlers.
     expect(src).toMatch(/send_to_crm:\s*\(\)\s*=>/);
     expect(src).toMatch(/send_email_campaign:\s*\(\)\s*=>/);
-    // Handlers hit the connected write routes.
-    expect(src).toContain("/api/integrations/twenty");
-    expect(src).toContain("/api/integrations/listmonk");
-    // FC-2b — the two recipient-email actions are wired + hit their routes.
-    expect(src).toMatch(/open_support_ticket:\s*\(\)\s*=>/);
     expect(src).toMatch(/send_for_signature:\s*\(\)\s*=>/);
-    expect(src).toContain("/api/integrations/chatwoot");
-    expect(src).toContain("/api/integrations/docuseal");
+    // They open the confirm-to-commit modal via the shared FC2 intent map…
+    expect(src).toContain("FC2_ACTION_INTENT");
+    expect(src).toContain("setPendingIntents");
+    // …and NO LONGER call the operator-wide /api/integrations/* write routes
+    // (Standard #22 — those are operator-only; customers commit per-customer).
+    expect(src).not.toContain("/api/integrations/twenty");
+    expect(src).not.toContain("/api/integrations/listmonk");
+    expect(src).not.toContain("/api/integrations/chatwoot");
+    expect(src).not.toContain("/api/integrations/docuseal");
+    // open_support_ticket is retired from the button path (no covering intent).
+    expect(src).not.toMatch(/open_support_ticket:\s*\(\)\s*=>/);
   });
 
   it("D10' coexistence — DepartmentRoom static affordances untouched", () => {

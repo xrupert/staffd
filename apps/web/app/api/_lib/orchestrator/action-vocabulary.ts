@@ -67,8 +67,26 @@ export const ACTION_UI: Readonly<Record<ActionId, { label: string; icon: string;
   export_document:   { label: "Export as document →",    icon: "📄" },
   send_to_crm:         { label: "Add to CRM →",            icon: "📇" },
   send_email_campaign: { label: "Send as campaign →",      icon: "📧" },
-  open_support_ticket: { label: "Open support ticket →",   icon: "🎫" },
+  // W95.7.1 — hidden until a `create_support_thread` intent ships. The button
+  // created a NEW support conversation, which no current confirm-to-commit
+  // intent covers (reply_to_ticket only replies to an EXISTING thread). Stays
+  // as data; never renders (same pattern as publish_social).
+  open_support_ticket: { label: "Open support ticket →",   icon: "🎫", hidden: true },
   send_for_signature:  { label: "Send for signature →",    icon: "✍️" },
+};
+
+/**
+ * W95.7.1 — FC-2 action button → confirm-to-commit intent type. The button
+ * pre-fills this intent and opens ConfirmActionModal (per-customer
+ * /api/intent/commit), replacing the old operator-wide /api/integrations/*
+ * writes. Actions that create a NEW vendor object with no covering intent are
+ * omitted here and hidden in ACTION_UI (open_support_ticket → needs a future
+ * `create_support_thread` intent).
+ */
+export const FC2_ACTION_INTENT: Partial<Record<ActionId, string>> = {
+  send_to_crm: "create_contact",
+  send_email_campaign: "draft_campaign",
+  send_for_signature: "send_for_signature",
 };
 
 const VALID_IDS = new Set<string>(ACTION_VOCABULARY.map((a) => a.id));

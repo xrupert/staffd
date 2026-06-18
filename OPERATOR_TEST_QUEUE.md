@@ -159,6 +159,19 @@ No super-admin token + Sensitive `PLAUSIBLE_*` creds, so the live read is yours 
 - ✅ **Email Campaigns is now per-customer** (W95.7 repoint): the card + `/dashboard/front-desk/campaigns` show ONLY this customer's campaigns; composing sends to "your subscribers" (the customer's own list) — there is no list-picker exposing other tenants' audiences. Draft → Send → confirm the campaign appears for this customer only.
 - ✅ Every card is clickable to its drill-in where one exists; zero "Twenty" / "Chatwoot" / "Plausible" / "Listmonk" / "Docuseal" visible anywhere customer-facing.
 
+### 27. W95.7.1 — Action buttons fire the intent path
+- In the Command Center, generate a deliverable (e.g. a Marketing campaign or Sales outreach).
+- ✅ Action chips appear (Add to CRM / Send as campaign / Send for signature). Click each.
+- ✅ The **ConfirmActionModal** opens pre-filled (e.g. "Have Marketing draft this?" / "Add this contact?" / "Send this for signature?") — it does NOT silently write. Edit a field, then Confirm.
+- ✅ Commit fires (modal closes, STAFFD-voice success copy). In PB: the intent committed to the STAFFD-native collection (contacts/workflows) and a vendor-mirror task was enqueued (workflow_tasks). No 403 — works as a non-super-admin customer.
+- Repeat in a DepartmentRoom (Marketing "Send as Campaign", Sales "Add to CRM", Legal/Sales "Send for Signature").
+- ✅ "Open support ticket" / reputation "Send as Ticket" no longer appear (retired pending a `create_support_thread` intent).
+
+### 28. W95.7.1 — Clients UI verified hidden
+- `/dashboard` (Agency plan) — the **Clients** nav link + the client switcher no longer appear.
+- Direct URL `/dashboard/clients` → **404**.
+- `/dashboard/admin` — operator surfaces unchanged; the `clients` collection is intact in PB (nothing deleted).
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

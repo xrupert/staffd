@@ -2,6 +2,10 @@
  * Docuseal integration — submits a document for e-signature.
  * Requires DOCUSEAL_URL + DOCUSEAL_API_KEY env vars.
  * Returns 503 with setup instructions when not yet configured.
+ *
+ * ⚠️ OPERATOR-ONLY per Standard #22. Customer-facing signature actions go through
+ * /api/intent/commit (send_for_signature → review → docuseal_send_worker, the
+ * per-customer mirror path, W95.6.x/.7.1). Do not call this from customer UI.
  */
 
 import { recordDecision } from "../../_lib/vault/outcomes";

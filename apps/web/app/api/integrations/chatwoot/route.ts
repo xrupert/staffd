@@ -2,6 +2,11 @@
  * Chatwoot integration — creates a contact + conversation from a Reputation
  * specialist's customer service draft.
  *
+ * ⚠️ OPERATOR-ONLY per Standard #22. Customer-facing support actions go through
+ * /api/intent/commit (reply_to_ticket) + the per-customer /api/front-desk/inbox
+ * (inbox-per-customer partition, W95.6/.7.1). Creating a NEW conversation has no
+ * customer intent yet (`create_support_thread` is deferred). Not for customer UI.
+ *
  * Requires CHATWOOT_URL + CHATWOOT_API_KEY + CHATWOOT_ACCOUNT_ID env vars.
  * Returns 503 with setup instructions when not yet configured.
  *

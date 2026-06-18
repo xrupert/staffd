@@ -1,6 +1,11 @@
 /**
  * Twenty CRM integration — creates a contact and/or opportunity from Sales output.
  *
+ * ⚠️ OPERATOR-ONLY per Standard #22 (resolveCredentials is super-admin-only).
+ * Customer-facing CRM actions go through /api/intent/commit (create_contact),
+ * which writes the STAFFD-native contact + mirrors to the per-customer Twenty
+ * partition via the worker registry (W95.7.1). Do not call this from customer UI.
+ *
  * W91: credentials resolve via resolveCredentials(userId, "twenty") —
  * the user's own stored creds first, else operator env fallback. No env var
  * is read directly here anymore. 503 when neither resolves ("Connect your tools").

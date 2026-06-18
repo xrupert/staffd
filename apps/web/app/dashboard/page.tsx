@@ -8,7 +8,6 @@ import { signOut } from "../../lib/auth/signOut";
 import CommandCenter from "../components/CommandCenter";
 import DepartmentPicker from "../components/DepartmentPicker";
 import AddDeptModal from "../components/AddDeptModal";
-import ClientSwitcher from "../components/ClientSwitcher";
 import CreditsWidget from "../components/CreditsWidget";
 import LowCreditsBanner from "../components/LowCreditsBanner";
 import TopupModal from "../components/TopupModal";
@@ -337,14 +336,10 @@ export default function DashboardPage() {
             <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
               Library
             </a>
-            {effectivePlan === "agency" && (
-              <a href="/dashboard/clients" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
-                Clients
-              </a>
-            )}
-            {effectivePlan === "agency" && (
-              <ClientSwitcher />
-            )}
+            {/* W95.7.1 — Clients nav + ClientSwitcher hidden pending the W94
+               Operator Access System redesign (post-V1). The `clients`
+               collection + API are untouched; only the customer-facing UI is
+               hidden. */}
             {/* W91 — Front Desk is open to every authenticated user now. */}
             <a href="/dashboard/front-desk" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
               Front Desk

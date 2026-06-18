@@ -11,7 +11,8 @@ import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
-import { ACTION_UI, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
+import IntentActionModal, { type PendingAction } from "./IntentActionModal";
+import { ACTION_UI, FC2_ACTION_INTENT, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 import VoiceInput from "./VoiceInput";
 import { getQuickActions } from "./agentQuickActions";
 import UpgradeModal from "./UpgradeModal";
@@ -129,6 +130,9 @@ export default function DepartmentRoom({
   // HandoffPanel's candidates). Drives conditional dedup of the static
   // image/video buttons: suppressed only while a matching chip is live.
   const [dynamicActions, setDynamicActions] = useState<Set<string>>(new Set());
+  // W95.7.1 — FC-2 action buttons go through the confirm-to-commit intent path
+  // (per-customer) instead of operator-wide /api/integrations/* writes.
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
   // Per-department thread storage key. Each dept gets its own thread so
@@ -566,31 +570,12 @@ export default function DepartmentRoom({
     setSelectedTemplate(null);
   }
 
-  async function sendCampaign() {
+  // W95.7.1 — FC-2 buttons open the confirm-to-commit modal pre-filled with the
+  // mapped intent (per-customer via /api/intent/commit), replacing the old
+  // operator-wide /api/integrations/* writes that 403'd for customers.
+  function sendCampaign() {
     if (!output || integrationStatus === "sending") return;
-    setIntegrationStatus("sending");
-    setIntegrationMsg("");
-    try {
-      const res = await fetch("/api/integrations/listmonk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: task.slice(0, 80) || "Campaign", body: output }),
-      });
-      const data = (await res.json()) as { campaignUrl?: string; message?: string; error?: string };
-      if (res.status === 503) {
-        setIntegrationMsg("Email sending not configured. Add LISTMONK_URL to your environment to enable this.");
-        setIntegrationStatus("error");
-      } else if (!res.ok) {
-        setIntegrationStatus("error");
-        setIntegrationMsg("Failed to create campaign.");
-      } else {
-        setIntegrationStatus("sent");
-        setIntegrationMsg(data.campaignUrl ? `Draft saved → ${data.campaignUrl}` : "Campaign draft created.");
-      }
-    } catch {
-      setIntegrationStatus("error");
-      setIntegrationMsg("Failed to reach email service.");
-    }
+    setPendingAction({ type: FC2_ACTION_INTENT.send_email_campaign!, fields: { message_summary: output.slice(0, 1500), subject_hint: task.slice(0, 120) } });
   }
 
   async function scheduleCall() {
@@ -622,34 +607,10 @@ export default function DepartmentRoom({
     }
   }
 
-  async function addToCRM() {
+  function addToCRM() {
     if (!output || integrationStatus === "sending") return;
-    const name = prompt("Contact or company name:");
-    if (!name?.trim()) return;
-    const email = prompt("Email (optional):") ?? "";
-    setIntegrationStatus("sending");
-    setIntegrationMsg("");
-    try {
-      const res = await fetch("/api/integrations/twenty", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "contact", name: name.trim(), email: email.trim() || undefined, notes: task }),
-      });
-      const data = (await res.json()) as { crmUrl?: string; message?: string; error?: string };
-      if (res.status === 503) {
-        setIntegrationMsg("CRM not configured. Add TWENTY_API_URL and TWENTY_API_KEY to your environment.");
-        setIntegrationStatus("error");
-      } else if (!res.ok) {
-        setIntegrationStatus("error");
-        setIntegrationMsg("Failed to add to CRM.");
-      } else {
-        setIntegrationStatus("sent");
-        setIntegrationMsg(data.crmUrl ? `Added to CRM → ${data.crmUrl}` : "Added to CRM.");
-      }
-    } catch {
-      setIntegrationStatus("error");
-      setIntegrationMsg("Failed to reach CRM.");
-    }
+    // The modal collects the contact name/email; context rides along.
+    setPendingAction({ type: FC2_ACTION_INTENT.send_to_crm!, fields: { context: (task || output).slice(0, 600) } });
   }
 
   async function generateImage() {
@@ -774,68 +735,14 @@ export default function DepartmentRoom({
     }
   }
 
-  async function sendAsTicket() {
-    if (!output || integrationStatus === "sending") return;
-    const email = prompt("Customer's email address:");
-    if (!email?.trim()) return;
-    const name = prompt("Customer's name:") ?? "Customer";
-    setIntegrationStatus("sending");
-    setIntegrationMsg("");
-    try {
-      const res = await fetch("/api/integrations/chatwoot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: name.trim() || "Customer",
-          customerEmail: email.trim(),
-          subject: task.slice(0, 80) || "Customer reply",
-          reply: output,
-        }),
-      });
-      const data = (await res.json()) as { conversationUrl?: string; message?: string; error?: string };
-      if (res.status === 503) {
-        setIntegrationMsg("Support tickets not configured. Add CHATWOOT_URL, CHATWOOT_API_KEY and CHATWOOT_ACCOUNT_ID to your environment.");
-        setIntegrationStatus("error");
-      } else if (!res.ok) {
-        setIntegrationStatus("error");
-        setIntegrationMsg(data.message ?? "Failed to create ticket.");
-      } else {
-        setIntegrationStatus("sent");
-        setIntegrationMsg(data.conversationUrl ? `Ticket opened → ${data.conversationUrl}` : "Support ticket opened.");
-      }
-    } catch {
-      setIntegrationStatus("error");
-      setIntegrationMsg("Failed to reach support system.");
-    }
-  }
+  // sendAsTicket retired (W95.7.1) — "Open support ticket" created a NEW support
+  // conversation, which no current intent covers; the button is hidden until a
+  // `create_support_thread` intent ships (reported to SA).
 
-  async function sendForSignature() {
+  function sendForSignature() {
     if (!output || integrationStatus === "sending") return;
-    const email = prompt("Signer's email address:");
-    if (!email?.trim()) return;
-    setIntegrationStatus("sending");
-    setIntegrationMsg("");
-    try {
-      const res = await fetch("/api/integrations/docuseal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: task.slice(0, 80) || "Document", documentContent: output, signerEmail: email.trim() }),
-      });
-      const data = (await res.json()) as { signingUrl?: string; message?: string; error?: string };
-      if (res.status === 503) {
-        setIntegrationMsg("E-signatures not configured. Add DOCUSEAL_URL to your environment to enable this.");
-        setIntegrationStatus("error");
-      } else if (!res.ok) {
-        setIntegrationStatus("error");
-        setIntegrationMsg("Failed to send for signature.");
-      } else {
-        setIntegrationStatus("sent");
-        setIntegrationMsg(data.signingUrl ? `Sent → ${data.signingUrl}` : "Sent for signature.");
-      }
-    } catch {
-      setIntegrationStatus("error");
-      setIntegrationMsg("Failed to reach signature service.");
-    }
+    // The modal collects the signer's name/email.
+    setPendingAction({ type: FC2_ACTION_INTENT.send_for_signature!, fields: { document_identifier: (task || "Document").slice(0, 120), notes: output.slice(0, 400) } });
   }
 
   function handleQuickAction(prompt: string, label: string) {
@@ -1468,16 +1375,8 @@ export default function DepartmentRoom({
                       {integrationStatus === "sending" ? "Sending…" : integrationStatus === "sent" ? "Campaign saved ✓" : "Send as Campaign"}
                     </button>
                   )}
-                  {department === "reputation" && (
-                    <button
-                      onClick={() => void sendAsTicket()}
-                      disabled={integrationStatus === "sending"}
-                      className="text-xs transition-colors hover:text-white"
-                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
-                    >
-                      {integrationStatus === "sending" ? "Opening ticket…" : integrationStatus === "sent" ? "Ticket opened ✓" : "Send as Ticket"}
-                    </button>
-                  )}
+                  {/* W95.7.1 — "Send as Ticket" (reputation) hidden: creating a
+                     new support conversation isn't covered by a current intent. */}
                   {department === "design" && (
                     <>
                       <select
@@ -1891,6 +1790,14 @@ export default function DepartmentRoom({
         department={department}
         agentName={activeAgent?.name ?? department}
         seedTask={followupSeed}
+      />
+
+      {/* W95.7.1 — FC-2 buttons confirm-to-commit through the per-customer
+         intent path (same modal as conversational intent). */}
+      <IntentActionModal
+        pending={pendingAction}
+        onClose={() => setPendingAction(null)}
+        onResult={(msg, ok) => { setIntegrationStatus(ok ? "sent" : "error"); setIntegrationMsg(msg); }}
       />
 
       {showSchedule && (
