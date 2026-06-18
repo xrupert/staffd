@@ -12,7 +12,7 @@
 
 ## 0. V1 Substrate Complete ✅
 
-> **Date:** 2026-06-18 · **Marker commit:** `W95.7` (see `git log --grep "W95.7"`; exact SHA recorded in [STAFFD_TRACK.md](STAFFD_TRACK.md) post-W95.7 row). The Model-B3 substrate is feature-complete and shippable as the V1 fallback. L4 (W73–W75 — workflow planner / recipes / exceptional ship) continues on top of it.
+> **Date:** 2026-06-18 · **Marker commit:** `00b30c0` (W95.7). The Model-B3 substrate is feature-complete and shippable as the V1 fallback. L4 (W73–W75 — workflow planner / recipes / exceptional ship) continues on top of it.
 
 **What "substrate complete" means:** a customer can run their whole business through STAFFD by conversation + upload, with every vendor backend invisible and partitioned per-customer. Verify live at `/dashboard/admin/health` (or `GET /api/admin/health`) — green everywhere = healthy.
 
