@@ -137,6 +137,43 @@ map; W95.7's substrate health check generalizes the idea at runtime. (The
 dispatch numbered this "#28"; #28 was already assigned to Registry-Extension,
 so it lands here as #29 per the append convention — Standard #16.)*
 
+### #30 — UI Hide/Remove Dispatches Must Clear Coupled State
+When a UI surface is hidden or removed, the dispatch must also clear any
+localStorage / sessionStorage / cookie / URL state that surface managed, AND
+audit every other site in the app that reads or writes the same state. Leaving a
+hidden writer with active readers produces silent-failure modes where stale
+state continues routing the application through paths the UI was meant to
+control. *Why: W95.7.1 hid the ClientSwitcher without clearing
+`staffd_active_client` or auditing the 7 read sites; the entire operator
+brand-voice flow broke until W95.7.3a closed the regression.*
+
+### #31 — State-Coupling Audit on Every UI-Touching Dispatch
+Any dispatch that touches a UI surface — adds, hides, removes, modifies — must
+enumerate explicitly:
+- Every localStorage / sessionStorage / cookie / URL param the surface reads or
+  writes.
+- Every other component, route, or library that reads or writes the same state.
+- An explicit ruling on each coupled state element: preserve, clear, or migrate.
+
+Standard #9 (pre-build discovery) gets the read sites; #31 makes the write-side
+audit explicit and the coupling decisions explicit. *Why: complement to #30 —
+both birthed from the W95.7.1 regression.*
+
+### #32 — Adversarial Review of CC's Proposals Is Mandatory
+Before ratifying any CC report, SA must run four explicit checks:
+- **Drift**: did CC introduce scope CC wasn't asked for?
+- **Conflation**: is CC blending distinct concerns under one label?
+- **Bloat**: are abstractions, tests, or files growing faster than the feature
+  surface justifies?
+- **Assumption**: did CC act on something not explicitly ratified? Substitutions
+  are surfaced for operator awareness even when defensible.
+
+If any check fires, name it explicitly in the ratification turn. If none fire,
+state so directly. No clean ratifications without the inversion pass surfaced.
+*Why: SA had been ratifying CC reports too readily when work landed cleanly; the
+operator demanded the Munger adversarial standard be applied to CC's reports the
+same way it applies to user assumptions.*
+
 ---
 
 *New Standards append here with the next free number. If SA supplies the missing
