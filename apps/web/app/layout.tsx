@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import RegisterServiceWorker from "./components/RegisterServiceWorker";
 import PlausibleScript from "./components/PlausibleScript";
+import StaleClientStateCleanup from "./components/StaleClientStateCleanup";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -46,6 +47,8 @@ export default function RootLayout({
         {/* Analytics loads for customer sessions only — super-admin opts out (W72). */}
         <PlausibleScript />
         <RegisterServiceWorker />
+        {/* W95.7.3a — clears the orphaned staffd_active_client key (remove at W94). */}
+        <StaleClientStateCleanup />
         {children}
       </body>
     </html>

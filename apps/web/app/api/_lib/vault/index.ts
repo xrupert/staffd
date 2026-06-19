@@ -108,7 +108,35 @@ export async function fetchVault(
   const url = pbUrl();
   const headers = { Authorization: pbToken };
 
-  // Agency mode — try the client vault first
+  // W91.5 + W95.7.3a — STAFFD self-knowledge override, FIRST. For the
+  // super-admin (operator), STAFFD's canonical brand identity IS the Vault,
+  // overriding any businesses row AND any agency-client selection. This runs
+  // BEFORE the clientId branch so a stale `staffd_active_client` (or any future
+  // client routing) can never shadow the operator's own brand voice — the
+  // W95.7.1 regression. The operator's identity is absolute; agency-client mode
+  // is only ever entered by NON-operator agency users (the W94 path, preserved
+  // below). fs-free (content embedded in staffd-self.ts). Any failure falls
+  // through to the agency/businesses paths.
+  let isOperator = operatorMemo.get(userId);
+  if (isOperator === undefined) {
+    try {
+      isOperator = (await trySuperAdminByUserId(userId)) !== null;
+      operatorMemo.set(userId, isOperator);
+    } catch {
+      isOperator = false; // indeterminate → treat as non-operator, fall through
+    }
+  }
+  if (isOperator) {
+    try {
+      const self = staffdSelfVault();
+      if (self) return self;
+    } catch {
+      // self-vault unavailable → fall through to the businesses row below
+    }
+  }
+
+  // Agency mode (W94 path — NON-operator agency users only) — try the client
+  // vault first. Never reached for the operator (returned above).
   if (opts?.clientId) {
     try {
       const res = await fetch(
@@ -137,25 +165,6 @@ export async function fetchVault(
     } catch {
       // fall through to user's own vault
     }
-  }
-
-  // W91.5 — STAFFD self-knowledge override. For the super-admin (operator),
-  // STAFFD's canonical brand identity is the Vault, overriding any businesses
-  // row they typed. fs-free (content embedded in staffd-self.ts). Skipped in
-  // agency-client mode (an explicit client view wins above). Any failure falls
-  // through to the businesses path.
-  try {
-    const self = staffdSelfVault();
-    if (self) {
-      let isOperator = operatorMemo.get(userId);
-      if (isOperator === undefined) {
-        isOperator = (await trySuperAdminByUserId(userId)) !== null;
-        operatorMemo.set(userId, isOperator);
-      }
-      if (isOperator) return self;
-    }
-  } catch {
-    // fall through to the businesses row
   }
 
   try {

@@ -172,6 +172,15 @@ No super-admin token + Sensitive `PLAUSIBLE_*` creds, so the live read is yours 
 - Direct URL `/dashboard/clients` → **404**.
 - `/dashboard/admin` — operator surfaces unchanged; the `clients` collection is intact in PB (nothing deleted).
 
+### 29. W95.7.3a — Brand voice regression closure (GATING L4)
+Operator verification after deploy:
+- Open browser devtools → Application → Local Storage → urstaffd.com.
+- Confirm the `staffd_active_client` key is **absent** (the cleanup ran on load).
+- In CommandCenter, ask Marketing for any deliverable referencing STAFFD (e.g. "draft a tweet announcing our launch").
+- ✅ The specialist responds with STAFFD-voiced content (positioning / messaging pillars / hard-nos honored) — NOT generic onboarding questions ("what's your tone / CTA / handle").
+- (Optional, to reproduce the old break first) set `staffd_active_client` to any value in devtools, then **navigate to a dept room directly** (e.g. /dashboard/marketing): the cleanup runs on every route, so the key clears regardless of entry point. Even if it didn't, the vault layer now returns STAFFD self for the operator regardless of clientId.
+- Report success or failure to SA **before L4 starts**.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already
