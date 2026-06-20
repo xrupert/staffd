@@ -142,8 +142,9 @@ describe("POST /api/admin/repair-row-rules", () => {
     // Every non-system-managed collection should be repaired (or attempted)
     expect(body.total_repaired).toBeGreaterThan(0);
     // users + orphan_decisions + super_admin_audit_log + super_admin_usage_log
-    // + stripe_events + admin_migration_log (W95.3.4 — all systemManaged)
-    expect(body.total_skipped).toBe(6);
+    // + stripe_events + admin_migration_log + generation_models (W95.7.3d-T1 —
+    // all systemManaged)
+    expect(body.total_skipped).toBe(7);
     expect(body.overall_status).toContain("✅");
     expect(patchCalls).toBeGreaterThan(0);
     expect(patchCalls).toBe(body.total_repaired);

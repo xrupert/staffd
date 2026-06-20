@@ -26,6 +26,11 @@ const FIELDS = [
   // A matching pending job within the in-flight window is reused instead of
   // re-submitting to Muapi (margin protection — Muapi debits on completion).
   { name: "fingerprint", type: "text", required: false },
+  // W95.7.3d-T1 — three-tier credit weight. Nullable in PB; defaults applied at
+  // the single write surface (createJob), not scattered read-side fallbacks (C4).
+  { name: "tier", type: "text", required: false },           // "quick" | "pro" | "premium"
+  { name: "credit_weight", type: "number", required: false },// 4|8|60 video, 1|2|4 image
+  { name: "muapi_model", type: "text", required: false },    // exact model called
 ];
 
 export async function POST() {

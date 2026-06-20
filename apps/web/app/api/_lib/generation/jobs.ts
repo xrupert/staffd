@@ -27,6 +27,9 @@ export type GenJob = {
   charged?: boolean;
   error?: string;
   fingerprint?: string;
+  tier?: string;
+  credit_weight?: number;
+  muapi_model?: string;
 };
 
 /** W95.7.3c-b1 — submit dedup window. A pending job older than this is treated
@@ -77,12 +80,18 @@ async function patchJob(pb: string, token: string, id: string, patch: Partial<Ge
 export async function createJob(
   pb: string,
   token: string,
-  input: { user: string; kind: GenKind; model: string; prompt: string; aspect_ratio: string; prediction_id: string; fingerprint?: string },
+  input: { user: string; kind: GenKind; model: string; prompt: string; aspect_ratio: string; prediction_id: string; fingerprint?: string; tier?: string; credit_weight?: number; muapi_model?: string },
 ): Promise<string | null> {
+  // W95.7.3d-T1 (C4) — SINGLE point where tier/credit_weight defaults are
+  // applied. Columns are nullable in PB but never persisted null: a row always
+  // carries a concrete tier + weight (legacy/flat default = quick / 1). No
+  // read-side `?? 1` fallbacks anywhere else.
+  const tier = input.tier ?? "quick";
+  const credit_weight = typeof input.credit_weight === "number" ? input.credit_weight : 1;
   const res = await fetch(`${pb}/api/collections/generation_jobs/records`, {
     method: "POST",
     headers: adminHeaders(token),
-    body: JSON.stringify({ ...input, status: "pending", charged: false }),
+    body: JSON.stringify({ ...input, tier, credit_weight, status: "pending", charged: false }),
   });
   if (!res.ok) return null;
   return ((await res.json()) as { id?: string }).id ?? null;
@@ -121,13 +130,16 @@ export async function completeJob(
 
   if (!job.charged) {
     await patchJob(pb, token, job.id, { charged: true }); // claim first
+    // W95.7.3d-T1 (C4) — completeJob is the SINGLE read surface that defaults a
+    // missing weight (legacy/backfilled rows → 1). New rows carry it from createJob.
+    const weight = typeof job.credit_weight === "number" && job.credit_weight > 0 ? job.credit_weight : 1;
     if (superAdmin) {
       void logSuperAdminUsage(superAdmin, "muapi_generation", {
-        operation_detail: `${job.kind} via ${job.model ?? "?"}`,
-        parameters: { kind: job.kind, jobId: job.id, model: job.model },
+        operation_detail: `${job.kind} ${job.tier ?? "quick"} (${weight}cr) via ${job.muapi_model ?? job.model ?? "?"}`,
+        parameters: { kind: job.kind, jobId: job.id, model: job.muapi_model ?? job.model, tier: job.tier, weight },
       });
     } else {
-      const spend = await spendCredits(pb, job.user, job.kind, 1);
+      const spend = await spendCredits(pb, job.user, job.kind, weight);
       if (spend.ok) remaining = spend.remaining;
       else creditWarning = "Credit charge failed — please contact support.";
     }

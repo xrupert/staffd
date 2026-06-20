@@ -114,6 +114,27 @@ export async function submitPrediction(
   return (await res.json()) as PredictionResult;
 }
 
+/**
+ * W95.7.3d-T1 — estimate the USD cost of a dynamic-priced model for the given
+ * request body (POST /api/v1/models/{name}/estimate-cost). Returns null on any
+ * failure so the caller can fall back to the model's static/tier cost.
+ */
+export async function estimateCost(modelName: string, body: Record<string, unknown>): Promise<number | null> {
+  try {
+    const res = await fetch(`${MUAPI_URL}/api/v1/models/${encodeURIComponent(modelName)}/estimate-cost`, {
+      method: "POST",
+      headers: { "x-api-key": MUAPI_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { cost?: number; cost_usd?: number; estimated_cost?: number };
+    const c = data.cost ?? data.cost_usd ?? data.estimated_cost;
+    return typeof c === "number" ? c : null;
+  } catch {
+    return null;
+  }
+}
+
 export type PredictionStatus =
   | { state: "completed"; url: string }
   | { state: "failed"; error: string }

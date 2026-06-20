@@ -199,6 +199,14 @@ Operator verification after deploy:
 - **Webhook auth:** a forged `POST /api/generation/webhook?token=wrong` returns **401**; the real Muapi callback (correct token) returns **200**.
 - ⚠️ **Invoice action (parallel, per dispatch):** pull one recent Muapi invoice and confirm whether line items are completions-only and whether **failed/cancelled** jobs are billed. Report before W95.7.3c-build-2 (reconciliation) so the cost surface reflects real policy.
 
+### 32. W95.7.3d-T1 — Three-tier credit picker (run migrations + sync FIRST)
+- **Operator setup (one-time):** (a) run **Generation jobs** (`generation-jobs`) again via `/dashboard/admin/migrations` to add `tier`/`credit_weight`/`muapi_model` (idempotent patch); (b) run **Generation models (catalog)** (`generation-models`) to create the collection; (c) trigger the catalog sync once — `GET /api/worker/muapi-catalog-sync` with the `x-worker-secret: $WORKER_SECRET` header — and confirm `generation_models` row count > 100. Check the sync response `routingDrift` array: any slug listed there is a routing.ts slug NOT in the live Muapi catalog and must be fixed (C5 validator).
+- **Image E2E:** in a department room, click **Generate Image →** → the tier picker opens with **Pro pre-selected ("✓ recommended")** → switch to **Quick** → Confirm — Quick (1 credit) → on completion the `generation_jobs` row shows `tier="quick"`, `credit_weight=1`, `muapi_model` set, and the ledger charges **1** image credit.
+- **Video E2E:** same flow, pick **Premium** → Confirm — Premium (60 credits) → on completion charges **60** video credits; the job row shows `tier="premium"`, `credit_weight=60`.
+- **Weight gate:** as a customer with < 60 video credits, pick Premium video → **402** ("This premium video costs 60 credits — you have N") BEFORE any Muapi submit.
+- **Brand voice:** the picker shows ZERO model/vendor names — only Quick/Pro/Premium + credit costs + descriptions.
+- ⚠️ **Slug verification:** the routing.ts model slugs are catalog-pending; after the first sync, fix any `routingDrift` slugs (see muapi-vendor-drift.md §6) before relying on tier routing in production.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

@@ -243,8 +243,10 @@ describe("CommandCenter wiring pins (W64 B1)", () => {
   it("mounts the dispatcher with all five handlers — publish_social stays handlerless (D8′)", () => {
     expect(src).toContain("useActionDispatcher({");
     expect(src).toContain("export_document: () => {");
-    expect(src).toContain('generate_image: () => { void generateInlineMedia("image"); }');
-    expect(src).toContain('generate_video: () => { void generateInlineMedia("video"); }');
+    // W95.7.3d-T1 — chips open the tier picker (openGenTier); the modal confirm
+    // then runs generateInlineMedia(kind, tier).
+    expect(src).toContain('generate_image: () => { openGenTier("image"); }');
+    expect(src).toContain('generate_video: () => { openGenTier("video"); }');
     expect(src).toContain("schedule_followup: (candidate) => {");
     expect(src).toContain("draft_email: () => {");
     expect(src).not.toContain("publish_social:");

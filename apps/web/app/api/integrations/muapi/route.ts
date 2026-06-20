@@ -23,6 +23,8 @@ import { trySuperAdminByUserId } from "../../_lib/auth/super-admin";
 import { getAdminToken } from "../../_lib/pb";
 import { submitPrediction, tryExtractOutputUrl, buildWebhookUrl } from "../../_lib/integrations/muapi/predictions";
 import { createJob, completeJob, fingerprintFor, findInflightByFingerprint, type GenJob } from "../../_lib/generation/jobs";
+import { defaultTierFor, tierWeight, type Tier } from "../../_lib/generation/pricing";
+import { routeFor } from "../../_lib/generation/routing";
 
 const anthropic = new Anthropic();
 
@@ -254,17 +256,25 @@ export async function POST(req: Request) {
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });
 
   try {
-    const { userId, kind, prompt, aspectRatio, model } = (await req.json()) as {
+    const { userId, kind, prompt, aspectRatio, model, tier: reqTier, department } = (await req.json()) as {
       userId: string;
       kind: "image" | "video";
       prompt: string;
       aspectRatio?: string;
       model?: string;
+      tier?: string;        // W95.7.3d-T1 — customer-selected tier
+      department?: string;  // drives the default tier + model routing
     };
 
     if (!userId)           return Response.json({ error: "userId required" }, { status: 400 });
     if (kind !== "image" && kind !== "video") return Response.json({ error: "kind must be 'image' or 'video'" }, { status: 400 });
     if (!prompt?.trim())   return Response.json({ error: "prompt is required" }, { status: 400 });
+
+    // W95.7.3d-T1 — three-tier credit weight. Customer-selected tier (or the
+    // department default); the locked weight is what we gate + charge.
+    const dept = department ?? "";
+    const tier: Tier = (["quick", "pro", "premium"].includes(reqTier ?? "") ? reqTier : defaultTierFor(dept, kind)) as Tier;
+    const creditWeight = tierWeight(kind, tier);
 
     // Decision 74 — super-admin bypass. If caller is super-admin: skip the
     // credit pre-flight gate entirely (they have no quota). The actual
@@ -274,12 +284,15 @@ export async function POST(req: Request) {
     // Pre-flight credit check — fast reject before we hit Muapi.
     // Super-admin skips this gate.
     const preState = superAdmin ? null : await getCreditState(pbUrl, userId);
-    if (preState && preState.totalRemaining[kind] < 1) {
+    if (preState && preState.totalRemaining[kind] < creditWeight) {
+      // W95.7.3d-T1 — gate on the selected tier's WEIGHT, not 1, so a customer
+      // can't trigger a 60-credit Premium job with 5 credits.
       return Response.json(
         {
           error: "out_of_credits",
-          message: `You're out of ${kind} credits for the month. Top up or promote your plan to keep going.`,
+          message: `This ${tier} ${kind} costs ${creditWeight} credits — you have ${preState.totalRemaining[kind]}. Top up or promote your plan to keep going.`,
           remaining: preState.totalRemaining[kind],
+          required: creditWeight,
           monthly: preState.monthlyAllowance[kind],
           plan: preState.plan,
         },
@@ -313,9 +326,13 @@ export async function POST(req: Request) {
     // for extraordinary renders. Never compresses; only enriches.
     const focusedPrompt = await enrichToPrompt(prompt, kind);
 
-    const modelEndpoint = kind === "image"
-      ? routeImageModel(focusedPrompt, model)
-      : routeVideoModel(focusedPrompt, model);
+    // W95.7.3d-T1 — model selection by tier routing (department, kind, tier).
+    // Explicit `model` (if passed) wins; else the tier's preferred slug; else
+    // the legacy prompt-based router as a final fallback.
+    const tierModels = routeFor(dept, kind, tier);
+    const modelEndpoint = model
+      ?? tierModels[0]
+      ?? (kind === "image" ? routeImageModel(focusedPrompt) : routeVideoModel(focusedPrompt));
 
     // PR-Tranche-1.7 — flat body. Fields at root, no { input: {...} } wrapper.
     const body: Record<string, unknown> = {
@@ -345,6 +362,7 @@ export async function POST(req: Request) {
     // `prediction_id` lets any later poll/webhook resolve; `fingerprint` dedupes.
     const jobId = await createJob(pbUrl, adminToken, {
       user: userId, kind, model: modelEndpoint, prompt: focusedPrompt, aspect_ratio: ratio, prediction_id: predictionId, fingerprint,
+      tier, credit_weight: creditWeight, muapi_model: modelEndpoint,
     });
     if (!jobId) return Response.json({ error: "Could not start generation" }, { status: 502 });
 
@@ -352,7 +370,7 @@ export async function POST(req: Request) {
     // Charge + complete now (claim-first idempotent) and deliver immediately.
     const immediateUrl = tryExtractOutputUrl(submission);
     if (immediateUrl) {
-      const job: GenJob = { id: jobId, user: userId, kind, status: "pending", model: modelEndpoint, prediction_id: predictionId };
+      const job: GenJob = { id: jobId, user: userId, kind, status: "pending", model: modelEndpoint, prediction_id: predictionId, tier, credit_weight: creditWeight, muapi_model: modelEndpoint };
       const done = await completeJob(pbUrl, adminToken, job, immediateUrl, superAdmin);
       return Response.json({
         success: true, jobId, status: "completed",

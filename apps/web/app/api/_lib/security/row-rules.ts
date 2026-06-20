@@ -200,6 +200,14 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   { name: "autopilot_audit_log", rules: USER_OWNED_RULES },
   // W95.7.3b — async image/video generation job ledger (sync→async Muapi).
   { name: "generation_jobs", rules: USER_OWNED_RULES },
+  // W95.7.3d-T1 — cached Muapi model catalog (tier/weight). Operator infra, no
+  // user rows → ADMIN_ONLY (admin-token-only; not in the GDPR user-cascade).
+  {
+    name: "generation_models",
+    rules: ADMIN_ONLY_RULES,
+    systemManaged: true,
+    note: "W95.7.3d — Muapi catalog cache (hourly cron). Admin-token-only; no customer rows.",
+  },
 ];
 
 /** Quick lookup helper. */

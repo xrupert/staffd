@@ -13,6 +13,8 @@ import { runExportDocument } from "../../lib/action-handlers/export-document";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import IntentActionModal, { type PendingAction } from "./IntentActionModal";
 import { runGeneration } from "../../lib/generation-client";
+import GenerationTierModal, { type GenerationRequest } from "./GenerationTierModal";
+import { type Tier } from "../api/_lib/generation/pricing";
 import { ACTION_UI, FC2_ACTION_INTENT, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 import VoiceInput from "./VoiceInput";
 import { getQuickActions } from "./agentQuickActions";
@@ -134,6 +136,8 @@ export default function DepartmentRoom({
   // W95.7.1 — FC-2 action buttons go through the confirm-to-commit intent path
   // (per-customer) instead of operator-wide /api/integrations/* writes.
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  // W95.7.3d-T1 — pending image/video generation awaiting tier selection.
+  const [pendingGen, setPendingGen] = useState<GenerationRequest | null>(null);
   const rosterRef = useRef<HTMLDivElement>(null);
 
   // Per-department thread storage key. Each dept gets its own thread so
@@ -617,15 +621,27 @@ export default function DepartmentRoom({
   // W95.7.3b — ASYNC via runGeneration (submit → poll). The imageLoading /
   // videoLoading flags stay as the in-flight guard + the "Rendering…/Filming…"
   // button UX; they now span the full submit+poll window (no 60s timeout).
-  async function generateImage() {
+  // W95.7.3d-T1 — generate* open the tier picker; the modal confirm runs the
+  // actual generation with the chosen tier (charged at the tier weight).
+  function generateImage() {
     if (!output || imageLoading) return;
+    if (!(pb.authStore.record?.id)) return;
+    setPendingGen({ kind: "image", department, prompt: output });
+  }
+  function generateVideo() {
+    if (!output || videoLoading) return;
+    if (!(pb.authStore.record?.id)) return;
+    setPendingGen({ kind: "video", department, prompt: output });
+  }
+
+  async function runImageGen(tier: Tier) {
     const userId = pb.authStore.record?.id ?? "";
-    if (!userId) return;
+    if (!output || !userId) return;
     setImageLoading(true);
     setImageError("");
     setImageUrl(null);
     try {
-      const { url, error } = await runGeneration({ userId, kind: "image", prompt: output, aspectRatio: imageRatio });
+      const { url, error } = await runGeneration({ userId, kind: "image", prompt: output, aspectRatio: imageRatio, tier, department });
       if (url) setImageUrl(url);
       else if (error) setImageError(error.length > 500 ? error.slice(0, 500) + "…" : error);
     } finally {
@@ -633,15 +649,14 @@ export default function DepartmentRoom({
     }
   }
 
-  async function generateVideo() {
-    if (!output || videoLoading) return;
+  async function runVideoGen(tier: Tier) {
     const userId = pb.authStore.record?.id ?? "";
-    if (!userId) return;
+    if (!output || !userId) return;
     setVideoLoading(true);
     setVideoError("");
     setVideoUrl(null);
     try {
-      const { url, error } = await runGeneration({ userId, kind: "video", prompt: output, aspectRatio: imageRatio });
+      const { url, error } = await runGeneration({ userId, kind: "video", prompt: output, aspectRatio: imageRatio, tier, department });
       if (url) setVideoUrl(url);
       else if (error) setVideoError(error.length > 500 ? error.slice(0, 500) + "…" : error);
     } finally {
@@ -1771,6 +1786,13 @@ export default function DepartmentRoom({
         pending={pendingAction}
         onClose={() => setPendingAction(null)}
         onResult={(msg, ok) => { setIntegrationStatus(ok ? "sent" : "error"); setIntegrationMsg(msg); }}
+      />
+
+      {/* W95.7.3d-T1 — generation tier picker (shown before image/video gen). */}
+      <GenerationTierModal
+        pending={pendingGen}
+        onConfirm={(tier) => { const g = pendingGen; setPendingGen(null); if (g?.kind === "video") void runVideoGen(tier); else if (g) void runImageGen(tier); }}
+        onClose={() => setPendingGen(null)}
       />
 
       {showSchedule && (

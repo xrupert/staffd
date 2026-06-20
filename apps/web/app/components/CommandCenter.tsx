@@ -11,6 +11,8 @@ import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import { runGeneration } from "../../lib/generation-client";
+import GenerationTierModal, { type GenerationRequest } from "./GenerationTierModal";
+import { type Tier } from "../api/_lib/generation/pricing";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
 import ConfirmActionModal, { type IntentResult } from "./ConfirmActionModal";
@@ -215,6 +217,8 @@ export default function CommandCenter() {
   const abortRef = useRef<AbortController | null>(null);
   // W95.7.3b — in-flight guard for async media generation (single job at a time).
   const mediaBusyRef = useRef(false);
+  // W95.7.3d-T1 — pending generation awaiting tier selection in the modal.
+  const [pendingGen, setPendingGen] = useState<GenerationRequest | null>(null);
   // W64 B2 (D13) — shared schedule_followup modal state.
   const [followupOpen, setFollowupOpen] = useState(false);
   const [followupSeed, setFollowupSeed] = useState("");
@@ -338,8 +342,8 @@ export default function CommandCenter() {
     },
     // W64 B2 (D12) — media generates via the same muapi route DeptRoom
     // uses (credit gates ride along) and renders inline in the thread.
-    generate_image: () => { void generateInlineMedia("image"); },
-    generate_video: () => { void generateInlineMedia("video"); },
+    generate_image: () => { openGenTier("image"); },
+    generate_video: () => { openGenTier("video"); },
     // W64 B2 (D13) — shared planned-follow-up modal.
     schedule_followup: (candidate) => {
       const suggested = typeof candidate.params?.task === "string" ? candidate.params.task : "";
@@ -398,7 +402,15 @@ export default function CommandCenter() {
   // in-flight guard: a re-press while a generation is running is a no-op (the
   // operator's 3× video press no longer queues 3 jobs). Result lands as
   // markdown in an assistant message; video can take a minute (no 60s timeout).
-  async function generateInlineMedia(kind: "image" | "video") {
+  // W95.7.3d-T1 — chip opens the tier picker; confirm runs generateInlineMedia.
+  function openGenTier(kind: "image" | "video") {
+    const prompt = lastCompleted?.output ?? "";
+    if (!prompt.trim()) { console.warn(`[W64] generate_${kind} with no completed output — noop`); return; }
+    if (mediaBusyRef.current) return;
+    setPendingGen({ kind, department: "", prompt });
+  }
+
+  async function generateInlineMedia(kind: "image" | "video", tier: Tier) {
     const prompt = lastCompleted?.output ?? "";
     if (!prompt.trim()) {
       console.warn(`[W64] generate_${kind} with no completed output — noop`);
@@ -411,7 +423,7 @@ export default function CommandCenter() {
     const label = kind === "image" ? "visual" : "video";
     setMessages((prev) => [...prev, { role: "assistant", content: kind === "video" ? "Generating the video — this can take a minute…" : "Generating the visual — one moment…" }]);
     try {
-      const { url, error } = await runGeneration({ userId, kind, prompt, aspectRatio: "16:9" });
+      const { url, error } = await runGeneration({ userId, kind, prompt, aspectRatio: "16:9", tier });
       if (url) {
         const media = kind === "image" ? `![Generated visual](${url})` : `Your video is ready: [▶ Watch it here](${url})`;
         setMessages((prev) => [...prev, { role: "assistant", content: media }]);
@@ -1152,6 +1164,13 @@ export default function CommandCenter() {
           onCancel={cancelIntent}
         />
       )}
+
+      {/* W95.7.3d-T1 — generation tier picker (shown before image/video gen). */}
+      <GenerationTierModal
+        pending={pendingGen}
+        onConfirm={(tier) => { const g = pendingGen; setPendingGen(null); if (g) void generateInlineMedia(g.kind, tier); }}
+        onClose={() => setPendingGen(null)}
+      />
 
       {undoToast && (
         <UndoToast auditRowId={undoToast.auditRowId} message={undoToast.message} onClose={() => setUndoToast(null)} />

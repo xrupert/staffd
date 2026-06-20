@@ -164,9 +164,10 @@ describe("GET /api/admin/verify-row-rules", () => {
         name === "super_admin_audit_log" ||
         name === "super_admin_usage_log" ||
         name === "stripe_events" ||
-        name === "admin_migration_log"
+        name === "admin_migration_log" ||
+        name === "generation_models"
       ) {
-        // Decision 73 / 74 + W47 — ADMIN_ONLY pattern (all-null), systemManaged
+        // Decision 73 / 74 + W47 + W95.7.3d — ADMIN_ONLY pattern (all-null), systemManaged
         return {
           listRule: null,
           viewRule: null,
@@ -251,7 +252,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W95.4a — 35 = 30 + interactions, followups, tasks, leads, expenses
     // W95.5 — 37 = 35 + autopilot_prefs, autopilot_audit_log
     // W95.7.3b — 38 = 37 + generation_jobs (async image/video job ledger, USER_OWNED)
-    expect(body.collections_checked).toBe(38);
+    // W95.7.3d-T1 — 39 = 38 + generation_models (Muapi catalog cache, ADMIN_ONLY)
+    expect(body.collections_checked).toBe(39);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

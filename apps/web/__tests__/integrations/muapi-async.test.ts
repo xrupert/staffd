@@ -41,7 +41,7 @@ import { POST } from "../../app/api/integrations/muapi/route";
 
 const post = (body: object) => POST(new Request("https://t/api/integrations/muapi", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
 
-beforeEach(() => { credit.remaining = 5; sub.result = { id: "p1" }; jobs.created = "job-1"; jobs.dupId = null; jobs.createFn.mockClear(); jobs.completeFn.mockClear(); });
+beforeEach(() => { credit.remaining = 100; sub.result = { id: "p1" }; jobs.created = "job-1"; jobs.dupId = null; jobs.createFn.mockClear(); jobs.completeFn.mockClear(); });
 afterEach(() => vi.restoreAllMocks());
 
 describe("POST /api/integrations/muapi (W95.7.3b async)", () => {
@@ -67,6 +67,15 @@ describe("POST /api/integrations/muapi (W95.7.3b async)", () => {
     const res = await post({ userId: "u1", kind: "video", prompt: "x" });
     expect(res.status).toBe(402);
     expect(jobs.completeFn).not.toHaveBeenCalled();
+  });
+
+  it("pre-flight gates on the TIER WEIGHT — 5 credits can't start a 60-credit Premium video (W95.7.3d-T1)", async () => {
+    credit.remaining = 5; // < 60 (premium video weight)
+    const res = await post({ userId: "u1", kind: "video", prompt: "a dog at dawn", tier: "premium" });
+    expect(res.status).toBe(402);
+    const d = await res.json();
+    expect(d.required).toBe(60);
+    expect(jobs.createFn).not.toHaveBeenCalled();
   });
 
   it("missing prompt → 400", async () => {

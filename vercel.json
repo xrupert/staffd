@@ -26,6 +26,10 @@
     {
       "path": "/api/worker/workflow-drain",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/worker/muapi-catalog-sync",
+      "schedule": "0 * * * *"
     }
   ]
 }

@@ -193,6 +193,23 @@ for the next dispatch cycle, never new prompts. SA does not author a new dispatc
 until CC's current work returns. This discipline keeps work coherent and
 prevents dispatch conflict.
 
+### #36 — Periodic capability audit on third-party integrations.
+As vendors evolve their APIs (new endpoints, MCP servers, pre-built
+workflows, pricing changes, new models), STAFFD's integration may drift
+from using the vendor's best surface to using a stale or limited one.
+Capability audits surface this drift before it becomes a competitive
+disadvantage or margin problem. Audit cadence: quarterly minimum, or on
+operator-surfaced trigger. Audit output: updated capability inventory +
+gap analysis + ratified adoption decisions.
+
+### #37 — SA discovery before dispatch authoring.
+Before authoring any dispatch involving cost, pricing, UX flow, or
+architectural decisions, SA verifies the current architecture matches
+SA's mental model by checking userMemories or asking the operator. SA
+does not author dispatches based on assumed architecture. CC handles
+codebase investigation; SA handles strategy/architecture, but the
+strategy must be grounded in actual current state, not assumed state.
+
 ---
 
 *New Standards append here with the next free number. If SA supplies the missing

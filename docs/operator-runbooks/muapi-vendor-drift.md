@@ -109,6 +109,32 @@ pulls the authoritative result via `checkPrediction` (never trusts the unsigned
 body). Set `MUAPI_WEBHOOK_SECRET` in Vercel to enable push delivery; unset →
 pure client-poll fallback.
 
+## 6. Three-tier credit weights (W95.7.3d-T1)
+
+Generation is priced in three customer-facing tiers (locked), with credit weight
+derived from a model's underlying Muapi USD cost via `_lib/generation/pricing.ts`:
+
+| Tier | Video | Image | Underlying Muapi cost band |
+|---|---|---|---|
+| Quick | 4 cr | 1 cr | video $0.06–0.15 · image $0.01–0.03 |
+| Pro | 8 cr | 2 cr | video $0.15–0.40 · image $0.03–0.08 |
+| Premium | 60 cr | 4 cr | video $2.40–3.00 · image $0.10–0.30 |
+
+Gap-cost rule (C3): a cost in an unmapped gap (video $0.40–2.40, image $0.08–0.10)
+rounds UP to the next tier (margin-protective).
+
+**Model catalog:** `generation_models` is refreshed hourly by
+`/api/worker/muapi-catalog-sync` from `GET /api/v1/models` (no auth). Static-priced
+models are classified at sync; dynamic-priced models store `cost_usd=null` and are
+priced at request time via `POST /api/v1/models/{name}/estimate-cost`.
+
+**Slug drift (C5):** `_lib/generation/routing.ts` lists the preferred model slugs
+per (department, kind, tier). `validateRoutingSlugs` runs inside the hourly sync;
+any routing slug absent from the live catalog is logged in the sync response's
+`routingDrift` array (and the cron log). When a slug drifts, update routing.ts to
+the current catalog slug (same refresh recipe as §2). The current routing slugs
+are catalog-pending verification — confirm them against the first live sync.
+
 ## Related runbooks
 
 - `env-var-discipline.md` — URL env var hardening (PR-Tranche-1.6)
