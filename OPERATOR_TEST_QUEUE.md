@@ -192,6 +192,13 @@ Operator verification after deploy:
 - Image generation: same flow; typically completes on submit (fast-path) with no polling.
 - Closed-tab note (accepted V1 tradeoff, W95.7.3c will revisit): if you close the tab mid-video, the credit is NOT charged and the URL isn't surfaced until a later poll of that job; the video itself still generated at Muapi.
 
+### 31. W95.7.3c-b1 — Margin fixes: dedup + completion webhook
+- **Operator setup (one-time):** (a) re-run **Generation jobs** (`generation-jobs`) via `/dashboard/admin/migrations` to add the new `fingerprint` field (idempotent — adds the missing column). (b) Set **`MUAPI_WEBHOOK_SECRET`** in Vercel (any strong random string) to enable webhook push delivery, then redeploy. Without the secret, generation falls back to pure client-poll (W95.7.3b behavior) — still works, just no closed-tab capture.
+- **Dedup smoke:** queue the same video twice in quick succession (or two tabs). ✅ Only ONE Muapi job is created; the second submit returns the same `jobId` (`deduped:true`). Asking for the *same* prompt again *after* the first completes is a fresh generation (not deduped) — verify that still works.
+- **Webhook smoke (once `MUAPI_WEBHOOK_SECRET` set):** generate a video, then close the tab before it finishes. ✅ When Muapi completes, the webhook fires → the `generation_jobs` row flips to `completed` with `output_url`, and the customer's credit is charged exactly once (verify in PB + ledger). The video is in their library on next visit (closed-tab leak closed).
+- **Webhook auth:** a forged `POST /api/generation/webhook?token=wrong` returns **401**; the real Muapi callback (correct token) returns **200**.
+- ⚠️ **Invoice action (parallel, per dispatch):** pull one recent Muapi invoice and confirm whether line items are completions-only and whether **failed/cancelled** jobs are billed. Report before W95.7.3c-build-2 (reconciliation) so the cost surface reflects real policy.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

@@ -7,7 +7,8 @@
  * that never completes is never charged.
  */
 
-import { adminHeaders } from "../pb";
+import { createHash } from "node:crypto";
+import { adminHeaders, pbEscape } from "../pb";
 import { spendCredits } from "../credits";
 import { logSuperAdminUsage } from "../auth/super-admin-logging";
 
@@ -25,7 +26,42 @@ export type GenJob = {
   output_url?: string;
   charged?: boolean;
   error?: string;
+  fingerprint?: string;
 };
+
+/** W95.7.3c-b1 — submit dedup window. A pending job older than this is treated
+ *  as stale (orphaned) and a fresh submission is allowed. */
+export const INFLIGHT_WINDOW_MS = 15 * 60 * 1000;
+
+/**
+ * Stable dedup fingerprint for a generation request. Model is omitted
+ * deliberately — it's a deterministic function of (kind, prompt), so two
+ * identical (user, kind, prompt, ratio) requests always route to the same
+ * model; omitting it lets dedup run BEFORE prompt enrichment (saving the
+ * Anthropic enrich call too, not just the Muapi submit).
+ */
+export function fingerprintFor(userId: string, kind: GenKind, prompt: string, aspectRatio: string): string {
+  return createHash("sha256").update(`${userId}|${kind}|${prompt.trim()}|${aspectRatio}`).digest("hex");
+}
+
+/** Return the id of a CURRENTLY in-flight (pending, within window) job with this
+ *  fingerprint, or null. Only `pending` rows dedupe — a succeeded job means the
+ *  customer is asking for a legitimate re-generation. */
+export async function findInflightByFingerprint(pb: string, token: string, fingerprint: string): Promise<string | null> {
+  const since = new Date(Date.now() - INFLIGHT_WINDOW_MS).toISOString().replace("T", " ").slice(0, 19) + ".000Z";
+  const filter = `fingerprint = "${pbEscape(fingerprint)}" && status = "pending" && created >= "${since}"`;
+  const res = await fetch(`${pb}/api/collections/generation_jobs/records?filter=${encodeURIComponent(filter)}&perPage=1&sort=-created&fields=id`, { headers: { Authorization: token } });
+  if (!res.ok) return null;
+  return (((await res.json()) as { items?: { id: string }[] }).items?.[0]?.id) ?? null;
+}
+
+/** Look up a job by its Muapi prediction id (webhook match). */
+export async function getJobByPrediction(pb: string, token: string, predictionId: string): Promise<GenJob | null> {
+  const filter = `prediction_id = "${pbEscape(predictionId)}"`;
+  const res = await fetch(`${pb}/api/collections/generation_jobs/records?filter=${encodeURIComponent(filter)}&perPage=1`, { headers: { Authorization: token } });
+  if (!res.ok) return null;
+  return (((await res.json()) as { items?: GenJob[] }).items?.[0]) ?? null;
+}
 
 export type CompleteResult = { status: "completed"; url: string; remaining: number | "unlimited"; creditWarning?: string };
 
@@ -41,7 +77,7 @@ async function patchJob(pb: string, token: string, id: string, patch: Partial<Ge
 export async function createJob(
   pb: string,
   token: string,
-  input: { user: string; kind: GenKind; model: string; prompt: string; aspect_ratio: string; prediction_id: string },
+  input: { user: string; kind: GenKind; model: string; prompt: string; aspect_ratio: string; prediction_id: string; fingerprint?: string },
 ): Promise<string | null> {
   const res = await fetch(`${pb}/api/collections/generation_jobs/records`, {
     method: "POST",

@@ -87,6 +87,28 @@ port auth header + body shape + slug catalog, introduce a
 the toggle-selected route. Don't pre-build the abstraction layer — ship
 the port if (when) the event happens.
 
+## 4. Billing policy (W95.7.3c)
+
+From Muapi's published OpenAPI spec (NOT a confirmed invoice): **"Costs are
+debited from the wallet on completion."** Muapi debits STAFFD when a generation
+**completes**, not on submit. Account balance: `GET /api/v1/account/balance`.
+
+Margin implications (codified as Standard #33):
+- **Closed tab mid-generation** → the job still completes server-side → Muapi
+  debits STAFFD. Mitigated by the completion **webhook** (`POST
+  /api/generation/webhook`, W95.7.3c-b1): Muapi pushes completion, STAFFD charges
+  the customer even if they left.
+- **Multi-press / concurrent submits** → N completions → N debits. Mitigated by
+  submit-time dedup (`generation_jobs.fingerprint`, 15-min in-flight window).
+- **Failed / cancelled jobs billed?** — NOT IN SPEC. **UNVERIFIED.** Pull a real
+  invoice and confirm; if failures/cancels are billed, harden further.
+
+Webhook auth: an HMAC-derived capability token in the `?token=` query param
+(`MUAPI_WEBHOOK_SECRET`); the receiver re-derives + timing-safe compares, then
+pulls the authoritative result via `checkPrediction` (never trusts the unsigned
+body). Set `MUAPI_WEBHOOK_SECRET` in Vercel to enable push delivery; unset →
+pure client-poll fallback.
+
 ## Related runbooks
 
 - `env-var-discipline.md` — URL env var hardening (PR-Tranche-1.6)

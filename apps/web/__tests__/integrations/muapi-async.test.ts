@@ -29,17 +29,19 @@ vi.mock("../../app/api/_lib/integrations/muapi/predictions", async () => {
   return { ...actual, submitPrediction: async () => sub.result }; // keep real tryExtractOutputUrl
 });
 
-const jobs = vi.hoisted(() => ({ created: "job-1" as string | null, completeFn: vi.fn(async () => ({ status: "completed", url: "https://cdn/i.png", remaining: 4 })) }));
+const jobs = vi.hoisted(() => ({ created: "job-1" as string | null, dupId: null as string | null, createFn: vi.fn(async () => jobs.created), completeFn: vi.fn(async () => ({ status: "completed", url: "https://cdn/i.png", remaining: 4 })) }));
 vi.mock("../../app/api/_lib/generation/jobs", () => ({
-  createJob: async () => jobs.created,
+  createJob: jobs.createFn,
   completeJob: jobs.completeFn,
+  fingerprintFor: () => "fp-test",
+  findInflightByFingerprint: async () => jobs.dupId,
 }));
 
 import { POST } from "../../app/api/integrations/muapi/route";
 
 const post = (body: object) => POST(new Request("https://t/api/integrations/muapi", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
 
-beforeEach(() => { credit.remaining = 5; sub.result = { id: "p1" }; jobs.created = "job-1"; jobs.completeFn.mockClear(); });
+beforeEach(() => { credit.remaining = 5; sub.result = { id: "p1" }; jobs.created = "job-1"; jobs.dupId = null; jobs.createFn.mockClear(); jobs.completeFn.mockClear(); });
 afterEach(() => vi.restoreAllMocks());
 
 describe("POST /api/integrations/muapi (W95.7.3b async)", () => {
@@ -69,5 +71,14 @@ describe("POST /api/integrations/muapi (W95.7.3b async)", () => {
 
   it("missing prompt → 400", async () => {
     expect((await post({ userId: "u1", kind: "video" })).status).toBe(400);
+  });
+
+  it("dedup — an in-flight duplicate returns the existing jobId without a new submit/job (W95.7.3c-b1)", async () => {
+    jobs.dupId = "job-existing";
+    const res = await post({ userId: "u1", kind: "video", prompt: "a dog running through a field at dawn" });
+    expect(res.status).toBe(202);
+    const d = await res.json();
+    expect(d).toMatchObject({ jobId: "job-existing", status: "pending", deduped: true });
+    expect(jobs.createFn).not.toHaveBeenCalled(); // no duplicate Muapi submit / job row
   });
 });

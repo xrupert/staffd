@@ -174,6 +174,25 @@ state so directly. No clean ratifications without the inversion pass surfaced.
 operator demanded the Munger adversarial standard be applied to CC's reports the
 same way it applies to user assumptions.*
 
+### #33 — Cost exposure audit on every third-party API integration
+When STAFFD pays a third party per API call and the customer is charged credits,
+the dispatch must enumerate every failure mode and identify which party
+(customer / STAFFD / third party) bears the cost. Failure modes where STAFFD
+pays without delivering value to the customer must be either (a) prevented
+architecturally, or (b) explicitly accepted with a documented rationale.
+Charge-on-success-only is a customer-facing UX policy, NOT a margin protection
+policy.
+
+Origin: W95.7.2 forensic surfaced Muapi cost exposure (sync timeouts caused
+multi-press and closed-tab margin leaks while customer-facing credits stayed at
+zero). W95.7.3c investigated and codified the discipline.
+
+### #34 — One dispatch in flight at a time
+Sidebar discussions during CC's active work produce conceptual answers and notes
+for the next dispatch cycle, never new prompts. SA does not author a new dispatch
+until CC's current work returns. This discipline keeps work coherent and
+prevents dispatch conflict.
+
 ---
 
 *New Standards append here with the next free number. If SA supplies the missing

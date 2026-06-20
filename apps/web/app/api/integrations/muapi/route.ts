@@ -21,8 +21,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { getCreditState } from "../../_lib/credits";
 import { trySuperAdminByUserId } from "../../_lib/auth/super-admin";
 import { getAdminToken } from "../../_lib/pb";
-import { submitPrediction, tryExtractOutputUrl } from "../../_lib/integrations/muapi/predictions";
-import { createJob, completeJob, type GenJob } from "../../_lib/generation/jobs";
+import { submitPrediction, tryExtractOutputUrl, buildWebhookUrl } from "../../_lib/integrations/muapi/predictions";
+import { createJob, completeJob, fingerprintFor, findInflightByFingerprint, type GenJob } from "../../_lib/generation/jobs";
 
 const anthropic = new Anthropic();
 
@@ -292,6 +292,21 @@ export async function POST(req: Request) {
     // operator-supplied value (when valid) still wins.
     const ratio = resolveAspectRatio(kind, aspectRatio, prompt);
 
+    let adminToken: string;
+    try { adminToken = await getAdminToken(); } catch { return Response.json({ error: "Service unavailable" }, { status: 503 }); }
+
+    // W95.7.3c-b1 — submit-time dedup (margin protection: Muapi debits on
+    // completion, so duplicate submits = duplicate spend). A matching PENDING
+    // job within the in-flight window is reused — BEFORE the enrich (Anthropic)
+    // and the Muapi submit, saving both. Succeeded jobs never dedupe (a repeat
+    // prompt is a legitimate re-generation). Fingerprint omits model (it's
+    // deterministic from kind+prompt) so it can be computed pre-enrich.
+    const fingerprint = fingerprintFor(userId, kind, prompt, ratio);
+    const dupId = await findInflightByFingerprint(pbUrl, adminToken, fingerprint);
+    if (dupId) {
+      return Response.json({ success: true, jobId: dupId, status: "pending", deduped: true }, { status: 202 });
+    }
+
     // Enrich the input into a Layer-2 dense prompt (the 3-Layer Briefing Flow
     // boundary step). Specialists may produce strategic briefs, layout specs,
     // or full prompts — this elevates them all to the sophistication needed
@@ -315,16 +330,21 @@ export async function POST(req: Request) {
       body.output_quality = 95;
     }
 
-    const submission = await submitPrediction(modelEndpoint, body);
+    // W95.7.3c-b1 — register a completion webhook (push delivery) when a
+    // MUAPI_WEBHOOK_SECRET is configured; closes the closed-tab leak by
+    // charging on completion even if the client is gone. Null (no secret) →
+    // pure client-poll fallback (W95.7.3b behaviour).
+    const appBase = process.env.NEXT_PUBLIC_APP_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+    const webhookUrl = buildWebhookUrl(appBase);
+
+    const submission = await submitPrediction(modelEndpoint, body, webhookUrl);
     const predictionId = submission.id ?? submission.request_id ?? "";
 
     // W95.7.3b — ASYNC. Persist a generation_jobs row, then return immediately:
-    // the client polls GET /api/generation/[id]/status. No 60s server-side poll
-    // (the timeout source). The `prediction_id` lets any later poll resume.
-    let adminToken: string;
-    try { adminToken = await getAdminToken(); } catch { return Response.json({ error: "Service unavailable" }, { status: 503 }); }
+    // the client polls GET /api/generation/[id]/status (webhook is primary). The
+    // `prediction_id` lets any later poll/webhook resolve; `fingerprint` dedupes.
     const jobId = await createJob(pbUrl, adminToken, {
-      user: userId, kind, model: modelEndpoint, prompt: focusedPrompt, aspect_ratio: ratio, prediction_id: predictionId,
+      user: userId, kind, model: modelEndpoint, prompt: focusedPrompt, aspect_ratio: ratio, prediction_id: predictionId, fingerprint,
     });
     if (!jobId) return Response.json({ error: "Could not start generation" }, { status: 502 });
 

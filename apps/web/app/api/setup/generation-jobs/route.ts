@@ -18,10 +18,14 @@ const FIELDS = [
   { name: "model", type: "text", required: false },         // Muapi model endpoint used
   { name: "prompt", type: "text", required: false },        // focused prompt (resume / debug)
   { name: "aspect_ratio", type: "text", required: false },
-  { name: "prediction_id", type: "text", required: false }, // Muapi prediction id (resume key)
+  { name: "prediction_id", type: "text", required: false }, // Muapi prediction id (resume key + webhook match)
   { name: "output_url", type: "text", required: false },    // populated on completion
   { name: "charged", type: "bool", required: false },       // claim-first idempotency guard
   { name: "error", type: "text", required: false },         // populated on failure
+  // W95.7.3c-b1 — submit-time dedup: sha256(userId|kind|prompt|aspect_ratio).
+  // A matching pending job within the in-flight window is reused instead of
+  // re-submitting to Muapi (margin protection — Muapi debits on completion).
+  { name: "fingerprint", type: "text", required: false },
 ];
 
 export async function POST() {
