@@ -2,18 +2,18 @@
  * POST /api/integrations/muapi
  * Body: { userId, kind: "image" | "video", prompt: string, aspectRatio?: string, model?: string }
  *
- * Generates images or video via Muapi.ai's unified API gateway. Smart-routes
- * to the best model for the task based on prompt content, then charges
- * one credit of the matching kind on success.
+ * Generates images or video via Muapi.ai's unified API gateway. The model is
+ * resolved by TIER ROUTING (W95.7.3d) — resolveModel → routeFor + the live
+ * generation_models catalog. W95.7.3d-h1: the legacy hardcoded-slug fallback is
+ * removed; an unresolved/drifted route fails loudly with a structured 500.
+ * Charges the selected tier's credit weight on success.
  *
  * Requires MUAPI_API_KEY env var. Optional MUAPI_URL (defaults to
  * https://api.muapi.ai).
  *
- * PR-Tranche-1.7 (W16 vendor reconnect) — Muapi reworked their API.
- * Changes vs. legacy:
+ * PR-Tranche-1.7 (W16 vendor reconnect) — Muapi API contract:
  *   - Auth header: `x-api-key: <key>` (was `Authorization: Bearer <key>`)
  *   - Request body: FLAT JSON (was `{ input: { ... } }` envelope)
- *   - Model catalog: see routeImageModel / routeVideoModel below
  *   - Output URL: try `outputs[0]` → `url` → `output.url` in that order
  */
 
@@ -25,6 +25,7 @@ import { submitPrediction, tryExtractOutputUrl, buildWebhookUrl } from "../../_l
 import { createJob, completeJob, fingerprintFor, findInflightByFingerprint, type GenJob } from "../../_lib/generation/jobs";
 import { defaultTierFor, tierWeight, type Tier } from "../../_lib/generation/pricing";
 import { routeFor } from "../../_lib/generation/routing";
+import { modelTierWeight } from "../../_lib/generation/catalog";
 
 const anthropic = new Anthropic();
 
@@ -177,62 +178,25 @@ export function resolveAspectRatio(
 }
 
 /**
- * Smart image model routing — pick the best Muapi endpoint for the prompt.
+ * W95.7.3d-h1 — model resolution is now EXCLUSIVELY via routeFor + the live
+ * generation_models catalog. The legacy routeImageModel/routeVideoModel
+ * hardcoded-slug fallback (slugs absent from the live catalog, the F4 404) is
+ * REMOVED. Failures fail loudly with structured 500s.
  *
- * Catalog snapshot: 2026-06-04 from Muapi reference (Open-Generative-AI
- * models.js). Refresh via docs/operator-runbooks/muapi-vendor-drift.md when
- * generation starts returning 4xx.
- *
- * Premium-only per Decision 3 — no *-fast-*, no *-lite-* variants.
- *
- *   1. ideogram-v3-t2i           — best for legible text-in-image (quoted
- *                                  strings, headlines, lettering, logo
- *                                  lockups, typography callouts)
- *   2. midjourney-v7-text-to-image — cinematic/editorial/magazine aesthetic
- *   3. flux-dev-image            — default premium photoreal + illustration
+ *  - routeFor empty for (dept,kind,tier)      → { error: "routing_unresolved" }
+ *  - first slug present in generation_models  → use it
+ *  - a slug absent (drift) → try the next
+ *  - all slugs absent from the catalog        → { error: "all_models_drifted" }
  */
-function routeImageModel(prompt: string, requested?: string): string {
-  if (requested) return requested;
-  const p = prompt.toLowerCase();
+type ResolveResult = { model: string } | { error: "routing_unresolved" } | { error: "all_models_drifted"; attempted: string[] };
 
-  // Heavy text-in-image — text in quotes OR lettering/typography vocabulary
-  const hasQuotedText = /"[^"]{2,}"|'[^']{3,}'/.test(prompt);
-  const textKeywords = /\b(text|words|quote|saying|reading|overlay|headline|title text|caption text|sign that says|label|propaganda poster|banner|typography|sub.?head|lettering|logo lockup)\b/.test(p);
-  if (hasQuotedText || textKeywords) {
-    return "ideogram-v3-t2i";
+async function resolveModel(department: string, kind: "image" | "video", tier: Tier): Promise<ResolveResult> {
+  const candidates = routeFor(department, kind, tier);
+  if (candidates.length === 0) return { error: "routing_unresolved" };
+  for (const slug of candidates) {
+    if (await modelTierWeight(slug)) return { model: slug }; // present in the catalog
   }
-
-  // Cinematic / editorial / magazine — Midjourney aesthetic
-  if (/\b(cinematic|editorial|magazine|fashion shoot|film still|moody|atmospheric|noir)\b/.test(p)) {
-    return "midjourney-v7-text-to-image";
-  }
-
-  // Default premium photoreal + illustration
-  return "flux-dev-image";
-}
-
-/**
- * Smart video model routing — premium-only catalog.
- *
- * Catalog snapshot: 2026-06-04 from Muapi reference. Decision 3 (premium-only)
- * applies: no *-fast-* variants.
- *
- *   1. veo3-text-to-video                — default premium cinematic
- *   2. openai-sora-2-pro-text-to-video   — explicit Sora preference / "best"
- *   3. runway-text-to-video              — named backup per Decision 3
- *                                          ("graceful degradation")
- */
-function routeVideoModel(prompt: string, requested?: string): string {
-  if (requested) return requested;
-  const p = prompt.toLowerCase();
-
-  // Explicit Sora preference or "best"/"premium"/"highest quality"
-  if (/\b(sora|best quality|premium quality|highest quality|highest fidelity)\b/.test(p)) {
-    return "openai-sora-2-pro-text-to-video";
-  }
-
-  // Default premium cinematic
-  return "veo3-text-to-video";
+  return { error: "all_models_drifted", attempted: candidates };
 }
 
 // W95.7.3b — PredictionResult / tryExtractOutputUrl / submitPrediction moved to
@@ -256,14 +220,13 @@ export async function POST(req: Request) {
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });
 
   try {
-    const { userId, kind, prompt, aspectRatio, model, tier: reqTier, department } = (await req.json()) as {
+    const { userId, kind, prompt, aspectRatio, tier: reqTier, department } = (await req.json()) as {
       userId: string;
       kind: "image" | "video";
       prompt: string;
       aspectRatio?: string;
-      model?: string;
       tier?: string;        // W95.7.3d-T1 — customer-selected tier
-      department?: string;  // drives the default tier + model routing
+      department?: string;  // drives the default tier + model routing (W95.7.3d-h1: model resolved server-side only)
     };
 
     if (!userId)           return Response.json({ error: "userId required" }, { status: 400 });
@@ -320,19 +283,25 @@ export async function POST(req: Request) {
       return Response.json({ success: true, jobId: dupId, status: "pending", deduped: true }, { status: 202 });
     }
 
+    // W95.7.3d-h1 — resolve the model EXCLUSIVELY via routeFor + the live
+    // catalog, BEFORE the enrich (so a routing failure costs no Anthropic call).
+    // Fail loudly with a structured 500 — never fall back to a hardcoded slug.
+    const resolved = await resolveModel(dept, kind, tier);
+    if ("error" in resolved) {
+      return Response.json(
+        resolved.error === "routing_unresolved"
+          ? { error: "routing_unresolved", department: dept, kind, tier, message: "No model registered for this combination." }
+          : { error: "all_models_drifted", department: dept, kind, tier, attempted: resolved.attempted, message: "Every model in the routing list is missing from the catalog." },
+        { status: 500 },
+      );
+    }
+    const modelEndpoint = resolved.model;
+
     // Enrich the input into a Layer-2 dense prompt (the 3-Layer Briefing Flow
     // boundary step). Specialists may produce strategic briefs, layout specs,
     // or full prompts — this elevates them all to the sophistication needed
     // for extraordinary renders. Never compresses; only enriches.
     const focusedPrompt = await enrichToPrompt(prompt, kind);
-
-    // W95.7.3d-T1 — model selection by tier routing (department, kind, tier).
-    // Explicit `model` (if passed) wins; else the tier's preferred slug; else
-    // the legacy prompt-based router as a final fallback.
-    const tierModels = routeFor(dept, kind, tier);
-    const modelEndpoint = model
-      ?? tierModels[0]
-      ?? (kind === "image" ? routeImageModel(focusedPrompt) : routeVideoModel(focusedPrompt));
 
     // PR-Tranche-1.7 — flat body. Fields at root, no { input: {...} } wrapper.
     const body: Record<string, unknown> = {
@@ -391,13 +360,12 @@ export async function POST(req: Request) {
   }
 }
 
-// Exported for tests in apps/web/__tests__/integrations/muapi-route.test.ts.
-// tryExtractOutputUrl + submitPrediction now live in
-// _lib/integrations/muapi/predictions.ts; re-exported here so existing tests
-// that reach them via __test keep working.
+// Exported for tests. W95.7.3d-h1 — routeImageModel/routeVideoModel removed
+// (legacy hardcoded-slug fallback deleted); model resolution is now via
+// resolveModel → routeFor + catalog. tryExtractOutputUrl + submitPrediction
+// live in _lib/integrations/muapi/predictions.ts; re-exported here for tests.
 export const __test = {
-  routeImageModel,
-  routeVideoModel,
   tryExtractOutputUrl,
   submitPrediction,
+  resolveModel,
 };

@@ -207,6 +207,12 @@ Operator verification after deploy:
 - **Brand voice:** the picker shows ZERO model/vendor names — only Quick/Pro/Premium + credit costs + descriptions.
 - ⚠️ **Slug verification:** the routing.ts model slugs are catalog-pending; after the first sync, fix any `routingDrift` slugs (see muapi-vendor-drift.md §6) before relying on tier routing in production.
 
+### 33. W95.7.3d-h1 — Routing fails loudly (no more legacy 404)
+- **Prerequisite:** the catalog MUST be synced once (`GET /api/worker/muapi-catalog-sync` with `x-worker-secret: $WORKER_SECRET`) or EVERY generation returns `all_models_drifted` (500) — the legacy hardcoded-slug fallback is gone.
+- ✅ Trigger generation for a (department, kind) with **no routing registry entry** (force `routeFor` empty) → the muapi route returns a structured **500** `{error:"routing_unresolved", department, kind, tier, message}` — NOT a 404 to Muapi. The specialist delivery layer shows a customer-readable "operator configuration required" message.
+- ✅ With the catalog synced and valid routing → generation submits with a catalog-present slug (check the `[muapi] submitting` log shows the routed slug).
+- ✅ Confirm no `flux-dev`/`veo3`/`flux-dev-image` slug ever reaches Muapi (those legacy slugs are removed from source).
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

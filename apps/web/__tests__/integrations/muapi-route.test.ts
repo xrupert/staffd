@@ -40,75 +40,14 @@ process.env.NEXT_PUBLIC_POCKETBASE_URL = "https://pb.example.test";
 import { __test } from "../../app/api/integrations/muapi/route";
 import { GET, POST, PUT, PATCH, DELETE } from "../../app/api/integrations/muapi/publish/route";
 
-const { routeImageModel, routeVideoModel, tryExtractOutputUrl, submitPrediction } = __test;
+// W95.7.3d-h1 — routeImageModel/routeVideoModel removed (legacy hardcoded-slug
+// fallback deleted; model routing is now resolveModel → routeFor + catalog).
+const { tryExtractOutputUrl, submitPrediction } = __test;
 
-// ─── routeImageModel ────────────────────────────────────────────────────
-
-describe("routeImageModel (PR-Tranche-1.7 catalog)", () => {
-  it("returns ideogram-v3-t2i when prompt has quoted text", () => {
-    expect(routeImageModel('Poster reading "Vote Now" in bold red')).toBe("ideogram-v3-t2i");
-  });
-
-  it("returns ideogram-v3-t2i for typography/lettering keywords", () => {
-    expect(routeImageModel("Editorial banner with bold lettering and headline")).toBe("ideogram-v3-t2i");
-  });
-
-  it("returns midjourney-v7-text-to-image for cinematic/editorial intent", () => {
-    expect(routeImageModel("Cinematic film still of a foggy harbor at dawn")).toBe("midjourney-v7-text-to-image");
-  });
-
-  it("returns flux-dev-image as the default", () => {
-    expect(routeImageModel("A red apple on a wooden table")).toBe("flux-dev-image");
-  });
-
-  it("honors explicit requested model override", () => {
-    expect(routeImageModel("anything", "custom-model-slug")).toBe("custom-model-slug");
-  });
-
-  it("never returns a legacy slug (ideogram-v3 bare, recraft-v3, flux-pro-1.1)", () => {
-    const cases = [
-      "A red apple",
-      'Poster reading "Test"',
-      "Cinematic shot",
-      "Logo for a coffee shop",
-    ];
-    for (const c of cases) {
-      const result = routeImageModel(c);
-      expect(result).not.toBe("ideogram-v3");
-      expect(result).not.toBe("recraft-v3");
-      expect(result).not.toBe("flux-pro-1.1");
-    }
-  });
-});
-
-// ─── routeVideoModel ────────────────────────────────────────────────────
-
-describe("routeVideoModel (PR-Tranche-1.7 catalog)", () => {
-  it("returns openai-sora-2-pro-text-to-video for explicit Sora preference", () => {
-    expect(routeVideoModel("Sora-style hero shot of a city")).toBe("openai-sora-2-pro-text-to-video");
-  });
-
-  it("returns openai-sora-2-pro-text-to-video for best/premium/highest quality", () => {
-    expect(routeVideoModel("Need the highest quality cinematic open")).toBe("openai-sora-2-pro-text-to-video");
-  });
-
-  it("returns veo3-text-to-video as the default", () => {
-    expect(routeVideoModel("A dog running through a field")).toBe("veo3-text-to-video");
-  });
-
-  it("honors explicit requested model override", () => {
-    expect(routeVideoModel("anything", "runway-text-to-video")).toBe("runway-text-to-video");
-  });
-
-  it("never returns a legacy slug (kling-pro, hunyuan-video)", () => {
-    const cases = ["A dog running", "Cinematic open", "Hollywood trailer"];
-    for (const c of cases) {
-      const result = routeVideoModel(c);
-      expect(result).not.toBe("kling-pro");
-      expect(result).not.toBe("hunyuan-video");
-    }
-  });
-});
+// W95.7.3d-h1 — the routeImageModel / routeVideoModel legacy prompt-based
+// routers (hardcoded slugs) are removed; model routing is now resolveModel →
+// routeFor + the generation_models catalog (see generation-routing.test.ts +
+// muapi-h1-resolve.test.ts). Only the vendor-contract helpers remain pinned here.
 
 // ─── submitPrediction: auth header + flat body ──────────────────────────
 

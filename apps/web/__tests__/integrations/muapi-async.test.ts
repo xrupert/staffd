@@ -36,6 +36,11 @@ vi.mock("../../app/api/_lib/generation/jobs", () => ({
   fingerprintFor: () => "fp-test",
   findInflightByFingerprint: async () => jobs.dupId,
 }));
+// W95.7.3d-h1 — the route resolves the model via routeFor + catalog; mock the
+// catalog so the first routing slug is "present" (resolveModel succeeds).
+vi.mock("../../app/api/_lib/generation/catalog", () => ({
+  modelTierWeight: async () => ({ tier: "pro", credit_weight: 8, dynamic_pricing: false, estimate_endpoint: "", kind: "video", cost_usd: 0.3 }),
+}));
 
 import { POST } from "../../app/api/integrations/muapi/route";
 

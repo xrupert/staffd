@@ -135,6 +135,32 @@ any routing slug absent from the live catalog is logged in the sync response's
 the current catalog slug (same refresh recipe as §2). The current routing slugs
 are catalog-pending verification — confirm them against the first live sync.
 
+**Routing failures fail loudly (W95.7.3d-h1).** The legacy `routeImageModel` /
+`routeVideoModel` hardcoded-slug fallback is REMOVED — the muapi route resolves
+its model EXCLUSIVELY via `routeFor` + `generation_models`. When resolution
+can't produce a catalog-present slug, the route returns a structured HTTP 500
+(NOT a 404 to Muapi):
+
+| Error | Meaning | Fix |
+|---|---|---|
+| `routing_unresolved` | `routeFor(department, kind, tier)` returned no models | Add a routing entry for that combination in `routing.ts` |
+| `all_models_drifted` | every routed slug (`attempted[]`) is absent from `generation_models` | Run the catalog sync; if still failing, the slugs drifted — update `routing.ts` |
+
+Both bodies carry `{ error, department, kind, tier, message }` (+`attempted[]` for
+drift). The specialist delivery layer consumes the 500 and shows a customer-readable
+"operator configuration required" message — the customer never sees a raw 500.
+**Operational prerequisite:** the catalog MUST be synced at least once
+(`/api/worker/muapi-catalog-sync`) before generation works, or every request
+returns `all_models_drifted`.
+
+## 7. Departments without routing entries (W95.7.3d-h1)
+
+Only departments with live generation triggers need `routing.ts` entries. A
+(department, kind) with no entry falls back to `DEFAULT_MODELS` (shared best-of-band
+list), so all departments resolve today. If a future change removes a department's
+fallback, generation for it returns `routing_unresolved` (500) until an entry is
+added — by design (fail loud, never a hardcoded-slug 404).
+
 ## Related runbooks
 
 - `env-var-discipline.md` — URL env var hardening (PR-Tranche-1.6)

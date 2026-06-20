@@ -31,7 +31,7 @@ const DEFAULT_MODELS: Record<GenKind, TierModels> = {
   },
   image: {
     quick: ["flux-schnell", "background-remove"],                   // $0.01–0.03
-    pro: ["flux-dev", "nano-banana-edit"],                          // $0.03–0.08
+    pro: ["flux-1-dev", "nano-banana-edit"],                        // $0.03–0.08
     premium: ["nano-banana-pro", "ideogram-character"],            // $0.10–0.30
   },
 };
