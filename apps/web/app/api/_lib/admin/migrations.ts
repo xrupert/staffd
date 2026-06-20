@@ -57,6 +57,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "workflows-v2", label: "Workflows — review step", collection: "workflows", detectField: "draft_output", note: "adds review_required + draft_output to workflows" },
   // W95.6.y — per-customer Plausible site id on businesses.
   { route: "businesses-v3", label: "Businesses — analytics site id", collection: "businesses", detectField: "plausible_site_id", note: "adds plausible_site_id to businesses" },
+  // W95.7.3b — async image/video generation job ledger.
+  { route: "generation-jobs", label: "Generation jobs", collection: "generation_jobs", note: "async Muapi image/video job ledger (client-polled status)" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

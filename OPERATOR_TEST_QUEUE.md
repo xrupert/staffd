@@ -181,6 +181,17 @@ Operator verification after deploy:
 - (Optional, to reproduce the old break first) set `staffd_active_client` to any value in devtools, then **navigate to a dept room directly** (e.g. /dashboard/marketing): the cleanup runs on every route, so the key clears regardless of entry point. Even if it didn't, the vault layer now returns STAFFD self for the operator regardless of clientId.
 - Report success or failure to SA **before L4 starts**.
 
+### 30. W95.7.3b — Async image/video generation (run migration FIRST)
+- **Operator setup:** run **Generation jobs** (`generation-jobs`) via `/dashboard/admin/migrations` (creates the `generation_jobs` collection). Until then, generation POSTs will 502 "Could not start generation".
+- Generate a TikTok video (the original failing scenario): in CommandCenter, ask for/queue a video, then click **Generate the video →**.
+- ✅ The thread immediately shows "Generating the video — this can take a minute…"; the request does NOT hang 60s and does NOT 504.
+- ✅ Pressing the button again during generation is a **no-op** (no second job; the operator's old 3× multi-press is fixed).
+- ✅ When Muapi finishes, the video URL is delivered in the thread ("▶ Watch it here").
+- ✅ Credit ledger shows **exactly 1** video credit charged for this generation (operator/super-admin: 0 charged, logged to super_admin_usage_log instead).
+- ✅ In PB `generation_jobs`: the row shows `status: completed`, `output_url` populated, `charged: true`.
+- Image generation: same flow; typically completes on submit (fast-path) with no polling.
+- Closed-tab note (accepted V1 tradeoff, W95.7.3c will revisit): if you close the tab mid-video, the credit is NOT charged and the URL isn't surfaced until a later poll of that job; the video itself still generated at Muapi.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

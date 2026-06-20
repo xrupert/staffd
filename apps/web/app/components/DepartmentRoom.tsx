@@ -12,6 +12,7 @@ import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import IntentActionModal, { type PendingAction } from "./IntentActionModal";
+import { runGeneration } from "../../lib/generation-client";
 import { ACTION_UI, FC2_ACTION_INTENT, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 import VoiceInput from "./VoiceInput";
 import { getQuickActions } from "./agentQuickActions";
@@ -613,6 +614,9 @@ export default function DepartmentRoom({
     setPendingAction({ type: FC2_ACTION_INTENT.send_to_crm!, fields: { context: (task || output).slice(0, 600) } });
   }
 
+  // W95.7.3b — ASYNC via runGeneration (submit → poll). The imageLoading /
+  // videoLoading flags stay as the in-flight guard + the "Rendering…/Filming…"
+  // button UX; they now span the full submit+poll window (no 60s timeout).
   async function generateImage() {
     if (!output || imageLoading) return;
     const userId = pb.authStore.record?.id ?? "";
@@ -621,25 +625,9 @@ export default function DepartmentRoom({
     setImageError("");
     setImageUrl(null);
     try {
-      const res = await fetch("/api/integrations/muapi", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, kind: "image", prompt: output, aspectRatio: imageRatio }),
-      });
-      const data = (await res.json()) as { url?: string; message?: string; error?: string; detail?: string; remaining?: number };
-      if (res.status === 503) {
-        setImageError(data.message ?? "Image generation not configured.");
-      } else if (res.status === 402) {
-        setImageError(data.message ?? "Out of image credits this month.");
-      } else if (!res.ok || !data.url) {
-        // Show the actual upstream error so the user (and we) know what to fix
-        const reason = data.detail ?? data.message ?? data.error ?? "Failed to generate image.";
-        setImageError(reason.length > 500 ? reason.slice(0, 500) + "…" : reason);
-      } else {
-        setImageUrl(data.url);
-      }
-    } catch (err) {
-      setImageError(`Failed to reach generation service: ${err instanceof Error ? err.message : String(err)}`);
+      const { url, error } = await runGeneration({ userId, kind: "image", prompt: output, aspectRatio: imageRatio });
+      if (url) setImageUrl(url);
+      else if (error) setImageError(error.length > 500 ? error.slice(0, 500) + "…" : error);
     } finally {
       setImageLoading(false);
     }
@@ -653,24 +641,9 @@ export default function DepartmentRoom({
     setVideoError("");
     setVideoUrl(null);
     try {
-      const res = await fetch("/api/integrations/muapi", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, kind: "video", prompt: output, aspectRatio: imageRatio }),
-      });
-      const data = (await res.json()) as { url?: string; message?: string; error?: string; detail?: string; remaining?: number };
-      if (res.status === 503) {
-        setVideoError(data.message ?? "Video generation not configured.");
-      } else if (res.status === 402) {
-        setVideoError(data.message ?? "Out of video credits this month.");
-      } else if (!res.ok || !data.url) {
-        const reason = data.detail ?? data.message ?? data.error ?? "Failed to generate video.";
-        setVideoError(reason.length > 500 ? reason.slice(0, 500) + "…" : reason);
-      } else {
-        setVideoUrl(data.url);
-      }
-    } catch {
-      setVideoError("Failed to reach generation service.");
+      const { url, error } = await runGeneration({ userId, kind: "video", prompt: output, aspectRatio: imageRatio });
+      if (url) setVideoUrl(url);
+      else if (error) setVideoError(error.length > 500 ? error.slice(0, 500) + "…" : error);
     } finally {
       setVideoLoading(false);
     }

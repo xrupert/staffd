@@ -18,22 +18,20 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { spendCredits, getCreditState } from "../../_lib/credits";
+import { getCreditState } from "../../_lib/credits";
 import { trySuperAdminByUserId } from "../../_lib/auth/super-admin";
-import { logSuperAdminUsage } from "../../_lib/auth/super-admin-logging";
+import { getAdminToken } from "../../_lib/pb";
+import { submitPrediction, tryExtractOutputUrl } from "../../_lib/integrations/muapi/predictions";
+import { createJob, completeJob, type GenJob } from "../../_lib/generation/jobs";
 
 const anthropic = new Anthropic();
 
-// PR-Tranche-1.6 — Decision: URL env vars resolve via centralized helper.
-// MUAPI_BASE_URL is eagerly resolved at module load; misconfigured deploys
-// crash on first import rather than silently producing relative URLs.
-import { MUAPI_BASE_URL } from "../../../../lib/env";
-const MUAPI_URL = MUAPI_BASE_URL;
 // W91 — muapi is STAFFD's PLATFORM image/video credit gateway (billed in
 // credits), NOT a per-customer integration. It deliberately reads the
-// operator/platform key from env and is NOT routed through
-// resolveCredentials. Do NOT add "muapi" to the IntegrationType enum or
-// move this to per-user creds — customers never bring their own muapi key.
+// operator/platform key from env and is NOT routed through resolveCredentials.
+// Do NOT add "muapi" to the IntegrationType enum or move this to per-user creds
+// — customers never bring their own muapi key. (The Muapi base URL + HTTP now
+// live in _lib/integrations/muapi/predictions.ts.)
 const MUAPI_KEY = process.env.MUAPI_API_KEY ?? "";
 
 /**
@@ -235,83 +233,10 @@ function routeVideoModel(prompt: string, requested?: string): string {
   return "veo3-text-to-video";
 }
 
-interface PredictionResult {
-  id?: string;
-  request_id?: string;
-  status?: string;
-  // PR-Tranche-1.7 — Muapi response output URL lives at one of three
-  // locations; extract via tryExtractOutputUrl below.
-  outputs?: string[];
-  output?: string | string[] | { url?: string };
-  url?: string;
-  result?: { url?: string; urls?: string[] };
-  error?: string;
-  detail?: string;
-}
-
-/**
- * Output URL extraction — try outputs[0] → url → output.url in that order.
- * Falls through legacy shapes (output[0] string array, result.url) for
- * resilience while Muapi finalizes their response schema.
- */
-function tryExtractOutputUrl(data: PredictionResult): string | null {
-  if (Array.isArray(data.outputs) && data.outputs[0]) return data.outputs[0];
-  if (typeof data.url === "string" && data.url) return data.url;
-  if (data.output && typeof data.output === "object" && !Array.isArray(data.output) && data.output.url) {
-    return data.output.url;
-  }
-  // Legacy fallbacks
-  if (typeof data.output === "string") return data.output;
-  if (Array.isArray(data.output) && data.output[0]) return data.output[0];
-  if (data.result?.url) return data.result.url;
-  if (data.result?.urls?.[0]) return data.result.urls[0];
-  return null;
-}
-
-async function submitPrediction(
-  modelEndpoint: string,
-  body: Record<string, unknown>,
-): Promise<PredictionResult> {
-  const url = `${MUAPI_URL}/api/v1/${modelEndpoint}`;
-  console.log("[muapi] submitting", { url, model: modelEndpoint });
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      // PR-Tranche-1.7 — Muapi uses x-api-key (not Authorization: Bearer)
-      "x-api-key": MUAPI_KEY,
-      "Content-Type": "application/json",
-    },
-    // PR-Tranche-1.7 — Flat body. NO { input: {...} } wrapper.
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error("[muapi] submit failed", { status: res.status, url, detail: detail.slice(0, 500) });
-    throw new Error(`Muapi ${res.status} on ${modelEndpoint}: ${detail.slice(0, 300)}`);
-  }
-  return (await res.json()) as PredictionResult;
-}
-
-async function pollResult(predictionId: string, maxAttempts = 30): Promise<string | null> {
-  for (let i = 0; i < maxAttempts; i++) {
-    await new Promise((r) => setTimeout(r, 2000));
-    const res = await fetch(`${MUAPI_URL}/api/v1/predictions/${predictionId}/result`, {
-      headers: { "x-api-key": MUAPI_KEY },
-    });
-    if (!res.ok) continue;
-    const data = (await res.json()) as PredictionResult;
-    const status = (data.status ?? "").toLowerCase();
-
-    if (status === "completed" || status === "succeeded" || status === "success") {
-      const out = tryExtractOutputUrl(data);
-      if (out) return out;
-    }
-    if (status === "failed" || status === "error") {
-      throw new Error(data.error ?? data.detail ?? "Generation failed");
-    }
-  }
-  return null;
-}
+// W95.7.3b — PredictionResult / tryExtractOutputUrl / submitPrediction moved to
+// _lib/integrations/muapi/predictions.ts (llm-free, shared with the status poll).
+// The 60s server-side pollResult loop is DELETED — generation is now async:
+// POST submits + returns a jobId, the client polls /api/generation/[id]/status.
 
 export async function POST(req: Request) {
   if (!MUAPI_KEY) {
@@ -391,53 +316,36 @@ export async function POST(req: Request) {
     }
 
     const submission = await submitPrediction(modelEndpoint, body);
-    const predictionId = submission.id ?? submission.request_id;
+    const predictionId = submission.id ?? submission.request_id ?? "";
 
-    // Some Muapi models return synchronously on submit. Try to extract a URL
-    // from the submission response first; only poll if we didn't get one.
-    let resultUrl: string | null = tryExtractOutputUrl(submission);
-    if (!resultUrl && predictionId) {
-      resultUrl = await pollResult(predictionId);
-    }
-
-    if (!resultUrl) {
-      return Response.json({ error: "Generation timed out", predictionId }, { status: 504 });
-    }
-
-    // Decision 74 — super-admin bypass at billing tier. Log usage instead
-    // of charging credits. Comped users (jrw-solutions) still hit
-    // spendCredits normally (they have 100× allowance) — super-admin is a
-    // distinct tier above comp.
-    let remainingCredits: number | "unlimited" = "unlimited";
-    if (superAdmin) {
-      void logSuperAdminUsage(superAdmin, "muapi_generation", {
-        operation_detail: `${kind} via ${modelEndpoint}`,
-        parameters: { kind, prompt_chars: prompt.length, aspectRatio: ratio, model },
-      });
-    } else {
-      // Charge credit only on success
-      const spend = await spendCredits(pbUrl, userId, kind, 1);
-      if (!spend.ok) {
-        // Edge case — credits ran out between pre-check and now. Still
-        // return the result since we already produced it, but flag the
-        // issue.
-        return Response.json({
-          success: true,
-          url: resultUrl,
-          model: modelEndpoint,
-          creditWarning: "Credit charge failed — please contact support.",
-        });
-      }
-      remainingCredits = spend.remaining;
-    }
-
-    return Response.json({
-      success: true,
-      url: resultUrl,
-      model: modelEndpoint,
-      promptUsed: focusedPrompt,
-      remaining: remainingCredits,
+    // W95.7.3b — ASYNC. Persist a generation_jobs row, then return immediately:
+    // the client polls GET /api/generation/[id]/status. No 60s server-side poll
+    // (the timeout source). The `prediction_id` lets any later poll resume.
+    let adminToken: string;
+    try { adminToken = await getAdminToken(); } catch { return Response.json({ error: "Service unavailable" }, { status: 503 }); }
+    const jobId = await createJob(pbUrl, adminToken, {
+      user: userId, kind, model: modelEndpoint, prompt: focusedPrompt, aspect_ratio: ratio, prediction_id: predictionId,
     });
+    if (!jobId) return Response.json({ error: "Could not start generation" }, { status: 502 });
+
+    // FAST PATH — some models (typically images) return the URL on submit.
+    // Charge + complete now (claim-first idempotent) and deliver immediately.
+    const immediateUrl = tryExtractOutputUrl(submission);
+    if (immediateUrl) {
+      const job: GenJob = { id: jobId, user: userId, kind, status: "pending", model: modelEndpoint, prediction_id: predictionId };
+      const done = await completeJob(pbUrl, adminToken, job, immediateUrl, superAdmin);
+      return Response.json({
+        success: true, jobId, status: "completed",
+        url: done.url, model: modelEndpoint, promptUsed: focusedPrompt,
+        remaining: done.remaining, ...(done.creditWarning ? { creditWarning: done.creditWarning } : {}),
+      });
+    }
+
+    // PENDING — the client polls /api/generation/[jobId]/status (no charge yet).
+    return Response.json(
+      { success: true, jobId, status: "pending", model: modelEndpoint, promptUsed: focusedPrompt },
+      { status: 202 },
+    );
   } catch (err) {
     console.error("Muapi route error:", err);
     const msg = err instanceof Error ? err.message : "Failed to generate";
@@ -445,7 +353,10 @@ export async function POST(req: Request) {
   }
 }
 
-// Exported for tests in apps/web/__tests__/integrations/muapi-route.test.ts
+// Exported for tests in apps/web/__tests__/integrations/muapi-route.test.ts.
+// tryExtractOutputUrl + submitPrediction now live in
+// _lib/integrations/muapi/predictions.ts; re-exported here so existing tests
+// that reach them via __test keep working.
 export const __test = {
   routeImageModel,
   routeVideoModel,

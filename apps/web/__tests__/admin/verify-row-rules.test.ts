@@ -250,7 +250,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W95.3.4 — 30 = 29 + admin_migration_log (operator migration audit log)
     // W95.4a — 35 = 30 + interactions, followups, tasks, leads, expenses
     // W95.5 — 37 = 35 + autopilot_prefs, autopilot_audit_log
-    expect(body.collections_checked).toBe(37);
+    // W95.7.3b — 38 = 37 + generation_jobs (async image/video job ledger, USER_OWNED)
+    expect(body.collections_checked).toBe(38);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

@@ -306,9 +306,12 @@ describe("DepartmentRoom B2 pins — schedule + email + remaining dedup", () => 
 describe("CommandCenter B2 pins — inline media + schedule + W35 email", () => {
   const src = readFileSync(join(COMPONENTS, "CommandCenter.tsx"), "utf8");
 
-  it("inline media uses the same muapi route as DeptRoom (credit gates ride along)", () => {
-    expect(src).toContain('fetch("/api/integrations/muapi"');
-    expect(src).toContain('body: JSON.stringify({ userId, kind, prompt, aspectRatio: "16:9" })');
+  it("inline media goes through the async runGeneration helper with an in-flight guard (W95.7.3b)", () => {
+    // No longer a direct sync fetch — submit+poll via runGeneration, guarded so
+    // a re-press during generation is a no-op (the operator's 3× press fix).
+    expect(src).toContain("runGeneration({ userId, kind, prompt, aspectRatio");
+    expect(src).toContain("mediaBusyRef");
+    expect(src).not.toContain('fetch("/api/integrations/muapi"'); // sync path gone
   });
 
   it("D12 — image renders as markdown in the assistant thread; video as a link", () => {
@@ -317,8 +320,11 @@ describe("CommandCenter B2 pins — inline media + schedule + W35 email", () => 
   });
 
   it("media failures land as plain assistant messages — no silent failure", () => {
+    // CommandCenter surfaces the error from runGeneration as a thread message;
+    // the "couldn't reach the service" wording now lives in generation-client.ts.
     expect(src).toContain("Couldn't generate the ${label} — try again.");
-    expect(src).toContain("Couldn't reach the generation service:");
+    const client = readFileSync(join(COMPONENTS, "..", "..", "lib", "generation-client.ts"), "utf8");
+    expect(client).toContain("Couldn't reach the generation service:");
   });
 
   it("schedule_followup opens the shared modal (D13)", () => {

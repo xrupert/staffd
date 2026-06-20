@@ -198,6 +198,8 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
   // W95.5 — progressive autopilot (graduation state + reversal audit).
   { name: "autopilot_prefs", rules: USER_OWNED_RULES },
   { name: "autopilot_audit_log", rules: USER_OWNED_RULES },
+  // W95.7.3b — async image/video generation job ledger (sync→async Muapi).
+  { name: "generation_jobs", rules: USER_OWNED_RULES },
 ];
 
 /** Quick lookup helper. */

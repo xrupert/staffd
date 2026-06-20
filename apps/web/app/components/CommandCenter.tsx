@@ -10,6 +10,7 @@ import ActionAffordances from "./ActionAffordances";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
+import { runGeneration } from "../../lib/generation-client";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
 import ConfirmActionModal, { type IntentResult } from "./ConfirmActionModal";
@@ -212,6 +213,8 @@ export default function CommandCenter() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   // W69 — cancel in-flight agent fetch.
   const abortRef = useRef<AbortController | null>(null);
+  // W95.7.3b — in-flight guard for async media generation (single job at a time).
+  const mediaBusyRef = useRef(false);
   // W64 B2 (D13) — shared schedule_followup modal state.
   const [followupOpen, setFollowupOpen] = useState(false);
   const [followupSeed, setFollowupSeed] = useState("");
@@ -391,9 +394,10 @@ export default function CommandCenter() {
   // commits per-customer via /api/intent/commit + the worker-registry mirror.
 
   // W64 B2 (D12) — inline media generation for the Command Center thread.
-  // Same /api/integrations/muapi contract as DeptRoom (503 unconfigured,
-  // 402 out of credits, else {url}); result lands as markdown in an
-  // assistant message so ReactMarkdown renders the image inline.
+  // W95.7.3b — ASYNC via runGeneration (submit → poll). `mediaBusyRef` is the
+  // in-flight guard: a re-press while a generation is running is a no-op (the
+  // operator's 3× video press no longer queues 3 jobs). Result lands as
+  // markdown in an assistant message; video can take a minute (no 60s timeout).
   async function generateInlineMedia(kind: "image" | "video") {
     const prompt = lastCompleted?.output ?? "";
     if (!prompt.trim()) {
@@ -402,29 +406,20 @@ export default function CommandCenter() {
     }
     const userId = pb.authStore.record?.id ?? "";
     if (!userId) return;
+    if (mediaBusyRef.current) return; // in-flight guard — single job at a time
+    mediaBusyRef.current = true;
     const label = kind === "image" ? "visual" : "video";
-    setMessages((prev) => [...prev, { role: "assistant", content: `Generating the ${label} — one moment…` }]);
+    setMessages((prev) => [...prev, { role: "assistant", content: kind === "video" ? "Generating the video — this can take a minute…" : "Generating the visual — one moment…" }]);
     try {
-      const res = await fetch("/api/integrations/muapi", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, kind, prompt, aspectRatio: "16:9" }),
-      });
-      const data = (await res.json()) as { url?: string; message?: string; error?: string; detail?: string };
-      if (!res.ok || !data.url) {
-        const reason = data.message ?? data.detail ?? data.error ?? `Couldn't generate the ${label} — try again.`;
-        setMessages((prev) => [...prev, { role: "assistant", content: reason }]);
-        return;
+      const { url, error } = await runGeneration({ userId, kind, prompt, aspectRatio: "16:9" });
+      if (url) {
+        const media = kind === "image" ? `![Generated visual](${url})` : `Your video is ready: [▶ Watch it here](${url})`;
+        setMessages((prev) => [...prev, { role: "assistant", content: media }]);
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: error ?? `Couldn't generate the ${label} — try again.` }]);
       }
-      const media = kind === "image"
-        ? `![Generated visual](${data.url})`
-        : `Your video is ready: [▶ Watch it here](${data.url})`;
-      setMessages((prev) => [...prev, { role: "assistant", content: media }]);
-    } catch (err) {
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: `Couldn't reach the generation service: ${err instanceof Error ? err.message : String(err)}`,
-      }]);
+    } finally {
+      mediaBusyRef.current = false;
     }
   }
 

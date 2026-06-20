@@ -53,7 +53,10 @@ function stubPb(now = "2026-06-16T00:00:00Z") {
     ] });
     if (u.includes("/subscriptions/records")) return json({ items: [
       { user: "u1", plan: "growth", active_until: "2026-09-01T00:00:00Z", image_credits_used: 5, video_credits_used: 0, agent_credits_topup: 0 },
-      { user: "u2", plan: "starter", active_until: "2026-06-20T00:00:00Z", image_credits_used: 2, video_credits_used: 1, agent_credits_topup: 10 }, // comp user: stored "starter", effective "agency"
+      // W95.7.3b — de-flaked: relative "~7 days out" so churn=expiring stays true
+      // regardless of the wall-clock date (was a hardcoded 2026-06-20 that flipped
+      // to "expired" once the calendar reached that day — pre-existing fragility).
+      { user: "u2", plan: "starter", active_until: new Date(Date.now() + 7 * 86_400_000).toISOString(), image_credits_used: 2, video_credits_used: 1, agent_credits_topup: 10 }, // comp user: stored "starter", effective "agency"
     ] });
     if (u.includes("/documents/records")) return json({ items: [
       { user: "u1", department: "marketing", agent_name: "Copywriter", created: recent },

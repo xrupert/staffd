@@ -68,6 +68,11 @@ describe("buildHealthReport (W95.7)", () => {
     expect(r.migrations.pending).toEqual(["businesses-v3"]);
   });
 
+  // W95.7.3b — the async generation job ledger is a registered V1 collection.
+  it("generation_jobs is in EXPECTED_COLLECTIONS (W95.7.3b)", () => {
+    expect(EXPECTED_COLLECTIONS.some((e) => e.name === "generation_jobs")).toBe(true);
+  });
+
   it("flags recipe drift when an unexpected recipe appears", () => {
     const i = green();
     i.recipeIds = [...EXPECTED_RECIPES, "rogue_recipe"];

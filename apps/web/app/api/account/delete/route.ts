@@ -51,6 +51,7 @@ const CASCADE_COLLECTIONS_USER = [
   "expenses",          // W95.4a — logged expenses
   "autopilot_prefs",   // W95.5 — autopilot graduation state
   "autopilot_audit_log", // W95.5 — autopilot reversal audit
+  "generation_jobs",   // W95.7.3b — async image/video generation job ledger
   "subscriptions",
 ] as const;
 

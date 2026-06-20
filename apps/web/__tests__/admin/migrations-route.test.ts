@@ -154,4 +154,11 @@ describe("MIGRATION_REGISTRY", () => {
     expect(v3.collection).toBe("businesses");
     expect(v3.detectField).toBe("plausible_site_id"); // re-runs report "exists" once the field is present
   });
+
+  it("includes the W95.7.3b generation_jobs migration (new collection)", () => {
+    const g = MIGRATION_REGISTRY.find((m) => m.route === "generation-jobs")!;
+    expect(g).toBeTruthy();
+    expect(g.collection).toBe("generation_jobs");
+    expect(g.bootstrap).toBeFalsy();
+  });
 });
