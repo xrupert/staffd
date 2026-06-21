@@ -135,6 +135,18 @@ any routing slug absent from the live catalog is logged in the sync response's
 the current catalog slug (same refresh recipe as §2). The current routing slugs
 are catalog-pending verification — confirm them against the first live sync.
 
+**Catalog drift signal (W95.7.3d-h3).** Beyond slug drift, the hourly sync diffs
+the freshly-classified catalog against the cache (`computeCatalogDrift`) and emits
+a structured `[catalog-drift]` log line when **risk-bearing** change appears: a
+model's price/tier/credit-weight moved (margin risk, Standard #33), a previously
+cached model vanished (`removedModels`), or routing-slug drift. New models are
+reported in the payload but are not alert-worthy on their own. The full drift
+object is also returned in the sync response (`drift`). **V1 alerting = the
+structured log** (same pattern as the `security-audit` cron). Operator email + a
+persisted signal row are intentionally deferred to the planned shared
+`super_admin_signals` mechanism (see `pb-row-rules.md` daily-cron note) so both
+the catalog and security crons emit through one path — not a bespoke email here.
+
 **Routing failures fail loudly (W95.7.3d-h1).** The legacy `routeImageModel` /
 `routeVideoModel` hardcoded-slug fallback is REMOVED — the muapi route resolves
 its model EXCLUSIVELY via `routeFor` + `generation_models`. When resolution

@@ -60,6 +60,19 @@ describe("buildHealthReport (W95.7)", () => {
     expect(r.collections.extra).toEqual(["surprise"]);
   });
 
+  it("ignores PocketBase system collections (_-prefixed) when computing extras", () => {
+    // PB v0.23+ ships _mfas/_otps/_externalAuths/_authOrigins/_superusers as
+    // framework infrastructure — they are never app schema, so the substrate
+    // check must not flag them as drift (mirrors verify-row-rules' `_` skip).
+    const i = green();
+    i.foundCollections = ["a", "b", "c", "_superusers", "_mfas", "_otps", "_externalAuths", "_authOrigins"];
+    const r = buildHealthReport(i);
+    expect(r.collections.extra).toEqual([]);
+    expect(r.collections.found_count).toBe(3);
+    expect(r.collections.missing).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+
   it("detects pending migrations", () => {
     const i = green();
     i.migrations = [{ route: "contacts", applied: true }, { route: "businesses-v3", applied: false }];

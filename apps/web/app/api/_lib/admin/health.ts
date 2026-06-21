@@ -80,8 +80,13 @@ const missingFrom = (expected: readonly string[], have: string[]): string[] =>
   expected.filter((x) => !have.includes(x));
 
 export function buildHealthReport(i: HealthInputs): HealthReport {
-  const collMissing = missingFrom(i.expectedCollections, i.foundCollections);
-  const collExtra = i.foundCollections.filter((c) => !i.expectedCollections.includes(c));
+  // PocketBase system collections are `_`-prefixed (e.g. _mfas, _otps,
+  // _externalAuths, _authOrigins, _superusers in PB v0.23+) — framework
+  // infrastructure, never app schema. Exclude them so they're not flagged as
+  // drift (mirrors the `_` skip in /api/admin/verify-row-rules).
+  const appFound = i.foundCollections.filter((c) => !c.startsWith("_"));
+  const collMissing = missingFrom(i.expectedCollections, appFound);
+  const collExtra = appFound.filter((c) => !i.expectedCollections.includes(c));
 
   const missingHandlers = missingFrom(EXPECTED_INTENTS, i.commitHandlers);
   const missingWorkers = missingFrom(EXPECTED_WORKERS, i.workerHandlers);
@@ -108,7 +113,7 @@ export function buildHealthReport(i: HealthInputs): HealthReport {
 
   return {
     ok,
-    collections: { expected_count: i.expectedCollections.length, found_count: i.foundCollections.length, missing: collMissing, extra: collExtra },
+    collections: { expected_count: i.expectedCollections.length, found_count: appFound.length, missing: collMissing, extra: collExtra },
     intents: { expected: [...EXPECTED_INTENTS], handlers_registered: i.commitHandlers, missing_handlers: missingHandlers },
     workers: { expected: [...EXPECTED_WORKERS], registered: i.workerHandlers, missing: missingWorkers },
     vendor_clients,
