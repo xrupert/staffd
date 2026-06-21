@@ -11,7 +11,7 @@ import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import { runGeneration } from "../../lib/generation-client";
-import GenerationTierModal, { type GenerationRequest } from "./GenerationTierModal";
+import GenerationTierInline, { type GenerationRequest } from "./GenerationTierInline";
 import { type Tier } from "../api/_lib/generation/pricing";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
@@ -1056,6 +1056,18 @@ export default function CommandCenter() {
                 candidates={actionCandidates}
                 context={{ department: lastCompleted.department }}
               />
+
+              {/* W95.7.3d-h2 — generation tier gate rendered INLINE in the thread
+                  (ratified D2(a)), directly under the chip that opened it, rather
+                  than as a full-screen overlay. Same gate as DepartmentRoom's
+                  modal — both render from buildTierOptions. */}
+              {pendingGen && (
+                <GenerationTierInline
+                  pending={pendingGen}
+                  onConfirm={(tier) => { const g = pendingGen; setPendingGen(null); if (g) void generateInlineMedia(g.kind, tier); }}
+                  onClose={() => setPendingGen(null)}
+                />
+              )}
             </div>
           )}
 
@@ -1164,13 +1176,6 @@ export default function CommandCenter() {
           onCancel={cancelIntent}
         />
       )}
-
-      {/* W95.7.3d-T1 — generation tier picker (shown before image/video gen). */}
-      <GenerationTierModal
-        pending={pendingGen}
-        onConfirm={(tier) => { const g = pendingGen; setPendingGen(null); if (g) void generateInlineMedia(g.kind, tier); }}
-        onClose={() => setPendingGen(null)}
-      />
 
       {undoToast && (
         <UndoToast auditRowId={undoToast.auditRowId} message={undoToast.message} onClose={() => setUndoToast(null)} />

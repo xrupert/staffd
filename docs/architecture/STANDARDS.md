@@ -210,6 +210,23 @@ does not author dispatches based on assumed architecture. CC handles
 codebase investigation; SA handles strategy/architecture, but the
 strategy must be grounded in actual current state, not assumed state.
 
+### #38 — Every generation trigger passes a tier gate (enforced, not conventional).
+No surface may start a paid generation without first showing the customer the
+tier picker and obtaining an explicit confirmation (the customer chooses quality
++ sees the credit cost before any submit). This is not left to convention: the
+set of allowed `runGeneration` call sites is declared in a registry
+(`_lib/generation/trigger-surfaces.ts`) and a CI guard
+(`__tests__/generation/trigger-surfaces.test.ts`) fails if any call site under
+`app/` or `lib/` is undeclared or stops referencing its paired tier-gate
+component. Adding a new generation trigger (e.g. the L4 workflow planner)
+therefore forces a conscious register-and-gate step — an ungated trigger can no
+longer slip in unnoticed. *Why: the pre-Tranche-1 F5/F6 class (a specialist-driven
+generation that submitted to Muapi with no tier confirmation) was closed by
+wiring the picker, but nothing prevented a future ungated trigger from
+reintroducing it; W95.7.3d-h2 converts the gate from a hope into a mechanical
+invariant. Both customer-cost transparency (#27 UX-law) and margin protection
+(#33 cost exposure) depend on it.*
+
 ---
 
 *New Standards append here with the next free number. If SA supplies the missing

@@ -213,6 +213,13 @@ Operator verification after deploy:
 - ✅ With the catalog synced and valid routing → generation submits with a catalog-present slug (check the `[muapi] submitting` log shows the routed slug).
 - ✅ Confirm no `flux-dev`/`veo3`/`flux-dev-image` slug ever reaches Muapi (those legacy slugs are removed from source).
 
+### 34. W95.7.3d-h2 — Inline tier picker (CommandCenter) + enforced gate invariant
+- **No new migration.** Generation still requires the **#33 catalog-sync prerequisite** to work live (h2 hardens the gate, it does not restore generation).
+- **Inline picker E2E (CommandCenter conversation stream):** ask a specialist for work that yields a deliverable, then click **Generate Image →** / **Generate the video →** in the thread. ✅ The tier picker now appears **inline in the conversation, directly under the chip** (a bordered block in the stream) — NOT as a full-screen overlay that dims the page. ✅ Pro is pre-selected with "✓ recommended" (marketing); switching tier updates the Confirm button's credit cost; Confirm starts the generation in-thread; Cancel dismisses the block and leaves the thread intact.
+- **Parity check (DepartmentRoom):** in a department room, **Generate Image/Video →** still opens the **overlay** picker (unchanged) — same tiers, weights, and recommended default as the inline one (both render from `buildTierOptions`).
+- ✅ ZERO model/vendor names in either picker (Quick/Pro/Premium + credits + descriptions only).
+- **Invariant (informational — already CI-enforced):** `__tests__/generation/trigger-surfaces.test.ts` fails the build if any future code adds a `runGeneration` call site that isn't registered + tier-gated (Standard #38). No operator action; noted so the next dispatch knows new generation triggers must register in `_lib/generation/trigger-surfaces.ts`.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already
