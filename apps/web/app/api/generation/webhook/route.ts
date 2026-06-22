@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     return Response.json({ ok: true, status: "completed" });
   }
   if (result.state === "failed") {
-    await failJob(pb, token, job.id, result.error);
+    await failJob(pb, token, job, result.error);
     return Response.json({ ok: true, status: "failed" });
   }
   return Response.json({ ok: true, status: "pending" }); // fired early — poll/next webhook resolves

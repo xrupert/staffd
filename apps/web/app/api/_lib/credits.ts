@@ -11,6 +11,15 @@
 
 import { isCompedUser } from "./comp";
 import { pbEscape } from "./pb";
+import { notifyUser } from "./notifications/notify";
+
+/** Per-kind balance at/below which a customer gets a one-time `credits.low` nudge. */
+export const LOW_CREDITS = 5;
+
+/** True only on the spend that drops the balance from above the mark to at/below it. */
+export function crossedLowCredits(before: number, after: number): boolean {
+  return before > LOW_CREDITS && after <= LOW_CREDITS;
+}
 
 export type CreditKind = "image" | "video";
 
@@ -260,7 +269,12 @@ export async function spendCredits(
     body: JSON.stringify(patch),
   });
 
-  return { ok: true, remaining: state.totalRemaining[kind] - amount };
+  const after = state.totalRemaining[kind] - amount;
+  // W95.8.1 — fire a one-time low-balance notification on the crossing spend.
+  if (crossedLowCredits(state.totalRemaining[kind], after)) {
+    void notifyUser(pbUrl, adminToken, userId, "credits.low", { remaining: after, kind });
+  }
+  return { ok: true, remaining: after };
 }
 
 /**

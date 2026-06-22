@@ -47,7 +47,7 @@ export async function GET(req: Request, { params }: RouteContext) {
     return Response.json({ status: "completed", url: done.url, kind: job.kind, remaining: done.remaining, ...(done.creditWarning ? { creditWarning: done.creditWarning } : {}) });
   }
   if (result.state === "failed") {
-    await failJob(pb, token, id, result.error);
+    await failJob(pb, token, job, result.error);
     return Response.json({ status: "failed", error: result.error, kind: job.kind });
   }
   return Response.json({ status: "pending", kind: job.kind });

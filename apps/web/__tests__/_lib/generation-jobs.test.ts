@@ -13,7 +13,7 @@ vi.mock("../../app/api/_lib/pb", () => ({ adminHeaders: (t: string) => ({ Author
 const notifyMock = vi.hoisted(() => ({ fn: vi.fn(async () => undefined) }));
 vi.mock("../../app/api/_lib/notifications/notify", () => ({ notifyUser: notifyMock.fn }));
 
-import { completeJob, type GenJob } from "../../app/api/_lib/generation/jobs";
+import { completeJob, failJob, type GenJob } from "../../app/api/_lib/generation/jobs";
 
 let patches: { url: string; body: Record<string, unknown> }[];
 beforeEach(() => {
@@ -48,6 +48,17 @@ describe("completeJob (W95.7.3b)", () => {
 
   it("does NOT notify on the already-completed short-circuit (no duplicate on re-poll)", async () => {
     await completeJob("https://pb.test", "tok", job({ status: "completed", output_url: "https://cdn/old.mp4", charged: true }), "https://cdn/new.mp4", null);
+    expect(notifyMock.fn).not.toHaveBeenCalled();
+  });
+
+  it("failJob marks the job failed and notifies the customer (generation.failed, W95.8.1)", async () => {
+    await failJob("https://pb.test", "tok", job(), "muapi timeout");
+    expect(patches.some((p) => (p.body as { status?: string }).status === "failed")).toBe(true);
+    expect(notifyMock.fn).toHaveBeenCalledWith("https://pb.test", "tok", "u1", "generation.failed", { kind: "video" });
+  });
+
+  it("failJob does NOT re-notify a job already failed (transition only)", async () => {
+    await failJob("https://pb.test", "tok", job({ status: "failed" }), "again");
     expect(notifyMock.fn).not.toHaveBeenCalled();
   });
 

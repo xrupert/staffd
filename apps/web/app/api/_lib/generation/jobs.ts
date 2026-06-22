@@ -153,6 +153,9 @@ export async function completeJob(
   return { status: "completed", url: resultUrl, remaining, ...(creditWarning ? { creditWarning } : {}) };
 }
 
-export async function failJob(pb: string, token: string, id: string, error: string): Promise<void> {
-  await patchJob(pb, token, id, { status: "failed", error: error.slice(0, 500) });
+export async function failJob(pb: string, token: string, job: GenJob, error: string): Promise<void> {
+  const wasFailed = job.status === "failed";
+  await patchJob(pb, token, job.id, { status: "failed", error: error.slice(0, 500) });
+  // W95.8.1 — notify the customer on the failing transition only (not a re-poll).
+  if (!wasFailed) void notifyUser(pb, token, job.user, "generation.failed", { kind: job.kind });
 }
