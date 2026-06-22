@@ -25,6 +25,7 @@ import type {
 } from "../../_lib/workflow";
 import { logWorkflowTransition } from "../../_lib/auth/super-admin-logging";
 import { WORKER_HANDLERS } from "../../_lib/worker/handlers";
+import { notifyUser } from "../../_lib/notifications/notify";
 
 const TASKS_PER_TICK = 10;
 
@@ -189,6 +190,8 @@ export async function GET(req: Request) {
       return data.documentId ?? "";
     },
     logTransition: (e) => logWorkflowTransition(e),
+    // W95.8 — ping the owner when their planned workflow finishes (best-effort).
+    onComplete: (e) => notifyUser(pb, adminToken, e.user, "workflow.completed", { workflowId: e.workflowId, docId: e.docId }),
   };
 
   try {

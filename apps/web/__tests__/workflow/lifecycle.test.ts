@@ -131,6 +131,23 @@ describe("W72 reconcileWorkflow", () => {
     expect(deps.logTransition).toHaveBeenCalledWith(expect.objectContaining({ from: "running", to: "partial" }));
   });
 
+  it("fires onComplete once on the transition into completed, with the aggregation doc id (W95.8)", async () => {
+    const wf = makeWorkflow({ status: "running" });
+    const onComplete = vi.fn(async () => {});
+    const deps = makeDeps(wf, ["succeeded", "succeeded"], { onComplete });
+    await reconcileWorkflow("wf-1", deps);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith({ workflowId: "wf-1", user: "user-a", docId: "doc-xyz" });
+  });
+
+  it("does NOT fire onComplete on a non-completed transition (e.g. failed)", async () => {
+    const wf = makeWorkflow({ status: "running" });
+    const onComplete = vi.fn(async () => {});
+    const deps = makeDeps(wf, ["failed"], { onComplete });
+    await reconcileWorkflow("wf-1", deps);
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
   it("logs exactly one transition row per status change", async () => {
     const wf = makeWorkflow({ status: "pending" });
     const deps = makeDeps(wf, ["running"]);

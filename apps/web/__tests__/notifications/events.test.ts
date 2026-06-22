@@ -40,6 +40,11 @@ describe("notification event registry", () => {
     expect(r.body.toLowerCase()).toContain("no credit");
   });
 
+  it("workflow.completed → links to the aggregation doc when present", () => {
+    expect(renderNotification("workflow.completed", { workflowId: "wf1", docId: "doc9" }).href).toBe("/doc/doc9");
+    expect(renderNotification("workflow.completed", { workflowId: "wf1" }).href).toBeUndefined();
+  });
+
   it("the type union is keyed off the registry (compile-time guard)", () => {
     const t: NotificationType = "generation.ready";
     expect(NOTIFICATION_EVENTS[t]).toBeTruthy();

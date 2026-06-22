@@ -43,6 +43,15 @@ export const NOTIFICATION_EVENTS = {
       body: "The generation didn't complete — no credits were charged. Please try again.",
     }),
   },
+  "workflow.completed": {
+    audience: "customer",
+    severity: "success",
+    render: (p) => ({
+      title: "Your workflow is done",
+      body: "Every step finished — your team wrapped it up. Tap to see the result.",
+      href: str(p.docId) ? `/doc/${str(p.docId)}` : undefined,
+    }),
+  },
   "credits.low": {
     audience: "customer",
     severity: "warning",

@@ -93,6 +93,8 @@ export type ReconcileDeps = {
   logTransition: (e: { workflowId: string; user: string; from: WorkflowStatus; to: WorkflowStatus }) => Promise<void>;
   /** W95.6.x — the draft task's output text, stored on the workflow at pause. */
   getDraftOutput?: (workflowId: string) => Promise<string>;
+  /** W95.8 — fired once when the workflow reaches `completed` (notify the owner). */
+  onComplete?: (e: { workflowId: string; user: string; docId: string | null }) => Promise<void>;
   now?: () => string;
 };
 
@@ -154,6 +156,12 @@ export async function reconcileWorkflow(workflowId: string, deps: ReconcileDeps)
 
   if (Object.keys(patch).length > 0) await deps.updateWorkflow(workflowId, patch);
   if (changed) await deps.logTransition({ workflowId, user: wf.user, from: wf.status, to: target });
+
+  // W95.8 — notify the owner once, on the transition into `completed`.
+  if (changed && target === "completed" && deps.onComplete) {
+    const docId = ((patch.aggregation_doc_id as string | undefined) ?? wf.aggregation_doc_id) || null;
+    await deps.onComplete({ workflowId, user: wf.user, docId });
+  }
 
   return { workflowId, from: wf.status, to: target, aggregated, changed };
 }
