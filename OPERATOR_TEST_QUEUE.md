@@ -226,6 +226,14 @@ Operator verification after deploy:
 - **Isolation:** ✅ a second account never sees the first account's notifications (USER_OWNED row rules — verify in PB or by logging in as another user).
 - ✅ Brand voice: notification copy is STAFFD-voiced, zero vendor/model names.
 
+### 36. W73 / L4 — Workflow planner end-to-end (the "automated team")
+- **Prerequisite:** the `workflows` + `workflow_tasks` collections must exist (the **Workflows & tasks** migration — already run per your earlier pass) and the per-minute `workflow-drain` cron must be live (it is, in vercel.json). The planner LLM uses the same ANTHROPIC_KEY as the rest of the app.
+- **Plan E2E:** as a signed-in user, `POST /api/workflow/plan` with `{ "goal": "Launch our spring promotion" }` (Authorization: your PB token). ✅ Returns `{ ok, workflowId, steps: [...], taskCount }` — a sensible 2–5 step plan across real departments, each step's `dependsOn` referencing only earlier steps.
+- **Validation guard:** confirm a deliberately-bad goal that yields an unroutable department or a cyclic plan returns **422 `plan_invalid`** (the planner refuses to persist an unsound workflow) — not a half-created workflow.
+- **Execution E2E:** in PB, the new `workflows` row is `pending`; `workflow_tasks` rows are `pending` with `depends_on` wired to real task ids. Within ~1–2 min the **workflow-drain** cron runs them in dependency order (each calls `/api/agent` for its department); when all succeed the workflow reconciles to `completed` and the aggregate doc is produced. ✅ Verify the task statuses advance pending→running→succeeded and the parent reaches `completed`.
+- **Quality check (subjective):** read the produced step tasks — are they a coherent decomposition of the goal, routed to the right departments? Note any weak decompositions; that tunes the planner prompt/model in Tranche 2 (dedicated `plan` intent + stronger model).
+- ⚠️ **Not yet surfaced in the UI** — this is the API + execution layer. A CommandCenter "turn this into a workflow" trigger + plan preview/approve is Tranche 2.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already

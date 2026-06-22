@@ -23,7 +23,8 @@ type RouteContext = {
   messages?: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
-const ALL_DEPTS = ["marketing","sales","legal","hr","finance","operations","paid-media","design","reputation","ceo"];
+/** Canonical routable department ids — the single source for routing + the L4 planner. */
+export const ALL_DEPTS = ["marketing","sales","legal","hr","finance","operations","paid-media","design","reputation","ceo"];
 
 function parseDecision(text: string): { decision: OrchestratorDecision; lockedAlternative?: string } | null {
   // Handler accepts either a clean JSON object on a `ROUTE:` line, or a bare
