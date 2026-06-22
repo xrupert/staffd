@@ -66,6 +66,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "generation-jobs", label: "Generation jobs", collection: "generation_jobs", note: "async Muapi image/video job ledger (client-polled status)" },
   // W95.7.3d-T1 — cached Muapi model catalog (tier + credit weight).
   { route: "generation-models", label: "Generation models (catalog)", collection: "generation_models", note: "Muapi model catalog cache; hourly cron populates tier/credit_weight" },
+  // W95.8 — system→user notification inbox.
+  { route: "notifications", label: "Notifications", collection: "notifications", note: "per-customer notification inbox (USER_OWNED); producers call notifyUser" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

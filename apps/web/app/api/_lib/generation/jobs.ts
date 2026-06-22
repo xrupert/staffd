@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { adminHeaders, pbEscape } from "../pb";
 import { spendCredits } from "../credits";
 import { logSuperAdminUsage } from "../auth/super-admin-logging";
+import { notifyUser } from "../notifications/notify";
 
 export type GenKind = "image" | "video";
 
@@ -146,6 +147,9 @@ export async function completeJob(
   }
 
   await patchJob(pb, token, job.id, { status: "completed", output_url: resultUrl });
+  // W95.8 — persist a customer notification (best-effort; fires only on the
+  // newly-completed transition, never on the idempotent re-poll short-circuit).
+  void notifyUser(pb, token, job.user, "generation.ready", { kind: job.kind, url: resultUrl });
   return { status: "completed", url: resultUrl, remaining, ...(creditWarning ? { creditWarning } : {}) };
 }
 

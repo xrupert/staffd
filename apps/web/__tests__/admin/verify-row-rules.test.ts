@@ -253,7 +253,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W95.5 — 37 = 35 + autopilot_prefs, autopilot_audit_log
     // W95.7.3b — 38 = 37 + generation_jobs (async image/video job ledger, USER_OWNED)
     // W95.7.3d-T1 — 39 = 38 + generation_models (Muapi catalog cache, ADMIN_ONLY)
-    expect(body.collections_checked).toBe(39);
+    // W95.8 — 40 = 39 + notifications (system→user inbox, USER_OWNED)
+    expect(body.collections_checked).toBe(40);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

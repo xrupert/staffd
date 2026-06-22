@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
 import { useEffectivePlan, isSuperAdminClient, type Plan } from "../../lib/hooks/useEffectivePlan";
 import { signOut } from "../../lib/auth/signOut";
+import NotificationBell from "../components/NotificationBell";
 import CommandCenter from "../components/CommandCenter";
 import DepartmentPicker from "../components/DepartmentPicker";
 import AddDeptModal from "../components/AddDeptModal";
@@ -298,6 +299,8 @@ export default function DashboardPage() {
             <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} />
           </a>
           <div className="flex items-center gap-4">
+            {/* W95.8 — system→user notification inbox */}
+            <NotificationBell />
             {/* Booking link pill */}
             {bookingSlug && (
               <button

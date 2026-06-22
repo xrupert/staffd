@@ -220,6 +220,12 @@ Operator verification after deploy:
 - ✅ ZERO model/vendor names in either picker (Quick/Pro/Premium + credits + descriptions only).
 - **Invariant (informational — already CI-enforced):** `__tests__/generation/trigger-surfaces.test.ts` fails the build if any future code adds a `runGeneration` call site that isn't registered + tier-gated (Standard #38). No operator action; noted so the next dispatch knows new generation triggers must register in `_lib/generation/trigger-surfaces.ts`.
 
+### 35. W95.8 — Notifications (run migration to light up the bell)
+- **Operator setup:** run **Notifications** (`notifications`) via `/dashboard/admin/migrations` (creates the USER_OWNED `notifications` collection + enforces row rules). Until then the bell renders empty/silent (degrades gracefully — no errors).
+- **E2E:** complete an image/video generation (needs the #32/#33 catalog prerequisites). ✅ A 🔔 in the dashboard header gains an unread badge; opening it shows "Your video/visual is ready"; clicking the row marks it read and opens the media. The in-thread "ready" message still appears too (the notification is the persistent copy).
+- **Isolation:** ✅ a second account never sees the first account's notifications (USER_OWNED row rules — verify in PB or by logging in as another user).
+- ✅ Brand voice: notification copy is STAFFD-voiced, zero vendor/model names.
+
 > Swept from earlier-session reports (W91, FC-4) on request — these two were
 > surfaced before this queue file existed. PLAUSIBLE_API_KEY/SITE_ID and the
 > W71 workflow-tasks migration were also flagged historically but are already
