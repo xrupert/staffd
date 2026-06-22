@@ -11,6 +11,50 @@ off as you complete them; the agent reads this file to know what's still pending
 
 ---
 
+## ⚡ ACTIVATION SEQUENCE — run top-to-bottom (consolidated 2026-06-21)
+
+> One clean pass to light up everything built this session. Each phase gates the
+> next. The numbered `### N` items below carry the detailed per-feature checks —
+> this is the ORDER + the exact commands. All `curl` from **Git Bash** (not
+> PowerShell). Replace `<SECRET>` placeholders with your Vercel Sensitive values.
+
+**Phase 0 — Env / secrets (Vercel → Settings → Environment Variables, then Redeploy):**
+- [ ] `ADMIN_SECRET` set/rotated (gates `/api/setup/*`) — item 1
+- [ ] `WORKER_SECRET` set (manual worker triggers, e.g. catalog sync)
+- [ ] `CRON_SECRET` set (Vercel cron auth for drain + catalog sync + security-audit)
+- [ ] `NEXT_PUBLIC_ADMIN_EMAIL`, `MUAPI_API_KEY`, `MUAPI_WEBHOOK_SECRET`, `ANTHROPIC_API_KEY` present
+- [ ] PB SMTP configured (signup/reset email) — item references in §MX-2 below
+- [ ] Google OAuth2 enabled in PB admin — item 8
+
+**Phase 1 — Bootstrap the migration log (one-time, enables the in-app trigger):**
+```bash
+curl -X POST -H 'x-setup-secret: <ADMIN_SECRET>' https://urstaffd.com/api/setup/admin-migration-log
+```
+- [ ] Returns `{"ok":true,...}` (item 2)
+
+**Phase 2 — Run ALL migrations:** log in as super-admin → **`/dashboard/admin/migrations`** → **Run all pending**.
+- [ ] Every row shows **Created**/**exists** — this covers, in dependency-safe registry order: contacts, templates, workflow-tasks, upload-sessions, user-integrations, documents-v2→v3, interactions/followups/tasks/leads/expenses, autopilot-prefs/-audit-log, businesses-v2→v3, workflows-v2, generation-jobs, generation-models, **notifications**. (Idempotent — safe to re-run.)
+- [ ] Confirm green: `/dashboard/admin/health` shows **0 missing collections, 0 pending migrations**, and the `_`-prefixed PB system tables are no longer flagged (W95.7.3d-h3).
+
+**Phase 3 — One-time triggers:**
+```bash
+curl -H 'x-worker-secret: <WORKER_SECRET>' https://urstaffd.com/api/worker/muapi-catalog-sync
+```
+- [ ] Returns `ok:true`, `upserted` > 100, and **`routingDrift: []`** — if any slug is listed, fix it in `routing.ts` per muapi-vendor-drift.md §2/§6 (this is what makes generation stop returning `all_models_drifted`). Items 32–33.
+
+**Phase 4 — Per-feature E2E (now that the substrate is live):** work the detailed items below —
+- [ ] Generation tier picker + inline gate (items 32, 34) · low-credit + webhook (31)
+- [ ] **Notifications** bell lights up on a completed generation (item 35)
+- [ ] **L4 workflow** plan→commit→drain→completion notification (item 36) — the flagship
+- [ ] Conversational intents (7), autopilot, uploads, Google sign-in (items 3–8, etc.)
+
+> Verified live at the anon layer right now (no auth needed): all pages 200; every
+> `/api/setup/*`, `/api/admin/*`, and worker route correctly 401/503-gates; the
+> muapi route returns the intended fail-loud `all_models_drifted` 500 until Phase 3
+> runs. So the deploy + gating are healthy — the above is what flips features ON.
+
+---
+
 ## 🔴 PENDING
 
 ### 1. Rotate `ADMIN_SECRET` (W95.3) — security
