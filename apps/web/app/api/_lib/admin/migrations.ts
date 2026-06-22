@@ -30,6 +30,11 @@ export type MigrationEntry = {
 
 export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "contacts",           label: "Contacts",            collection: "contacts" },
+  // Bundle 6 G0 closure — templates had a setup route (`/api/setup/templates`)
+  // but was never registered here, so it was curl-only and invisible to the
+  // in-app trigger + health check. USER_OWNED; baseline schema (Tranche-7 adds
+  // the Model-C scope/variables/capabilities fields later).
+  { route: "templates",          label: "Document templates",  collection: "templates" },
   { route: "workflow-tasks",     label: "Workflows & tasks",   collection: "workflow_tasks", note: "creates both `workflows` and `workflow_tasks`" },
   { route: "upload-sessions",    label: "Upload sessions",     collection: "upload_sessions" },
   { route: "user-integrations",  label: "User integrations",   collection: "user_integrations" },

@@ -120,13 +120,16 @@ All five rules:
 user = @request.auth.id
 ```
 
-**⚠️ This collection has no setup route yet** (Bundle 6 G0 — fixed in Tranche 7 by PR-Templates-A). Until that PR ships:
-
-1. Verify the collection exists in PB (`Collections` sidebar)
-2. If missing: create it manually with these fields — `user (text, required)`, `name (text, required)`, `department (text)`, `content (text)`. Use this until PR-Templates-A standardizes.
-3. Set all five rules per pattern above.
-
-Once PR-Templates-A ships, the setup route will own the schema; this runbook entry can be retired.
+**Setup route + in-app trigger (G0 closed).** `templates` now has a baseline
+setup route (`/api/setup/templates`, creates the collection + enforces
+`USER_OWNED` rules via `ensureCollectionRules`) and is registered in
+`MIGRATION_REGISTRY` (route `templates`) — so run it from
+`/dashboard/admin/migrations` ("Document templates") like any other migration,
+not by hand. Baseline schema: `user (text, required)`, `name (text, required)`,
+`department (text)`, `content (text)`. The full Model-C schema (scope /
+variables / capabilities / tags) is a future Tranche-7 extension on top of this
+baseline; the patch-missing-fields pattern preserves any extra fields prod
+already has.
 
 ---
 

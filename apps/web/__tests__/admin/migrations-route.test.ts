@@ -23,6 +23,7 @@ vi.mock("../../app/api/_lib/pb", () => ({
 
 import { GET, POST } from "../../app/api/admin/migrations/route";
 import { MIGRATION_REGISTRY } from "../../app/api/_lib/admin/migrations";
+import { EXPECTED_COLLECTIONS } from "../../app/api/_lib/security/row-rules";
 
 let calls: { url: string; method: string; body: Record<string, unknown> | null }[];
 /** existing = set of collection names that "exist" (200); others 404. */
@@ -160,5 +161,19 @@ describe("MIGRATION_REGISTRY", () => {
     expect(g).toBeTruthy();
     expect(g.collection).toBe("generation_jobs");
     expect(g.bootstrap).toBeFalsy();
+  });
+
+  it("includes templates — its setup route must be operator-runnable, not curl-only (G0 closure)", () => {
+    const t = MIGRATION_REGISTRY.find((m) => m.route === "templates")!;
+    expect(t).toBeTruthy();
+    expect(t.collection).toBe("templates");
+    expect(t.bootstrap).toBeFalsy();
+  });
+
+  it("every registered migration targets a collection declared in EXPECTED_COLLECTIONS (no orphan provisioning)", () => {
+    const expected = new Set(EXPECTED_COLLECTIONS.map((e) => e.name));
+    for (const m of MIGRATION_REGISTRY) {
+      expect(expected.has(m.collection), `${m.route} → ${m.collection} is not in EXPECTED_COLLECTIONS`).toBe(true);
+    }
   });
 });
