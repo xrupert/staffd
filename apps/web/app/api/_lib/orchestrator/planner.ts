@@ -17,6 +17,15 @@
 
 export const MAX_PLAN_STEPS = 12;
 
+/**
+ * Canonical routable department ids — the single source for routing + the L4
+ * planner. Lives here (a pure, dependency-free module) so any route can import
+ * it without dragging in the heavy orchestrator handler module.
+ */
+export const ALL_DEPTS = [
+  "marketing", "sales", "legal", "hr", "finance", "operations", "paid-media", "design", "reputation", "ceo",
+] as const;
+
 export type PlanStep = { department: string; task: string; dependsOn: number[] };
 export type Plan = { goal: string; steps: PlanStep[] };
 

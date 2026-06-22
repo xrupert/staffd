@@ -10,6 +10,7 @@
  */
 
 import { getAgent, getDepartmentAgents, routeTask, resolveIndustryToPackId, type Department, type IndustryPack } from "@staffd/agents";
+import { ALL_DEPTS as PLANNER_ALL_DEPTS } from "../planner";
 import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
 import { bridgingIndustryFor, resolveBridgingIndustry } from "../../industry";
 import { resolveDepartments } from "../../trial";
@@ -23,8 +24,9 @@ type RouteContext = {
   messages?: Array<{ role: "user" | "assistant"; content: string }>;
 };
 
-/** Canonical routable department ids — the single source for routing + the L4 planner. */
-export const ALL_DEPTS = ["marketing","sales","legal","hr","finance","operations","paid-media","design","reputation","ceo"];
+// Canonical routable department ids now live in the pure `planner` module (so
+// lightweight routes can import them without this heavy handler's deps).
+const ALL_DEPTS = [...PLANNER_ALL_DEPTS];
 
 function parseDecision(text: string): { decision: OrchestratorDecision; lockedAlternative?: string } | null {
   // Handler accepts either a clean JSON object on a `ROUTE:` line, or a bare
