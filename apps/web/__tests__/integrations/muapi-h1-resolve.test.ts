@@ -78,9 +78,14 @@ describe("W95.7.3d-h1 — resolveModel fails loudly", () => {
 });
 
 describe("W95.7.3d-h1 — legacy slugs removed from source", () => {
-  it("no flux-dev-image / bare flux-dev / bare veo3 in app/ or lib/ source", () => {
+  it("no genuinely-legacy slugs (flux-dev-image / bare veo3) in app/ or lib/ source", () => {
+    // NOTE: `flux-dev` was REMOVED from this forbidden set on 2026-06-23 — the
+    // live Muapi catalog confirms `flux-dev` is the real image-pro model. h1 had
+    // wrongly assumed it was legacy and substituted the nonexistent "flux-1-dev",
+    // which is why generation drifted. `flux-dev-image` and bare `veo3` remain
+    // genuinely legacy (the real video slug is `veo3.1-image-to-video`).
     const webRoot = resolve(__dirname, "..", "..");
-    const forbidden = /flux-dev-image|"flux-dev"|"veo3"/;
+    const forbidden = /flux-dev-image|"veo3"/;
     const hits: string[] = [];
     const walk = (dir: string) => {
       for (const e of readdirSync(dir, { withFileTypes: true })) {

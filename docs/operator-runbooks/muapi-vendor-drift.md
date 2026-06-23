@@ -132,8 +132,11 @@ priced at request time via `POST /api/v1/models/{name}/estimate-cost`.
 per (department, kind, tier). `validateRoutingSlugs` runs inside the hourly sync;
 any routing slug absent from the live catalog is logged in the sync response's
 `routingDrift` array (and the cron log). When a slug drifts, update routing.ts to
-the current catalog slug (same refresh recipe as §2). The current routing slugs
-are catalog-pending verification — confirm them against the first live sync.
+the current catalog slug (same refresh recipe as §2). **Slugs verified against the
+live catalog 2026-06-23** — all 12 confirmed present except two that were fixed in
+that pass: `flux-1-dev` → `flux-dev` (the real slug; h1 had substituted a
+nonexistent one) and the bogus `background-remove` dropped from image-quick. Re-run
+this verification whenever Muapi ships a catalog change.
 
 **Catalog drift signal (W95.7.3d-h3).** Beyond slug drift, the hourly sync diffs
 the freshly-classified catalog against the cache (`computeCatalogDrift`) and emits

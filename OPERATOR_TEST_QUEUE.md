@@ -118,6 +118,15 @@ below.
   for those tiers and I fix the slugs from your output. If the curl returns
   `ok:false` / `upserted:0`, then `MUAPI_API_KEY` is not set in Vercel (your item
   31 "nothing connected to muapi") - tell me and we sort the key first.
+  UPDATE 2026-06-23: I pulled the live Muapi catalog (the models list is public)
+  and verified all 12 routing slugs. Two were stale and are now FIXED in code:
+  `flux-1-dev` -> `flux-dev` (the real slug; h1 had substituted a nonexistent
+  one), and the bogus `background-remove` was dropped. So after you sync,
+  `routingDrift` should be EMPTY. Also note: the catalog list is public, so the
+  sync populates WITHOUT the key - but actually GENERATING a video/image (the
+  submit) DOES need `MUAPI_API_KEY` in Vercel. So the order is: (1) sync (fixes
+  the "all_models_drifted" message), then (2) ensure `MUAPI_API_KEY` is set so the
+  submit succeeds.
 - Item 8 (Google sign-in completes on Google but does not log you in) - almost
   certainly a CONFIG mismatch, not app code. WHY: the button uses PocketBase's
   all-in-one popup flow; if that flow succeeds, the session IS saved

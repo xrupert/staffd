@@ -30,9 +30,9 @@ const DEFAULT_MODELS: Record<GenKind, TierModels> = {
     premium: ["veo3.1-image-to-video", "openai-sora-2-pro-image-to-video"], // $2.40–3.00
   },
   image: {
-    quick: ["flux-schnell", "background-remove"],                   // $0.01–0.03
-    pro: ["flux-1-dev", "nano-banana-edit"],                        // $0.03–0.08
-    premium: ["nano-banana-pro", "ideogram-character"],            // $0.10–0.30
+    quick: ["flux-schnell"],                                        // $0.01–0.03 (verified present in the live catalog 2026-06-23)
+    pro: ["flux-dev", "nano-banana-edit"],                          // $0.03–0.08 ("flux-dev" is the REAL catalog slug; the h1 "flux-1-dev" never existed)
+    premium: ["nano-banana-pro", "ideogram-character"],            // $0.10–0.30 (all verified present)
   },
 };
 
