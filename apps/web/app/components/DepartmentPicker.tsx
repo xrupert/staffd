@@ -44,11 +44,10 @@ export default function DepartmentPicker({ plan, onComplete }: DepartmentPickerP
     if (selected.length !== limit) return;
     setSaving(true);
     try {
-      const userId = pb.authStore.record?.id ?? "";
       await fetch("/api/departments/choose", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId, departments: selected }),
+        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+        body: JSON.stringify({ departments: selected }),
       });
       onComplete(selected);
     } catch {

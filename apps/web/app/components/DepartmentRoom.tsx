@@ -259,7 +259,7 @@ export default function DepartmentRoom({
     const userId = pb.authStore.record?.id ?? "";
     if (!userId || ALWAYS_UNLOCKED.has(department)) return;
     try {
-      const res = await fetch(`/api/trial?userId=${userId}`);
+      const res = await fetch(`/api/trial`, { headers: { Authorization: pb.authStore.token } });
       if (!res.ok) return;
       const data = (await res.json()) as {
         plan: string;

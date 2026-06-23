@@ -10,6 +10,7 @@
  */
 
 import { pbEscape } from "../../_lib/pb";
+import { whoAmI } from "../../_lib/integrations/identity";
 
 const STARTER_DEPARTMENTS = new Set(["marketing", "sales", "legal"]);
 
@@ -40,13 +41,16 @@ async function getAdminToken(pbUrl: string): Promise<string> {
 }
 
 export async function POST(req: Request) {
-  const { userId, departments } = (await req.json()) as {
-    userId: string;
-    departments: string[];
-  };
+  // h6d — the subscription updated is the authenticated caller's own; the admin
+  // token below bypasses row rules, so a body `userId` would be an IDOR.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
 
-  if (!userId || !Array.isArray(departments)) {
-    return Response.json({ error: "userId and departments required" }, { status: 400 });
+  const { departments } = (await req.json()) as { departments: string[] };
+
+  if (!Array.isArray(departments)) {
+    return Response.json({ error: "departments required" }, { status: 400 });
   }
 
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;

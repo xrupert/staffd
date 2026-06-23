@@ -7,6 +7,7 @@
 
 import { isCompedUser } from "../_lib/comp";
 import { pbEscape } from "../_lib/pb";
+import { whoAmI } from "../_lib/integrations/identity";
 
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
@@ -37,9 +38,11 @@ async function isAgencyUser(pbUrl: string, token: string, userId: string): Promi
 }
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const userId = url.searchParams.get("userId");
-  if (!userId) return Response.json({ error: "userId required" }, { status: 400 });
+  // h6d — derive the agency user from the authenticated session; never trust a
+  // query `userId` (admin token below bypasses row rules → would be an IDOR).
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
 
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });
@@ -63,8 +66,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // h6d — the owning agency user is the authenticated caller, not a body field.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
+
   const body = (await req.json()) as {
-    userId: string;
     name: string;
     industry?: string;
     description?: string;
@@ -79,8 +86,8 @@ export async function POST(req: Request) {
     magic_wand?: string;
   };
 
-  if (!body.userId || !body.name?.trim()) {
-    return Response.json({ error: "userId and name required" }, { status: 400 });
+  if (!body.name?.trim()) {
+    return Response.json({ error: "name required" }, { status: 400 });
   }
 
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
@@ -88,7 +95,7 @@ export async function POST(req: Request) {
 
   try {
     const token = await getAdminToken(pbUrl);
-    if (!(await isAgencyUser(pbUrl, token, body.userId))) {
+    if (!(await isAgencyUser(pbUrl, token, userId))) {
       return Response.json({ error: "Agency plan required" }, { status: 403 });
     }
 
@@ -96,7 +103,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { Authorization: token, "Content-Type": "application/json" },
       body: JSON.stringify({
-        agency_user:     body.userId,
+        agency_user:     userId,
         name:            body.name.trim(),
         industry:        body.industry?.trim() ?? "",
         description:     body.description?.trim() ?? "",

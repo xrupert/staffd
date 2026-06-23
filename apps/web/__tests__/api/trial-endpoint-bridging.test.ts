@@ -28,6 +28,11 @@ vi.mock("../../app/api/_lib/comp", () => ({
   isCompedUser: async () => pbMocks.comped,
 }));
 
+// h6d — the route now derives userId from the authenticated session.
+vi.mock("../../app/api/_lib/integrations/identity", () => ({
+  whoAmI: async () => ({ id: "user-1", email: "u@test.local" }),
+}));
+
 import { GET } from "../../app/api/trial/route";
 
 beforeEach(() => {

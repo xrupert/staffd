@@ -9,11 +9,13 @@
 import { resolveDepartments, recordTrialRun } from "../_lib/trial";
 import { getAdminToken, pbEscape, pbFirst } from "../_lib/pb";
 import { bridgingIndustryFor } from "../_lib/industry";
+import { whoAmI } from "../_lib/integrations/identity";
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
-  if (!userId) return Response.json({ error: "userId required" }, { status: 400 });
+  // h6d — trial/plan state is read for the authenticated caller, not a query id.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
 
   try {
     // W58.2 (D-19 bridging) — read the business industry so activePacks
@@ -50,13 +52,16 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { userId, department } = (await req.json()) as {
-    userId: string;
-    department: string;
-  };
+  // h6d — a trial run is recorded against the authenticated caller; trusting a
+  // body `userId` would let anyone burn another user's trial allowance.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
 
-  if (!userId || !department) {
-    return Response.json({ error: "userId and department required" }, { status: 400 });
+  const { department } = (await req.json()) as { department: string };
+
+  if (!department) {
+    return Response.json({ error: "department required" }, { status: 400 });
   }
 
   const result = await recordTrialRun(userId, department);

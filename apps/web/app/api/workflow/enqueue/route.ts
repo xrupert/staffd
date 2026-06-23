@@ -9,9 +9,9 @@
  */
 
 import { getAdminToken, pbUrl } from "../../_lib/pb";
+import { whoAmI } from "../../_lib/integrations/identity";
 
 type EnqueueBody = {
-  userId: string;
   departmentId: string;
   inputPayload: Record<string, unknown>;
   workflowId?: string;
@@ -21,6 +21,13 @@ type EnqueueBody = {
 };
 
 export async function POST(req: Request) {
+  // h6d — tasks are enqueued for the authenticated caller; the admin token below
+  // bypasses row rules, so a body `userId` would let anyone queue work (and bill
+  // tokens) against another user.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
+
   let body: EnqueueBody;
   try {
     body = (await req.json()) as EnqueueBody;
@@ -28,10 +35,10 @@ export async function POST(req: Request) {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const { userId, departmentId, inputPayload } = body;
-  if (!userId || !departmentId || !inputPayload) {
+  const { departmentId, inputPayload } = body;
+  if (!departmentId || !inputPayload) {
     return Response.json(
-      { error: "userId, departmentId, and inputPayload are required" },
+      { error: "departmentId and inputPayload are required" },
       { status: 400 },
     );
   }

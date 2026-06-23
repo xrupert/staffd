@@ -5,6 +5,8 @@
  * Restricted to the agency user who owns the client.
  */
 
+import { whoAmI } from "../../_lib/integrations/identity";
+
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
     method: "POST",
@@ -38,10 +40,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = (await req.json()) as Record<string, unknown> & { userId: string };
-  const { userId, ...updates } = body;
+  // h6d — ownership is checked against the authenticated caller, not a body field.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
 
-  if (!userId) return Response.json({ error: "userId required" }, { status: 400 });
+  const updates = (await req.json()) as Record<string, unknown>;
 
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });
@@ -53,6 +57,7 @@ export async function PATCH(
     }
 
     // Strip protected fields — agency_user can never be changed via the API
+    delete (updates as Record<string, unknown>).userId;
     delete (updates as Record<string, unknown>).agency_user;
     delete (updates as Record<string, unknown>).id;
     delete (updates as Record<string, unknown>).collectionId;
@@ -79,10 +84,10 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const url = new URL(req.url);
-  const userId = url.searchParams.get("userId");
-
-  if (!userId) return Response.json({ error: "userId required" }, { status: 400 });
+  // h6d — ownership is checked against the authenticated caller, not a query param.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
 
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });

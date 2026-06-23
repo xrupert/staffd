@@ -99,7 +99,7 @@ export default function DashboardPage() {
     try {
       const userId = pb.authStore.record?.id ?? "";
       if (!userId) return;
-      const res = await fetch(`/api/trial?userId=${userId}`);
+      const res = await fetch(`/api/trial`, { headers: { Authorization: pb.authStore.token } });
       if (res.ok) {
         const data = (await res.json()) as {
           plan: string;

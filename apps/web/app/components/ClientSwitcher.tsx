@@ -38,7 +38,7 @@ export default function ClientSwitcher({ onChange }: ClientSwitcherProps) {
       const userId = pb.authStore.record?.id ?? "";
       if (!userId) return;
 
-      const res = await fetch(`/api/clients?userId=${userId}`);
+      const res = await fetch(`/api/clients`, { headers: { Authorization: pb.authStore.token } });
       if (res.status === 403) {
         setAllowed(false);
         return;
