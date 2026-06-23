@@ -146,6 +146,17 @@ below.
   has been set in Vercel since May 31, generation should now work the moment this
   deploys — just open the app and press Generate. (If it still errors, paste the
   `[muapi] submit failed` log line and I'll fix the slug/body.)
+  VERIFIED WORKING LIVE 2026-06-23: I fired a real image generation against
+  production and Muapi ACCEPTED it (HTTP 202, jobId, prediction created). The
+  whole chain works: model resolve -> prompt enrich -> job create -> Muapi submit.
+  Chain of disconnects found + fixed along the way: (1) catalog hard-gate removed;
+  (2) video was image-to-video (needs a source image) -> now text-to-video;
+  (3) webhook is a `webhook_url` body field, not `?webhook=`; (4) image slugs
+  flux-schnell/flux-dev 404 (no POST path) -> flux-2 family. ALL 12 routing slugs
+  now verified against the live OpenAPI (valid path + prompt-only). So generation
+  is GO; your remaining test is just: press Generate in the app on your real
+  account and confirm the image/video comes back + exactly the right credits are
+  charged.
 - Item 8 (Google sign-in completes on Google but does not log you in) - almost
   certainly a CONFIG mismatch, not app code. WHY: the button uses PocketBase's
   all-in-one popup flow; if that flow succeeds, the session IS saved
