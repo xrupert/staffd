@@ -33,10 +33,13 @@ const DEFAULT_MODELS: Record<GenKind, TierModels> = {
     pro: ["pixverse-v6-t2v", "minimax-hailuo-02-standard-t2v"],     // ~$0.30
     premium: ["openai-sora-2-pro-text-to-video", "kling-v3.0-omni-4k-text-to-video"], // $2.40–2.68
   },
+  // TEXT-TO-IMAGE only, every slug verified 2026-06-23 to have a real
+  // POST /api/v1/<slug> path + required=["prompt"]. NOTE: flux-schnell / flux-dev
+  // have NO /api/v1/<slug> submit path (they 404 live) — the flux-2 family does.
   image: {
-    quick: ["flux-schnell"],                                        // $0.01–0.03 (verified present in the live catalog 2026-06-23)
-    pro: ["flux-dev", "nano-banana-edit"],                          // $0.03–0.08 ("flux-dev" is the REAL catalog slug; the h1 "flux-1-dev" never existed)
-    premium: ["nano-banana-pro", "ideogram-character"],            // $0.10–0.30 (all verified present)
+    quick: ["flux-2-dev", "flux-2-klein-9b"],                       // $0.01–0.02
+    pro: ["flux-2-pro", "google-imagen4"],                          // $0.03–0.04
+    premium: ["nano-banana-pro", "midjourney-v8"],                  // $0.10–0.12
   },
 };
 
