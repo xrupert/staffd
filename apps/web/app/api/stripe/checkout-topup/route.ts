@@ -12,6 +12,7 @@
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
 import { pbEscape } from "../../_lib/pb";
+import { whoAmI } from "../../_lib/integrations/identity";
 
 // W47 — §3-aligned typed packs. Route translates the pack id into
 // topup_type + credit_count session metadata; the webhook routes by type.
@@ -47,11 +48,7 @@ async function getAdminToken(pbUrl: string): Promise<string> {
 }
 
 export async function POST(req: Request) {
-  const { userId, userEmail, pack } = (await req.json()) as {
-    userId: string;
-    userEmail: string;
-    pack: string;
-  };
+  const { pack } = (await req.json()) as { pack: string };
 
   const secretKey = process.env.STRIPE_SECRET_KEY;
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
@@ -59,8 +56,15 @@ export async function POST(req: Request) {
   if (!secretKey || !pbUrl) {
     return Response.json({ error: "Payment system not configured" }, { status: 503 });
   }
-  if (!userId || !pack) {
-    return Response.json({ error: "userId and pack required" }, { status: 400 });
+
+  // SECURITY (W95.7.3d-h6c) — user from session token, not a body userId/email.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
+  const userEmail = me.email;
+
+  if (!pack) {
+    return Response.json({ error: "pack required" }, { status: 400 });
   }
   const packDef = TOPUP_PACKS[pack];
   if (!packDef) {

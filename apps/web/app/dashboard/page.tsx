@@ -123,7 +123,7 @@ export default function DashboardPage() {
           try {
             const checkoutRes = await fetch("/api/stripe/checkout", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
               body: JSON.stringify({
                 planId: pendingPlan, interval: pendingInterval, userId, userEmail,
               }),

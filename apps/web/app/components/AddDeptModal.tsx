@@ -31,7 +31,7 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
       const userEmail = (pb.authStore.record?.email as string) ?? "";
       const res = await fetch("/api/stripe/checkout-addon", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ userId, userEmail, department: selected }),
       });
       const data = (await res.json()) as { url?: string; error?: string };

@@ -50,7 +50,7 @@ export default function TopupModal({ open, onClose }: Props) {
       const userEmail = (pb.authStore.record?.email as string | undefined) ?? "";
       const res = await fetch("/api/stripe/checkout-topup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ userId, userEmail, pack }),
       });
       const data = await res.json();

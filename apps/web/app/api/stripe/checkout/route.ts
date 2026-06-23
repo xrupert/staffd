@@ -10,6 +10,7 @@
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
 import { pbEscape } from "../../_lib/pb";
+import { whoAmI } from "../../_lib/integrations/identity";
 
 function getPrices(): Record<string, string> {
   try {
@@ -61,10 +62,8 @@ export async function POST(req: Request) {
   const body = (await req.json()) as {
     planId: string;
     interval: string;
-    userId: string;
-    userEmail: string;
   };
-  const { planId, interval, userId, userEmail } = body;
+  const { planId, interval } = body;
 
   const secretKey = process.env.STRIPE_SECRET_KEY;
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
@@ -72,8 +71,18 @@ export async function POST(req: Request) {
   if (!secretKey || !pbUrl) {
     return Response.json({ error: "Payment system not configured" }, { status: 503 });
   }
-  if (!planId || !interval || !userId) {
-    return Response.json({ error: "planId, interval, and userId are required" }, { status: 400 });
+
+  // SECURITY (W95.7.3d-h6c) — derive the user from their session token, never a
+  // body userId/userEmail (admin-token + body-userId is the class fixed in muapi
+  // + stripe/portal). Without this, a checkout/customer could be bound to another
+  // user's metadata.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
+  const userEmail = me.email;
+
+  if (!planId || !interval) {
+    return Response.json({ error: "planId and interval are required" }, { status: 400 });
   }
 
   const prices = getPrices();

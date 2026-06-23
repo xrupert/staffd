@@ -121,7 +121,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
       const userEmail = (pb.authStore.record?.email as string) ?? "";
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ planId, interval, userId, userEmail }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
