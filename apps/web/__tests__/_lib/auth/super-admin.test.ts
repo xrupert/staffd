@@ -37,6 +37,7 @@ let fetchMock: FetchMock;
 
 beforeEach(() => {
   process.env.ADMIN_EMAIL = ADMIN_EMAIL;
+  delete process.env.NEXT_PUBLIC_ADMIN_EMAIL; // isolate the fallback from any ambient value
   fetchMock = vi.fn();
   globalThis.fetch = fetchMock as unknown as typeof fetch;
 });
@@ -44,6 +45,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.ADMIN_EMAIL;
+  delete process.env.NEXT_PUBLIC_ADMIN_EMAIL;
 });
 
 // ─── isSuperAdmin ───────────────────────────────────────────────────────
@@ -70,6 +72,12 @@ describe("isSuperAdmin", () => {
   it("returns false when ADMIN_EMAIL env var is missing", () => {
     delete process.env.ADMIN_EMAIL;
     expect(isSuperAdmin({ id: "u1", email: ADMIN_EMAIL })).toBe(false);
+  });
+
+  it("falls back to NEXT_PUBLIC_ADMIN_EMAIL when ADMIN_EMAIL is unset (client/server mismatch fix)", () => {
+    delete process.env.ADMIN_EMAIL;
+    process.env.NEXT_PUBLIC_ADMIN_EMAIL = ADMIN_EMAIL;
+    expect(isSuperAdmin({ id: "u1", email: ADMIN_EMAIL })).toBe(true);
   });
 
   it("returns false when user has empty email", () => {

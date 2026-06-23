@@ -29,7 +29,7 @@ export async function isSuperAdminSession(
 ): Promise<boolean> {
   const token = (pbToken ?? "").trim();
   if (!token) return false;
-  const adminEmail = (opts.adminEmail ?? process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+  const adminEmail = (opts.adminEmail ?? process.env.ADMIN_EMAIL ?? process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "").trim().toLowerCase();
   if (!adminEmail) return false;
   const base = (opts.pbUrl ?? process.env.NEXT_PUBLIC_POCKETBASE_URL ?? "").replace(/\/$/, "");
   if (!base) return false;

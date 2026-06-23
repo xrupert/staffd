@@ -26,13 +26,26 @@ import { adminHeaders, getAdminToken, pbUrl } from "../pb";
 export type SuperAdminUser = { id: string; email: string };
 
 /**
+ * The operator email, resolved server-side. Prefers `ADMIN_EMAIL` but falls back
+ * to `NEXT_PUBLIC_ADMIN_EMAIL` (also readable server-side) so that setting EITHER
+ * makes super-admin work end-to-end. This closes a real footgun: the client shows
+ * the admin nav off `NEXT_PUBLIC_ADMIN_EMAIL`, but the server gated super-admin
+ * (and the STAFFD-self brand-voice override) on `ADMIN_EMAIL` only — so with just
+ * the public var set, the operator's specialists lost STAFFD's brand voice and
+ * asked onboarding questions. One resolver removes the client/server split.
+ */
+export function resolveAdminEmail(): string {
+  return (process.env.ADMIN_EMAIL || process.env.NEXT_PUBLIC_ADMIN_EMAIL || "").trim().toLowerCase();
+}
+
+/**
  * Synchronous super-admin check given an already-resolved user identity.
  * Returns false for null user, null/empty ADMIN_EMAIL env, or any mismatch.
  * Comparison is case-insensitive and trims whitespace.
  */
 export function isSuperAdmin(user: SuperAdminUser | null | undefined): boolean {
   if (!user || !user.email) return false;
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+  const adminEmail = resolveAdminEmail();
   if (!adminEmail) return false;
   return user.email.trim().toLowerCase() === adminEmail;
 }
@@ -98,7 +111,7 @@ export async function requireSuperAdmin(req: Request): Promise<SuperAdminUser> {
   if (!pbToken) throw new SuperAdminAuthError(401, "missing_auth");
   const me = await whoAmIInternal(pbToken);
   if (!me) throw new SuperAdminAuthError(401, "unauthorized");
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+  const adminEmail = resolveAdminEmail();
   if (!adminEmail) throw new SuperAdminAuthError(503, "admin_not_configured");
   if (me.email.trim().toLowerCase() !== adminEmail) {
     throw new SuperAdminAuthError(403, "forbidden");
@@ -142,7 +155,7 @@ export async function trySuperAdminByUserId(
   userId: string | null | undefined,
 ): Promise<SuperAdminUser | null> {
   if (!userId) return null;
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+  const adminEmail = resolveAdminEmail();
   if (!adminEmail) return null;
   try {
     const token = await getAdminToken();

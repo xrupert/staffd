@@ -68,7 +68,7 @@ async function flagSuperAdminHidden(token: string): Promise<{
   status: "no_admin_email" | "no_admin_user" | "already_hidden" | "flagged";
   user_id?: string;
 }> {
-  const adminEmail = (process.env.ADMIN_EMAIL ?? "").trim().toLowerCase();
+  const adminEmail = (process.env.ADMIN_EMAIL ?? process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "").trim().toLowerCase();
   if (!adminEmail) return { status: "no_admin_email" };
 
   const url = pbUrl();

@@ -62,6 +62,86 @@ runs. So the deploy and gating are healthy - the above is what flips features ON
 
 ---
 
+## TEST PASS 1 RESULTS (2026-06-22) - status, fixes, and what is left
+
+Your live-test feedback, triaged. DONE = confirmed working. FIXED = root cause
+found + corrected in code (re-test after the next deploy). NEEDS YOU = a step you
+must run, with the reason. Detailed per-item checks remain in the numbered list
+below.
+
+### DONE (confirmed by you)
+- Item 1 - ADMIN_SECRET rotated.
+- Items 3 / 6 / 15 - all migrations refreshed (every collection now exists).
+- Item 28 - Clients UI no longer appears.
+- Item 9 - INTEGRATION_ENCRYPTION_KEY: not needed now (connect-your-tools was
+  deferred to a future enhancement). Leave it; nothing breaks.
+
+### CLARIFICATIONS (no action, or different than you thought)
+- Item 2 (admin_migration_log bootstrap) - NOT required. WHY: this collection is
+  only an AUDIT LOG of in-app migration runs, and the write is best-effort. Since
+  your migrations ran fine via /dashboard/admin/migrations, you do not need it.
+  (If you ever want the audit trail of who-ran-what, run the one curl; otherwise
+  skip it.)
+- Item 10 (DOCUSEAL_TEMPLATE_ID) - this is NOT the document-templates feature you
+  were thinking of. WHY: item 10's "template" is an e-signature template that
+  lives in the Docuseal vendor app (a contract layout Docuseal stamps signature
+  fields onto). The thing you described - an editable starter template with your
+  branding - is the separate /dashboard/templates feature, which DOES auto-seed
+  editable starter templates and fills your vault branding in. So: item 10 is
+  only needed if you want to test the "send for signature" flow; ignore it for
+  the templates feature itself.
+
+### FIXED THIS PASS (re-test after deploy)
+- Items 26 / 29 / 30 (no STAFFD brand voice; specialists ask onboarding
+  questions instead of knowing STAFFD) - ROOT CAUSE FOUND + FIXED. WHY it broke:
+  the SERVER detects super-admin by comparing your email to `ADMIN_EMAIL`, but you
+  only set `NEXT_PUBLIC_ADMIN_EMAIL` (the CLIENT var that shows the admin nav). So
+  the browser thought you were admin, but the server did not - and the vault layer
+  only loads STAFFD's brand voice for the server-recognized operator. With no
+  brand voice, every specialist falls back to asking onboarding questions. FIX:
+  server super-admin detection now falls back to `NEXT_PUBLIC_ADMIN_EMAIL` when
+  `ADMIN_EMAIL` is unset, so it works off the var you already set. After the next
+  deploy, re-test 29 then 30/26 - specialists should now speak in STAFFD's voice
+  and stop asking who you are.
+
+### NEEDS YOU (with the reason)
+- Item 32 / 31 (generation: "every model in the routing list is missing from the
+  catalog") - this is the EXPECTED state until you run the catalog sync; the tier
+  picker working + then that message means the `generation_models` table is empty.
+  WHY: the migration created the (empty) catalog table; a separate one-time SYNC
+  pulls the ~230 models from Muapi into it. Until then there is nothing to route
+  to. DO THIS (Git Bash):
+      curl -H 'x-worker-secret: YOUR_WORKER_SECRET' https://urstaffd.com/api/worker/muapi-catalog-sync
+  Then PASTE ME the JSON it returns. WHY paste it: it reports `upserted` (should be
+  >100) and `routingDrift` (a list of model slugs my routing config names that are
+  NOT in the live catalog). If `routingDrift` is non-empty, generation still fails
+  for those tiers and I fix the slugs from your output. If the curl returns
+  `ok:false` / `upserted:0`, then `MUAPI_API_KEY` is not set in Vercel (your item
+  31 "nothing connected to muapi") - tell me and we sort the key first.
+- Item 8 (Google sign-in completes on Google but does not log you in) - real bug,
+  investigating. To pinpoint it I need: after you click through Google and land
+  back on the site, (a) the exact URL you land on, and (b) any red errors in the
+  browser console (F12 -> Console). Paste those and I will fix the callback.
+- Item 19 (you must TYPE /dashboard/admin/migrations and /activity) - FIXING: I am
+  adding nav links on the admin dashboard so you can click through. (No input
+  needed; just re-check after deploy.)
+- Item 26 analytics (the "ask your specialist" link looped you back into Marketing
+  instead of setting up the site) - the empty-state link is misdirected: site
+  analytics is OPERATOR-provisioned, not a specialist task. The real path is item
+  23: /dashboard/admin/usage -> Users tab -> the dot on your row -> paste a
+  Plausible site id. I am also going to fix that empty-state link so it does not
+  send you in a loop. (And note: with the brand-voice fix above, the Marketing
+  specialist will at least stop asking who STAFFD is.)
+- Items 16 / 18 / 19-activity - you have autopilot turned off, which is correct;
+  turn graduated actions ON when you run item 16. For item 19's activity page, see
+  the nav-link fix above.
+- Item 30 (TikTok) - re-test AFTER the brand-voice deploy. If the specialist still
+  routes to generic Marketing and does not produce a TikTok script + a Generate
+  Video button, that is a separate routing/specialist gap I will chase next; the
+  brand-voice fix removes the "asks about the brand" half of the problem.
+
+---
+
 ## 🔴 PENDING
 
 ### 1. Rotate `ADMIN_SECRET` (W95.3) — security

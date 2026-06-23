@@ -52,6 +52,18 @@ const SURFACES: AdminSurface[] = [
     description: "V1 substrate self-check: collections, intent handlers, workers, migrations, recipes, and vendor backends — all green or red.",
     status: "live",
   },
+  {
+    href: "/dashboard/admin/migrations",
+    title: "Migrations",
+    description: "Run the in-app PocketBase migrations (provision collections + fields). Per-row status + Run all pending.",
+    status: "live",
+  },
+  {
+    href: "/dashboard/admin/activity",
+    title: "Autopilot Activity",
+    description: "Recent autopilot fires across the fleet, with status and in-window Undo.",
+    status: "live",
+  },
 ];
 
 const DEFERRED_VIEWERS = [
