@@ -54,13 +54,12 @@ describe("W95.7.3d-h1 — resolveModel fails loudly", () => {
     expect(sub.fn.mock.calls[0]![0]).toBe("present");
   });
 
-  it("ALL slugs absent → 500 all_models_drifted with attempted[], no Muapi call", async () => {
-    route.models = ["x", "y"]; cat.present = new Set();
+  it("ALL slugs absent from catalog → falls back to the verified primary slug + submits (h4)", async () => {
+    route.models = ["x", "y"]; cat.present = new Set(); // empty/unsynced catalog
     const res = await post(body);
-    expect(res.status).toBe(500);
-    const d = await res.json();
-    expect(d).toMatchObject({ error: "all_models_drifted", attempted: ["x", "y"] });
-    expect(sub.fn).not.toHaveBeenCalled();
+    expect(res.status).toBe(202); // no longer a hard 500 — generation proceeds
+    expect(sub.fn).toHaveBeenCalledTimes(1);
+    expect(sub.fn.mock.calls[0]![0]).toBe("x"); // the verified primary slug
   });
 
   it("valid routing + catalog → submits with the exact first slug", async () => {

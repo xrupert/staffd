@@ -139,6 +139,13 @@ below.
   this is the one place I still need you: run a real Generate after those two
   steps and paste me the result or the `[muapi] submit failed` log line if it
   errors.
+  UPDATE 3 (2026-06-23): you do NOT need to run the catalog sync at all anymore.
+  I removed the hard gate that made it a prerequisite (the "all_models_drifted"
+  error). Generation now uses the verified routing slugs directly; the catalog is
+  just a background drift-detector + dynamic-pricing cache. Since `MUAPI_API_KEY`
+  has been set in Vercel since May 31, generation should now work the moment this
+  deploys — just open the app and press Generate. (If it still errors, paste the
+  `[muapi] submit failed` log line and I'll fix the slug/body.)
 - Item 8 (Google sign-in completes on Google but does not log you in) - almost
   certainly a CONFIG mismatch, not app code. WHY: the button uses PocketBase's
   all-in-one popup flow; if that flow succeeds, the session IS saved

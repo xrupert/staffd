@@ -184,19 +184,25 @@ export function resolveAspectRatio(
  * REMOVED. Failures fail loudly with structured 500s.
  *
  *  - routeFor empty for (dept,kind,tier)      → { error: "routing_unresolved" }
- *  - first slug present in generation_models  → use it
- *  - a slug absent (drift) → try the next
- *  - all slugs absent from the catalog        → { error: "all_models_drifted" }
+ *  - a routed slug present in generation_models → use it (catalog-accurate)
+ *  - catalog empty / unsynced / all absent     → fall back to the first routed
+ *    slug (W95.7.3d-h4 reversal of h1's hard fail): the routing slugs are
+ *    version-controlled AND verified against the live catalog, and billing uses
+ *    the LOCKED tier weight (not the catalog cost), so an unsynced cache must NOT
+ *    block generation. If a slug has genuinely drifted, Muapi returns a submit
+ *    error (surfaced) and the hourly catalog-drift signal flags it for a fix —
+ *    that is the right place for drift to fail, not a hard pre-submit gate that
+ *    requires a manual operator sync before ANY generation can run.
  */
-type ResolveResult = { model: string } | { error: "routing_unresolved" } | { error: "all_models_drifted"; attempted: string[] };
+type ResolveResult = { model: string } | { error: "routing_unresolved" };
 
 async function resolveModel(department: string, kind: "image" | "video", tier: Tier): Promise<ResolveResult> {
   const candidates = routeFor(department, kind, tier);
   if (candidates.length === 0) return { error: "routing_unresolved" };
   for (const slug of candidates) {
-    if (await modelTierWeight(slug)) return { model: slug }; // present in the catalog
+    if (await modelTierWeight(slug)) return { model: slug }; // present in the catalog → accurate
   }
-  return { error: "all_models_drifted", attempted: candidates };
+  return { model: candidates[0]! }; // catalog empty/unsynced → use the verified primary slug
 }
 
 // W95.7.3b — PredictionResult / tryExtractOutputUrl / submitPrediction moved to
@@ -283,15 +289,15 @@ export async function POST(req: Request) {
       return Response.json({ success: true, jobId: dupId, status: "pending", deduped: true }, { status: 202 });
     }
 
-    // W95.7.3d-h1 — resolve the model EXCLUSIVELY via routeFor + the live
-    // catalog, BEFORE the enrich (so a routing failure costs no Anthropic call).
-    // Fail loudly with a structured 500 — never fall back to a hardcoded slug.
+    // W95.7.3d-h4 — resolve the model via routeFor (+ catalog preference), BEFORE
+    // the enrich (so a routing failure costs no Anthropic call). The ONLY hard
+    // failure is `routing_unresolved` (no slug registered for this combination at
+    // all). An empty/unsynced catalog no longer blocks generation — resolveModel
+    // falls back to the verified primary slug.
     const resolved = await resolveModel(dept, kind, tier);
     if ("error" in resolved) {
       return Response.json(
-        resolved.error === "routing_unresolved"
-          ? { error: "routing_unresolved", department: dept, kind, tier, message: "No model registered for this combination." }
-          : { error: "all_models_drifted", department: dept, kind, tier, attempted: resolved.attempted, message: "Every model in the routing list is missing from the catalog." },
+        { error: "routing_unresolved", department: dept, kind, tier, message: "No model registered for this combination." },
         { status: 500 },
       );
     }

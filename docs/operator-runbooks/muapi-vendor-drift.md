@@ -163,21 +163,25 @@ the catalog and security crons emit through one path — not a bespoke email her
 
 **Routing failures fail loudly (W95.7.3d-h1).** The legacy `routeImageModel` /
 `routeVideoModel` hardcoded-slug fallback is REMOVED — the muapi route resolves
-its model EXCLUSIVELY via `routeFor` + `generation_models`. When resolution
-can't produce a catalog-present slug, the route returns a structured HTTP 500
-(NOT a 404 to Muapi):
+its model via `routeFor` (the catalog is a PREFERENCE for accurate dynamic
+pricing, not a hard gate — W95.7.3d-h4). The only hard failure:
 
 | Error | Meaning | Fix |
 |---|---|---|
-| `routing_unresolved` | `routeFor(department, kind, tier)` returned no models | Add a routing entry for that combination in `routing.ts` |
-| `all_models_drifted` | every routed slug (`attempted[]`) is absent from `generation_models` | Run the catalog sync; if still failing, the slugs drifted — update `routing.ts` |
+| `routing_unresolved` | `routeFor(department, kind, tier)` returned no models at all | Add a routing entry for that combination in `routing.ts` |
 
-Both bodies carry `{ error, department, kind, tier, message }` (+`attempted[]` for
-drift). The specialist delivery layer consumes the 500 and shows a customer-readable
-"operator configuration required" message — the customer never sees a raw 500.
-**Operational prerequisite:** the catalog MUST be synced at least once
-(`/api/worker/muapi-catalog-sync`) before generation works, or every request
-returns `all_models_drifted`.
+The body carries `{ error, department, kind, tier, message }`. The specialist
+delivery layer consumes the 500 and shows a customer-readable "operator
+configuration required" message.
+
+**No manual catalog sync is required for generation (h4 reversal of h1).** The
+routing slugs are version-controlled and verified against the live catalog, and
+billing uses the LOCKED tier weight (not the catalog cost), so an empty/unsynced
+`generation_models` no longer blocks generation — `resolveModel` falls back to the
+verified primary slug. If a slug has genuinely drifted, Muapi returns a submit
+error (surfaced in the `[muapi] submit failed` log) and the hourly catalog-drift
+signal flags it. The hourly sync still runs as a background drift-detector +
+dynamic-pricing cache; it is just no longer a precondition.
 
 ## 7. Departments without routing entries (W95.7.3d-h1)
 
