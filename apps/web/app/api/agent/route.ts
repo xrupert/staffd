@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { randomUUID } from "node:crypto";
-import { getAgent, getDepartmentDefaultAgent } from "@staffd/agents";
+import { getAgent, getDepartmentDefaultAgent, routeTask, type Department } from "@staffd/agents";
 import { fetchVault, renderVaultBlock, retrieve } from "../_lib/vault";
 import { recordTrialRun, resolveDepartments } from "../_lib/trial";
 import { checkAndIncrementRateLimit } from "../_lib/ratelimit";
@@ -222,10 +222,17 @@ export async function POST(req: Request) {
       }
     }
 
-    // System prompt — prefer the caller-specified agent, fall back to the
-    // department's canonical default (pack-aware per Phase 8). Voice
-    // fingerprint (Phase 2) appended after vault for voice-applicable depts.
-    const resolvedAgent = (agentId ? getAgent(agentId) : null) ?? getDepartmentDefaultAgent(department, activePacks);
+    // System prompt — agent resolution order (W95.7.3d-h5):
+    //   1. caller-pinned agentId (explicit wins)
+    //   2. the SPECIALIST whose tags best match the task (routeTask) — this is
+    //      why "make a tiktok video" now reaches the TikTok Strategist instead of
+    //      the generic department default it used to fall straight through to.
+    //   3. the department's canonical default (pack-aware per Phase 8).
+    // Voice fingerprint (Phase 2) appended after vault for voice-applicable depts.
+    const resolvedAgent =
+      (agentId ? getAgent(agentId) : null)
+      ?? (task?.trim() ? routeTask(task, department as Department, { activePacks }) : null)
+      ?? getDepartmentDefaultAgent(department, activePacks);
     let systemPrompt = (resolvedAgent?.systemPrompt ?? "") + vaultBlock + voiceBlock;
 
     // V5 — LIVING MEMORY goes in right after the vault block, before the
