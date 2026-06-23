@@ -16,6 +16,8 @@ vi.hoisted(() => {
 
 vi.mock("@anthropic-ai/sdk", () => ({ default: class { messages = { create: async () => ({ content: [{ type: "text", text: "enriched dense prompt that is long enough to pass" }] }) }; } }));
 vi.mock("../../app/api/_lib/auth/super-admin", () => ({ trySuperAdminByUserId: async () => null }));
+const auth = vi.hoisted(() => ({ user: { id: "u1", email: "u@x.com" } as { id: string; email: string } | null }));
+vi.mock("../../app/api/_lib/integrations/identity", () => ({ whoAmI: async () => auth.user }));
 vi.mock("../../app/api/_lib/pb", () => ({ getAdminToken: async () => "tok" }));
 
 const credit = vi.hoisted(() => ({ remaining: 5 }));
@@ -46,10 +48,17 @@ import { POST } from "../../app/api/integrations/muapi/route";
 
 const post = (body: object) => POST(new Request("https://t/api/integrations/muapi", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
 
-beforeEach(() => { credit.remaining = 100; sub.result = { id: "p1" }; jobs.created = "job-1"; jobs.dupId = null; jobs.createFn.mockClear(); jobs.completeFn.mockClear(); });
+beforeEach(() => { auth.user = { id: "u1", email: "u@x.com" }; credit.remaining = 100; sub.result = { id: "p1" }; jobs.created = "job-1"; jobs.dupId = null; jobs.createFn.mockClear(); jobs.completeFn.mockClear(); });
 afterEach(() => vi.restoreAllMocks());
 
 describe("POST /api/integrations/muapi (W95.7.3b async)", () => {
+  it("401 without a session — no body-userId can spend the Muapi wallet (W95.7.3d-h6)", async () => {
+    auth.user = null;
+    const res = await post({ userId: "anyone", kind: "image", prompt: "a red apple" });
+    expect(res.status).toBe(401);
+    expect(jobs.createFn).not.toHaveBeenCalled();
+  });
+
   it("no immediate URL → 202 pending + jobId, NO charge", async () => {
     const res = await post({ userId: "u1", kind: "video", prompt: "a dog running through a field at dawn" });
     expect(res.status).toBe(202);

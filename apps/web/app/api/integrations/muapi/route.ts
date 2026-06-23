@@ -26,6 +26,7 @@ import { createJob, completeJob, fingerprintFor, findInflightByFingerprint, type
 import { defaultTierFor, tierWeight, type Tier } from "../../_lib/generation/pricing";
 import { routeFor } from "../../_lib/generation/routing";
 import { modelTierWeight } from "../../_lib/generation/catalog";
+import { whoAmI } from "../../_lib/integrations/identity";
 
 const anthropic = new Anthropic();
 
@@ -226,8 +227,7 @@ export async function POST(req: Request) {
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });
 
   try {
-    const { userId, kind, prompt, aspectRatio, tier: reqTier, department } = (await req.json()) as {
-      userId: string;
+    const { kind, prompt, aspectRatio, tier: reqTier, department } = (await req.json()) as {
       kind: "image" | "video";
       prompt: string;
       aspectRatio?: string;
@@ -235,7 +235,15 @@ export async function POST(req: Request) {
       department?: string;  // drives the default tier + model routing (W95.7.3d-h1: model resolved server-side only)
     };
 
-    if (!userId)           return Response.json({ error: "userId required" }, { status: 400 });
+    // SECURITY (W95.7.3d-h6) — resolve the user from their SESSION TOKEN, never a
+    // body `userId`. The old body-userId path was unauthenticated: any caller
+    // could POST an arbitrary userId and spend the operator's Muapi wallet (real
+    // money) on a paid generation. Now only an authenticated user can generate,
+    // and only as themselves (their own credits).
+    const me = await whoAmI(req);
+    if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const userId = me.id;
+
     if (kind !== "image" && kind !== "video") return Response.json({ error: "kind must be 'image' or 'video'" }, { status: 400 });
     if (!prompt?.trim())   return Response.json({ error: "prompt is required" }, { status: 400 });
 

@@ -37,7 +37,9 @@ export async function runGeneration(
   try {
     res = await fetch("/api/integrations/muapi", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      // W95.7.3d-h6 — the submit route now authenticates the caller from this
+      // token (no more body-userId trust); without it the route 401s.
+      headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
       // W95.7.3d-T1 — forward tier + department so the server charges the tier
       // weight and routes to the tier's best model.
       body: JSON.stringify({ userId: opts.userId, kind: opts.kind, prompt: opts.prompt, aspectRatio: opts.aspectRatio, tier: opts.tier, department: opts.department }),

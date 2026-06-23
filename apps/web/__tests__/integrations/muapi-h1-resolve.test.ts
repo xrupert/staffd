@@ -11,6 +11,7 @@ import { resolve, join } from "node:path";
 vi.hoisted(() => { process.env.MUAPI_API_KEY = "k"; process.env.NEXT_PUBLIC_POCKETBASE_URL = "https://pb.test"; });
 vi.mock("@anthropic-ai/sdk", () => ({ default: class { messages = { create: async () => ({ content: [{ type: "text", text: "enriched dense prompt long enough" }] }) }; } }));
 vi.mock("../../app/api/_lib/auth/super-admin", () => ({ trySuperAdminByUserId: async () => null }));
+vi.mock("../../app/api/_lib/integrations/identity", () => ({ whoAmI: async () => ({ id: "u1", email: "u@x.com" }) }));
 vi.mock("../../app/api/_lib/pb", () => ({ getAdminToken: async () => "tok" }));
 vi.mock("../../app/api/_lib/credits", () => ({ getCreditState: async () => ({ totalRemaining: { image: 100, video: 100 }, monthlyAllowance: { image: 100, video: 100 }, plan: "growth" }) }));
 
