@@ -1,6 +1,6 @@
 /**
  * POST /api/generation/webhook (W95.7.3c-b1) — Muapi completion callback (push
- * delivery via `?webhook=`). PRIMARY completion path; the client poll
+ * delivery via the `webhook_url` submit-body field). PRIMARY completion path; the client poll
  * (GET /api/generation/[id]/status) stays as fallback.
  *
  * Auth: an HMAC-derived capability token in the URL (`?token=`), timing-safe

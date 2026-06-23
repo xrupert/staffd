@@ -35,9 +35,10 @@ export function muapiConfigured(): boolean {
  */
 
 // ── Completion webhook (W95.7.3c-b1) ───────────────────────────────────────
-// Muapi supports `?webhook=<url>` push delivery on completion. The spec shows
-// no payload-signing, so we authenticate the callback with an HMAC-DERIVED
-// capability token in the URL (the raw secret never leaves the server); the
+// Muapi takes a `webhook_url` BODY field for completion push delivery (verified
+// against the live OpenAPI). The spec shows no payload-signing, so we
+// authenticate the callback with an HMAC-DERIVED capability token in the URL
+// (the raw secret never leaves the server); the
 // receiver re-derives + timing-safe compares, then pulls the AUTHORITATIVE
 // result via checkPrediction (never trusts the unsigned payload body).
 
@@ -58,7 +59,7 @@ export function verifyWebhookToken(token: string | null | undefined): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** The callback URL handed to Muapi via `?webhook=`, or null if unconfigured. */
+/** The callback URL handed to Muapi as the `webhook_url` body field, or null if unconfigured. */
 export function buildWebhookUrl(baseUrl: string): string | null {
   if (!MUAPI_WEBHOOK_SECRET || !baseUrl) return null;
   return `${baseUrl.replace(/\/$/, "")}/api/generation/webhook?token=${muapiWebhookToken()}`;
@@ -97,14 +98,17 @@ export async function submitPrediction(
   body: Record<string, unknown>,
   webhookUrl?: string | null,
 ): Promise<PredictionResult> {
-  const url = webhookUrl
-    ? `${MUAPI_URL}/api/v1/${modelEndpoint}?webhook=${encodeURIComponent(webhookUrl)}`
-    : `${MUAPI_URL}/api/v1/${modelEndpoint}`;
+  const url = `${MUAPI_URL}/api/v1/${modelEndpoint}`;
+  // W95.7.3d-h4 (verified against the live OpenAPI 2026-06-23): every model
+  // takes the completion callback as a BODY field `webhook_url`, NOT a `?webhook=`
+  // query param. The old query form silently no-op'd push delivery (poll fallback
+  // still completed jobs).
+  const payload = webhookUrl ? { ...body, webhook_url: webhookUrl } : body;
   console.log("[muapi] submitting", { model: modelEndpoint, webhook: !!webhookUrl });
   const res = await fetch(url, {
     method: "POST",
     headers: { "x-api-key": MUAPI_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const detail = await res.text();

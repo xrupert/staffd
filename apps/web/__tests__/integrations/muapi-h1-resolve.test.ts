@@ -83,7 +83,8 @@ describe("W95.7.3d-h1 — legacy slugs removed from source", () => {
     // live Muapi catalog confirms `flux-dev` is the real image-pro model. h1 had
     // wrongly assumed it was legacy and substituted the nonexistent "flux-1-dev",
     // which is why generation drifted. `flux-dev-image` and bare `veo3` remain
-    // genuinely legacy (the real video slug is `veo3.1-image-to-video`).
+    // genuinely legacy. (h4: video now routes to text-to-video models like
+    // openai-sora-2-pro-text-to-video — the old i2v slugs needed a source image.)
     const webRoot = resolve(__dirname, "..", "..");
     const forbidden = /flux-dev-image|"veo3"/;
     const hits: string[] = [];

@@ -127,6 +127,18 @@ below.
   submit) DOES need `MUAPI_API_KEY` in Vercel. So the order is: (1) sync (fixes
   the "all_models_drifted" message), then (2) ensure `MUAPI_API_KEY` is set so the
   submit succeeds.
+  UPDATE 2 (2026-06-23, from reading the Muapi CLI/OpenAPI you sent): I verified
+  STAFFD's whole submit path against the live OpenAPI spec and found + FIXED the
+  reason VIDEO did nothing (your #30/#32): every video slug was IMAGE-to-video and
+  REQUIRES a source image, which a text prompt can't satisfy - so the submit 400'd.
+  Video now routes to TEXT-to-video models (prompt-only). Also fixed the webhook
+  (it's a `webhook_url` body field, not a `?webhook=` query). Auth header, poll
+  endpoint, and image generation were already correct. So after you (1) sync the
+  catalog and (2) set MUAPI_API_KEY, a TikTok video from a text prompt should
+  actually generate. I could not fire a live test myself (no API key on my side) -
+  this is the one place I still need you: run a real Generate after those two
+  steps and paste me the result or the `[muapi] submit failed` log line if it
+  errors.
 - Item 8 (Google sign-in completes on Google but does not log you in) - almost
   certainly a CONFIG mismatch, not app code. WHY: the button uses PocketBase's
   all-in-one popup flow; if that flow succeeds, the session IS saved

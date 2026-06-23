@@ -24,10 +24,14 @@ type TierModels = Record<Tier, string[]>;
 
 /** Best-of-band defaults per kind (shared across departments unless overridden). */
 const DEFAULT_MODELS: Record<GenKind, TierModels> = {
+  // TEXT-TO-VIDEO only (W95.7.3d-h4, verified 2026-06-23): customers describe a
+  // video in words, so we MUST route to t2v models (prompt-only). The earlier
+  // i2v ("image-to-video") slugs REQUIRED a source image (image_url/images_list)
+  // that the conversational flow never provides → every video submit 400'd.
   video: {
-    quick: ["pixverse-v5.5-i2v", "seedance-pro-i2v-fast"],          // $0.06–0.15
-    pro: ["pixverse-v6-i2v", "kling-v2.1-standard-i2v"],            // $0.15–0.40
-    premium: ["veo3.1-image-to-video", "openai-sora-2-pro-image-to-video"], // $2.40–3.00
+    quick: ["pixverse-v5.5-t2v", "hunyuan-text-to-video"],          // $0.10–0.15
+    pro: ["pixverse-v6-t2v", "minimax-hailuo-02-standard-t2v"],     // ~$0.30
+    premium: ["openai-sora-2-pro-text-to-video", "kling-v3.0-omni-4k-text-to-video"], // $2.40–2.68
   },
   image: {
     quick: ["flux-schnell"],                                        // $0.01–0.03 (verified present in the live catalog 2026-06-23)

@@ -138,6 +138,17 @@ that pass: `flux-1-dev` → `flux-dev` (the real slug; h1 had substituted a
 nonexistent one) and the bogus `background-remove` dropped from image-quick. Re-run
 this verification whenever Muapi ships a catalog change.
 
+**Submit-schema verification (W95.7.3d-h4, 2026-06-23).** Confirmed against the
+live OpenAPI (`https://api.muapi.ai/openapi.json`, public): REST auth is the
+`x-api-key` header (✓ matches `predictions.ts`); the completion callback is a
+BODY field `webhook_url` (NOT a `?webhook=` query — fixed); the poll endpoint is
+`/api/v1/predictions/{id}/result` (✓). **Video MUST route to text-to-video (t2v)
+models** — every `*-i2v` / `image-to-video` model `requires` a source image
+(`image_url` / `images_list`) the conversational flow never supplies, so those
+slugs 400'd on submit. t2v models require only `prompt`. The image tiers are
+text-to-image (prompt-only) and are fine. When refreshing slugs, prefer t2v for
+video and verify each `required` field against the OpenAPI path schema.
+
 **Catalog drift signal (W95.7.3d-h3).** Beyond slug drift, the hourly sync diffs
 the freshly-classified catalog against the cache (`computeCatalogDrift`) and emits
 a structured `[catalog-drift]` log line when **risk-bearing** change appears: a

@@ -33,9 +33,9 @@ describe("createJob single-point defaults (W95.7.3d-T1 C4)", () => {
     expect(post.body.credit_weight).toBe(1);
   });
   it("persists the supplied tier + weight", async () => {
-    await createJob("https://pb.test", "tok", { user: "u1", kind: "video", model: "m", prompt: "p", aspect_ratio: "16:9", prediction_id: "pid", tier: "premium", credit_weight: 60, muapi_model: "veo3.1-image-to-video" });
+    await createJob("https://pb.test", "tok", { user: "u1", kind: "video", model: "m", prompt: "p", aspect_ratio: "16:9", prediction_id: "pid", tier: "premium", credit_weight: 60, muapi_model: "openai-sora-2-pro-text-to-video" });
     const post = writes.find((w) => w.method === "POST")!;
-    expect(post.body).toMatchObject({ tier: "premium", credit_weight: 60, muapi_model: "veo3.1-image-to-video" });
+    expect(post.body).toMatchObject({ tier: "premium", credit_weight: 60, muapi_model: "openai-sora-2-pro-text-to-video" });
   });
 });
 
