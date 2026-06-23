@@ -118,10 +118,22 @@ below.
   for those tiers and I fix the slugs from your output. If the curl returns
   `ok:false` / `upserted:0`, then `MUAPI_API_KEY` is not set in Vercel (your item
   31 "nothing connected to muapi") - tell me and we sort the key first.
-- Item 8 (Google sign-in completes on Google but does not log you in) - real bug,
-  investigating. To pinpoint it I need: after you click through Google and land
-  back on the site, (a) the exact URL you land on, and (b) any red errors in the
-  browser console (F12 -> Console). Paste those and I will fix the callback.
+- Item 8 (Google sign-in completes on Google but does not log you in) - almost
+  certainly a CONFIG mismatch, not app code. WHY: the button uses PocketBase's
+  all-in-one popup flow; if that flow succeeds, the session IS saved
+  (localStorage, same as email login which works). "Completes Google but no
+  login" means the OAuth code never returned to PocketBase - which happens when
+  Google's redirect URI does not point at PocketBase. DO THIS:
+  1. Google Cloud Console -> APIs & Services -> Credentials -> your OAuth 2.0
+     Client ID -> Authorized redirect URIs. Confirm it includes EXACTLY the
+     PocketBase redirect endpoint:
+     https://pocketbase-production-4774.up.railway.app/api/oauth2-redirect
+     (i.e. NEXT_PUBLIC_POCKETBASE_URL + /api/oauth2-redirect) - NOT urstaffd.com.
+  2. PB admin -> Settings -> Auth providers -> Google: confirm Enabled, and the
+     Client ID + Secret match that same Google Cloud client.
+  3. Re-test. If it STILL fails, then paste me (a) the exact URL you land on and
+     (b) any red errors in the browser console (F12 -> Console) and I will take it
+     from there. (App code is fine; I verified the auth store persists.)
 - Item 19 (you must TYPE /dashboard/admin/migrations and /activity) - FIXING: I am
   adding nav links on the admin dashboard so you can click through. (No input
   needed; just re-check after deploy.)

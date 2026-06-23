@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import pb from "../../../../lib/pb";
+import { isSuperAdminClient } from "../../../../lib/hooks/useEffectivePlan";
 
 type Agg = { visitors: number; pageviews: number; bounce_rate: number; visit_duration_seconds: number };
 type Point = { date: string; visitors: number; pageviews: number };
@@ -70,8 +71,14 @@ export default function AnalyticsPage() {
           : !data.hasSite ? (
             <div style={{ ...card, textAlign: "center", padding: "40px" }}>
               <p className="text-3xl mb-3">📈</p>
-              <p className="text-sm mb-5" style={{ color: "#9090A8" }}>Site tracking isn&apos;t set up yet — your specialist can help connect your site.</p>
-              <a href="/dashboard?ask=help%20me%20set%20up%20site%20tracking" className="text-sm px-4 py-2 rounded-xl btn-primary text-white font-semibold inline-block" style={{ textDecoration: "none" }}>Ask your specialist →</a>
+              {isSuperAdminClient() ? (
+                <>
+                  <p className="text-sm mb-5" style={{ color: "#9090A8" }}>No analytics site is connected to this account yet. Provision one from the admin usage panel (Users → the dot on a row → paste the site id).</p>
+                  <a href="/dashboard/admin/usage" className="text-sm px-4 py-2 rounded-xl btn-primary text-white font-semibold inline-block" style={{ textDecoration: "none" }}>Set up in Admin →</a>
+                </>
+              ) : (
+                <p className="text-sm" style={{ color: "#9090A8" }}>Site tracking isn&apos;t set up yet — your specialist will connect your site for you.</p>
+              )}
             </div>
           ) : (
             <>
