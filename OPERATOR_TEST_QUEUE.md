@@ -186,10 +186,17 @@ below.
 - Items 16 / 18 / 19-activity - you have autopilot turned off, which is correct;
   turn graduated actions ON when you run item 16. For item 19's activity page, see
   the nav-link fix above.
-- Item 30 (TikTok) - re-test AFTER the brand-voice deploy. If the specialist still
-  routes to generic Marketing and does not produce a TikTok script + a Generate
-  Video button, that is a separate routing/specialist gap I will chase next; the
-  brand-voice fix removes the "asks about the brand" half of the problem.
+- Item 30 (TikTok) - FULLY ADDRESSED across the stack; re-test the whole flow.
+  All four links are now fixed/verified: (1) RIGHT SPECIALIST - /api/agent now
+  runs routeTask, so "make a tiktok video" reaches the TikTok Strategist (verified
+  against the registry), not the generic Content Creator; (2) BRAND-VOICED SCRIPT
+  - the super-admin vault fix means it writes a STAFFD TikTok script instead of
+  asking who you are; (3) GENERATE VIDEO BUTTON - the analyzer offers
+  `generate_video` for any video-shaped deliverable (a script), no gate; (4)
+  GENERATION - text-to-video models, verified accepting live submits. So a clean
+  test: "make me a TikTok video for STAFFD" -> TikTok Strategist writes a
+  brand-voiced script -> a "Generate the video ->" chip appears -> click it -> pick
+  a tier -> the video generates. Paste me anything that still misfires at any step.
 
 ---
 
