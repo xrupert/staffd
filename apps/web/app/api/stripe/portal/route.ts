@@ -10,6 +10,7 @@
 import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
 import { pbEscape } from "../../_lib/pb";
+import { whoAmI } from "../../_lib/integrations/identity";
 
 async function getAdminToken(pbUrl: string): Promise<string> {
   const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
@@ -26,17 +27,20 @@ async function getAdminToken(pbUrl: string): Promise<string> {
 }
 
 export async function POST(req: Request) {
-  const { userId } = (await req.json()) as { userId: string };
-
   const secretKey = process.env.STRIPE_SECRET_KEY;
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
 
   if (!secretKey || !pbUrl) {
     return Response.json({ error: "Payment system not configured" }, { status: 503 });
   }
-  if (!userId) {
-    return Response.json({ error: "userId required" }, { status: 400 });
-  }
+
+  // SECURITY (W95.7.3d-h6) — IDOR fix. The billing portal was looked up by a
+  // body `userId` via the ADMIN token, so any caller could open ANOTHER user's
+  // portal (see invoices, change card, cancel their subscription). Resolve the
+  // user from their session token instead; never trust a body userId.
+  const me = await whoAmI(req);
+  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+  const userId = me.id;
 
   // PR-Tranche-1.6 — resolveAppUrl handles empty-string env (W8 clone fix).
   const origin = resolveAppUrl(req.headers.get("origin"));

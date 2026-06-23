@@ -322,7 +322,7 @@ export default function DashboardPage() {
               <button
                 onClick={async () => {
                   const userId = pb.authStore.record?.id ?? "";
-                  const res = await fetch("/api/stripe/portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) });
+                  const res = await fetch("/api/stripe/portal", { method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token }, body: JSON.stringify({ userId }) });
                   const data = await res.json() as { url?: string };
                   if (data.url) window.location.href = data.url;
                 }}
