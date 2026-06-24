@@ -16,14 +16,24 @@ describe("buildEnricherSystemPrompt (vid1)", () => {
   const image = buildEnricherSystemPrompt("image");
   const video = buildEnricherSystemPrompt("video");
 
-  it("image variant keeps the enrich-don't-compress directive", () => {
-    expect(image).toMatch(/NEVER COMPRESS/);
+  it("image variant DISTILLS to the requested artifact — never transcribes the brief as a document", () => {
+    // W95.9.x — the maximalist 'preserve every word / render all text' enricher
+    // turned a logo brief into a photo of a brief on a desk. The fix: distill.
+    expect(image).toMatch(/distil/i);
+    expect(image).not.toMatch(/NEVER COMPRESS/);
+    // Must explicitly forbid rendering the brief/strategy doc as the image.
+    expect(image).toMatch(/strategy|brief|document|folder|desk/i);
+  });
+
+  it("image variant is logo-aware (a clean iconic mark, not a mockup of options)", () => {
+    expect(image).toMatch(/logo|brand mark/i);
+    expect(image).toMatch(/iconic|vector|flat/i);
+    // Never invent a brand name when none was given.
+    expect(image).toMatch(/never invent|text-free/i);
   });
 
   it("video variant distills to a single shot, not the whole script", () => {
     expect(video).toMatch(/single|one continuous shot/i);
-    // Text-to-video renders one scene — it must NOT carry the image maximalism.
-    expect(video).not.toMatch(/NEVER COMPRESS/);
   });
 
   it("video variant demands motion and forbids dumping overlay text / scenes", () => {

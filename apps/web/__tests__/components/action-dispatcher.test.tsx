@@ -316,9 +316,15 @@ describe("CommandCenter B2 pins — inline media + schedule + W35 email", () => 
     expect(src).not.toContain('fetch("/api/integrations/muapi"'); // sync path gone
   });
 
-  it("D12 — image renders as markdown in the assistant thread; video as a link", () => {
-    expect(src).toContain("![Generated visual](");
-    expect(src).toContain("[▶ Watch it here](");
+  it("D12 (W95.9.x) — a finished generation renders INLINE (img/video), never a raw vendor link", () => {
+    // The old behavior pushed `![Generated visual](muapi-url)` as a chat string
+    // that rendered as literal text — the customer saw the URL, not the image.
+    expect(src).not.toContain("![Generated visual](");
+    expect(src).not.toContain("[▶ Watch it here](");
+    // Now: a structured media message rendered inline as an element + download.
+    expect(src).toContain('media: { kind, url }');
+    expect(src).toContain("<img");
+    expect(src).toContain("<video");
   });
 
   it("media failures land as plain assistant messages — no silent failure", () => {
