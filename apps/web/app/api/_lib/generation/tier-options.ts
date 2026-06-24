@@ -27,7 +27,7 @@ export type TierOptions = {
 };
 
 /** A queued generation awaiting tier confirmation — shared by both gate surfaces. */
-export type GenerationRequest = { kind: GenKind; department: string; prompt: string };
+export type GenerationRequest = { kind: GenKind; department: string; prompt: string; mode?: "generate" | "edit"; sourceUrl?: string; instruction?: string };
 
 /** Build the picker rows for a (department, kind), with the dept default flagged. */
 export function buildTierOptions(department: string, kind: GenKind): TierOptions {

@@ -457,36 +457,46 @@ export default function CommandCenter() {
     }
   }
 
-  // Apply an edit-as-intent op to an artifact. Returns true when it handled the
-  // message (edit submitted / refine focus / variations), false only when the
-  // server judged the text "not_an_edit" so the caller falls back to normal
-  // routing. "refine" focuses the composer; "variations" reuses the re-gen grid;
-  // image ops hit runEdit. VIDEO edits are tier-gated in Tranche C (Task 9).
-  async function applyEdit(op: string, instruction: string, sourceUrl: string, kind: "image" | "video"): Promise<boolean> {
-    setActiveArtifact({ kind, sourceUrl });
-    if (op === "refine") { inputRef.current?.focus(); return true; }
-    if (op === "variations") { void generateImageOptions(); return true; }
-    if (kind === "video") return true; // video edits are tier-gated in Task 9
+  // Shared edit submit → thread. Returns false ONLY when the server judged the
+  // text not_an_edit (caller falls back to normal routing). `tier` is passed for
+  // metered video edits (image edits are unmetered → tier undefined).
+  async function runEditToThread(kind: "image" | "video", sourceUrl: string, instruction: string, tier?: Tier): Promise<boolean> {
     if (mediaBusyRef.current) return true;
     mediaBusyRef.current = true;
     setMediaGen({ kind });
     try {
-      const { url, error } = await runEdit({ kind, sourceUrl, instruction });
+      const { url, error } = await runEdit({ kind, sourceUrl, instruction, tier });
       if (url) {
         setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind, urls: [url] } }]);
         setActiveArtifact({ kind, sourceUrl: url }); // edited result becomes the new target → the loop
         return true;
       }
-      if (error === "not_an_edit") {
-        setActiveArtifact(null); // not actually an edit — caller falls back to normal routing
-        return false;
-      }
+      if (error === "not_an_edit") { setActiveArtifact(null); return false; }
       setMessages((prev) => [...prev, { role: "assistant", content: error ?? "Couldn't apply that edit — try again." }]);
       return true;
     } finally {
       mediaBusyRef.current = false;
       setMediaGen(null);
     }
+  }
+
+  // Apply an edit-as-intent op to an artifact. Returns true when it handled the
+  // message (edit submitted / refine focus / variations), false only when the
+  // server judged the text "not_an_edit" so the caller falls back to normal
+  // routing. "refine" focuses the composer; "variations" reuses the re-gen grid;
+  // image ops delegate to runEditToThread; video edits are metered → tier picker.
+  async function applyEdit(op: string, instruction: string, sourceUrl: string, kind: "image" | "video"): Promise<boolean> {
+    setActiveArtifact({ kind, sourceUrl });
+    if (op === "refine") { inputRef.current?.focus(); return true; }
+    if (op === "variations") { void generateImageOptions(); return true; }
+    if (kind === "video") {
+      // Video edits are metered → gate through the inline tier picker (Standard
+      // #38); the actual submit happens on confirm. `prompt` is unused for the
+      // picker rows (they key off department+kind) but the type requires it.
+      setPendingGen({ kind: "video", department: "", prompt: instruction, mode: "edit", sourceUrl, instruction });
+      return true;
+    }
+    return runEditToThread(kind, sourceUrl, instruction);
   }
 
   async function generateInlineMedia(kind: "image" | "video", tier: Tier) {
@@ -1206,7 +1216,11 @@ export default function CommandCenter() {
               {pendingGen && (
                 <GenerationTierInline
                   pending={pendingGen}
-                  onConfirm={(tier) => { const g = pendingGen; setPendingGen(null); if (g) void generateInlineMedia(g.kind, tier); }}
+                  onConfirm={(tier) => {
+                    const g = pendingGen; setPendingGen(null); if (!g) return;
+                    if (g.mode === "edit" && g.sourceUrl && g.instruction) void runEditToThread(g.kind, g.sourceUrl, g.instruction, tier);
+                    else void generateInlineMedia(g.kind, tier);
+                  }}
                   onClose={() => setPendingGen(null)}
                 />
               )}
