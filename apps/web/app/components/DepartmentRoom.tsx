@@ -12,8 +12,9 @@ import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import IntentActionModal, { type PendingAction } from "./IntentActionModal";
-import { runGeneration } from "../../lib/generation-client";
+import { runGeneration, runEdit } from "../../lib/generation-client";
 import GenerationTierModal, { type GenerationRequest } from "./GenerationTierModal";
+import EditAffordances from "./EditAffordances";
 import GenerationProgress from "./GenerationProgress";
 import { type Tier } from "../api/_lib/generation/pricing";
 import { ACTION_UI, FC2_ACTION_INTENT, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
@@ -662,6 +663,67 @@ export default function DepartmentRoom({
       else if (error) setVideoError(error.length > 500 ? error.slice(0, 500) + "…" : error);
     } finally {
       setVideoLoading(false);
+    }
+  }
+
+  // Edit-as-intent (chip path). Single-slot model: an edit REPLACES the current
+  // imageUrl/videoUrl, so EditAffordances (which points at that slot) re-targets
+  // the edited result → the refine loop. Image edits are unmetered (no tier);
+  // video edits MUST pass through GenerationTierModal first (Standard #38).
+  async function runDeptEdit(
+    kind: "image" | "video",
+    sourceUrl: string,
+    instruction: string,
+    tier?: Tier,
+  ) {
+    if (kind === "image") {
+      if (imageLoading) return;
+      setImageLoading(true);
+      setImageError("");
+      try {
+        const { url, error } = await runEdit({ kind: "image", sourceUrl, instruction, tier, department });
+        if (url) setImageUrl(url);
+        else if (error === "not_an_edit") setImageError("That didn't read as an edit — try a more specific change.");
+        else if (error) setImageError(error.length > 500 ? error.slice(0, 500) + "…" : error);
+      } finally {
+        setImageLoading(false);
+      }
+    } else {
+      if (videoLoading) return;
+      setVideoLoading(true);
+      setVideoError("");
+      try {
+        const { url, error } = await runEdit({ kind: "video", sourceUrl, instruction, tier, department });
+        if (url) setVideoUrl(url);
+        else if (error === "not_an_edit") setVideoError("That didn't read as an edit — try a more specific change.");
+        else if (error) setVideoError(error.length > 500 ? error.slice(0, 500) + "…" : error);
+      } finally {
+        setVideoLoading(false);
+      }
+    }
+  }
+
+  // Chip dispatcher from EditAffordances. `refine` has no composer here → no-op.
+  // `variations` re-runs the existing image generation (opens the tier picker,
+  // same as the Regenerate handler). Other ops apply the edit directly (image)
+  // or route through the tier modal (video, metered).
+  function applyEditDept(
+    op: string,
+    instruction: string,
+    sourceUrl: string,
+    kind: "image" | "video",
+  ) {
+    if (op === "refine") return; // no free-text composer in DepartmentRoom
+    if (op === "variations") {
+      // Re-run generation through the existing image path (Regenerate parity).
+      if (kind === "image") generateImage();
+      return;
+    }
+    if (kind === "image") {
+      void runDeptEdit("image", sourceUrl, instruction);
+    } else {
+      // Metered: open the tier picker; submit happens on confirm (Standard #38).
+      setPendingGen({ kind: "video", department, prompt: instruction, mode: "edit", sourceUrl, instruction });
     }
   }
 
@@ -1562,6 +1624,15 @@ export default function DepartmentRoom({
                       style={{ display: "block", width: "100%", height: "auto", maxHeight: "640px", objectFit: "contain", background: "#0D0D14" }}
                     />
                   )}
+                  {imageUrl && !imageLoading && (
+                    <div className="px-5 py-3" style={{ borderTop: "1px solid #1E1E2A" }}>
+                      <EditAffordances
+                        kind="image"
+                        urls={[imageUrl]}
+                        onEdit={(op, instruction, sourceUrl) => applyEditDept(op, instruction, sourceUrl, "image")}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1647,6 +1718,15 @@ export default function DepartmentRoom({
                       muted
                       style={{ display: "block", width: "100%", maxHeight: "640px", background: "#0D0D14" }}
                     />
+                  )}
+                  {videoUrl && !videoLoading && (
+                    <div className="px-5 py-3" style={{ borderTop: "1px solid #1E1E2A" }}>
+                      <EditAffordances
+                        kind="video"
+                        urls={[videoUrl]}
+                        onEdit={(op, instruction, sourceUrl) => applyEditDept(op, instruction, sourceUrl, "video")}
+                      />
+                    </div>
                   )}
                 </div>
               )}
@@ -1778,7 +1858,12 @@ export default function DepartmentRoom({
       {/* W95.7.3d-T1 — generation tier picker (shown before image/video gen). */}
       <GenerationTierModal
         pending={pendingGen}
-        onConfirm={(tier) => { const g = pendingGen; setPendingGen(null); if (g?.kind === "video") void runVideoGen(tier); else if (g) void runImageGen(tier); }}
+        onConfirm={(tier) => {
+          const g = pendingGen; setPendingGen(null); if (!g) return;
+          if (g.mode === "edit" && g.sourceUrl && g.instruction) void runDeptEdit(g.kind, g.sourceUrl, g.instruction, tier);
+          else if (g.kind === "video") void runVideoGen(tier);
+          else void runImageGen(tier);
+        }}
         onClose={() => setPendingGen(null)}
       />
 
