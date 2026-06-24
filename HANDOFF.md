@@ -219,8 +219,11 @@ ARCHITECTURE.md · STAFFD_TRACK.md · docs/operator-runbooks/**   canonical cont
 
 ## 9. Cross‑session memory
 
-Durable context lives in the operator's auto‑memory (`~/.claude/.../memory/`, indexed by `MEMORY.md`),
-not in this repo: `project_staffd*`, `project_staffd_model_b3`, `project_staffd_pricing_generation`,
+The durable, cross‑session context notes are **ported into the repo at [`docs/memory/`](docs/memory/)**
+(indexed by [`docs/memory/README.md`](docs/memory/README.md)) — so this project is fully portable and
+self‑describing on any machine, for any reviewer, with no dependency on a local `~/.claude` memory
+store. Key notes: `project_staffd`, `project_staffd_model_b3`, `project_staffd_pricing_generation`,
 `project_staffd_roadmap_gaps`, `project_staffd_notifications`, `project_staffd_l4`,
-`feedback_builder_authority`, `feedback_improve_existing`, `staffd_vercel_footguns`. A new session
-loads `MEMORY.md` automatically; this HANDOFF.md mirrors the essentials so the repo is self‑describing.
+`feedback_builder_authority`, `feedback_improve_existing`, `staffd_vercel_footguns`. (The operator's
+live auto‑memory may run slightly ahead; `docs/memory/` is the committed snapshot — re‑port when it
+drifts.)
