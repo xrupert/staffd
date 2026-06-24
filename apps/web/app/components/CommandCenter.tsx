@@ -12,6 +12,7 @@ import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
 import { runGeneration } from "../../lib/generation-client";
 import GenerationTierInline, { type GenerationRequest } from "./GenerationTierInline";
+import GenerationProgress from "./GenerationProgress";
 import { type Tier } from "../api/_lib/generation/pricing";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
@@ -219,6 +220,9 @@ export default function CommandCenter() {
   const mediaBusyRef = useRef(false);
   // W95.7.3d-T1 — pending generation awaiting tier selection in the modal.
   const [pendingGen, setPendingGen] = useState<GenerationRequest | null>(null);
+  // W95.8.1 — drives the prominent animated GenerationProgress block (a ref
+  // can't trigger a render, so media-in-flight needs its own state).
+  const [mediaGen, setMediaGen] = useState<{ kind: "image" | "video" } | null>(null);
   // W64 B2 (D13) — shared schedule_followup modal state.
   const [followupOpen, setFollowupOpen] = useState(false);
   const [followupSeed, setFollowupSeed] = useState("");
@@ -421,7 +425,10 @@ export default function CommandCenter() {
     if (mediaBusyRef.current) return; // in-flight guard — single job at a time
     mediaBusyRef.current = true;
     const label = kind === "image" ? "visual" : "video";
-    setMessages((prev) => [...prev, { role: "assistant", content: kind === "video" ? "Generating the video — this can take a minute…" : "Generating the visual — one moment…" }]);
+    // W95.8.1 — prominent animated progress (replaces the faded chat line); the
+    // completion event (generation.ready → bell/push) is already wired, so the
+    // block tells the customer they can keep working.
+    setMediaGen({ kind });
     try {
       const { url, error } = await runGeneration({ userId, kind, prompt, aspectRatio: "16:9", tier });
       if (url) {
@@ -432,6 +439,7 @@ export default function CommandCenter() {
       }
     } finally {
       mediaBusyRef.current = false;
+      setMediaGen(null);
     }
   }
 
@@ -1079,6 +1087,8 @@ export default function CommandCenter() {
           during in-flight work (isWorking), but visible — the user has a
           clear affordance to continue the conversation. */}
       <div style={{ borderTop: messages.length > 0 ? "1px solid #1E1E2A" : "none" }}>
+        {/* W95.8.1 — prominent, always-in-motion generation state at the composer */}
+        {mediaGen && <GenerationProgress kind={mediaGen.kind} />}
         <textarea
           ref={inputRef}
           value={input}

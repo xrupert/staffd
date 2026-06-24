@@ -14,6 +14,7 @@ import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import IntentActionModal, { type PendingAction } from "./IntentActionModal";
 import { runGeneration } from "../../lib/generation-client";
 import GenerationTierModal, { type GenerationRequest } from "./GenerationTierModal";
+import GenerationProgress from "./GenerationProgress";
 import { type Tier } from "../api/_lib/generation/pricing";
 import { ACTION_UI, FC2_ACTION_INTENT, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 import VoiceInput from "./VoiceInput";
@@ -1547,14 +1548,7 @@ export default function DepartmentRoom({
                       {PUBLISH_DISABLED_NOTE}
                     </p>
                   )}
-                  {imageLoading && (
-                    <div className="flex items-center justify-center" style={{ padding: "48px 20px" }}>
-                      <div className="flex flex-col items-center gap-3">
-                        <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
-                        <p className="text-xs" style={{ color: "#5A5A70" }}>Your designer is rendering…</p>
-                      </div>
-                    </div>
-                  )}
+                  {imageLoading && <GenerationProgress kind="image" />}
                   {imageError && !imageLoading && (
                     <div style={{ padding: "20px" }}>
                       <p className="text-xs" style={{ color: "#F59E0B", lineHeight: 1.5 }}>{imageError}</p>
@@ -1638,14 +1632,7 @@ export default function DepartmentRoom({
                       {PUBLISH_DISABLED_NOTE}
                     </p>
                   )}
-                  {videoLoading && (
-                    <div className="flex items-center justify-center" style={{ padding: "60px 20px" }}>
-                      <div className="flex flex-col items-center gap-3">
-                        <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
-                        <p className="text-xs" style={{ color: "#5A5A70" }}>Your Producer is filming — usually 30-60 seconds…</p>
-                      </div>
-                    </div>
-                  )}
+                  {videoLoading && <GenerationProgress kind="video" />}
                   {videoError && !videoLoading && (
                     <div style={{ padding: "20px" }}>
                       <p className="text-xs" style={{ color: "#F59E0B", lineHeight: 1.5 }}>{videoError}</p>

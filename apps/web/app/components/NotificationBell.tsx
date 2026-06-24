@@ -39,7 +39,17 @@ export default function NotificationBell() {
       /* collection not provisioned yet → empty, silent bell */
     }
   }
-  useEffect(() => { void load(); }, []);
+  // W95.8.1 — live bell: poll + refresh on tab focus, so a generation that
+  // finishes while the customer is elsewhere surfaces within ~20s (not on next
+  // reload). The completion event is already produced server-side
+  // (generation.ready → this collection); this is what lets them walk away.
+  useEffect(() => {
+    void load();
+    const id = setInterval(() => void load(), 20000);
+    const onFocus = () => void load();
+    window.addEventListener("focus", onFocus);
+    return () => { clearInterval(id); window.removeEventListener("focus", onFocus); };
+  }, []);
 
   async function markRead(n: Notification) {
     if (n.read) return;
@@ -70,12 +80,20 @@ export default function NotificationBell() {
       >
         <span aria-hidden style={{ fontSize: 15 }}>🔔</span>
         {unread > 0 && (
-          <span
-            aria-label={`${unread} unread`}
-            style={{ position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, background: "#5B21E8", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            {unread > 9 ? "9+" : unread}
-          </span>
+          <>
+            {/* W95.8.1 — pulsing ring draws the eye the moment work lands */}
+            <span
+              aria-hidden
+              className="animate-ping"
+              style={{ position: "absolute", top: -4, right: -4, width: 16, height: 16, borderRadius: 8, background: "#5B21E8", opacity: 0.5 }}
+            />
+            <span
+              aria-label={`${unread} unread`}
+              style={{ position: "absolute", top: -4, right: -4, minWidth: 16, height: 16, padding: "0 4px", borderRadius: 8, background: "#5B21E8", color: "#fff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              {unread > 9 ? "9+" : unread}
+            </span>
+          </>
         )}
       </button>
 
