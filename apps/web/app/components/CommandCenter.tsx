@@ -10,7 +10,9 @@ import ActionAffordances from "./ActionAffordances";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
-import { runGeneration } from "../../lib/generation-client";
+import { runGeneration, runEdit } from "../../lib/generation-client";
+import EditAffordances from "./EditAffordances";
+import { classifyEditKeyword } from "../api/_lib/generation/edit-ops";
 import GenerationTierInline, { type GenerationRequest } from "./GenerationTierInline";
 import GenerationProgress from "./GenerationProgress";
 import { type Tier } from "../api/_lib/generation/pricing";
@@ -226,6 +228,10 @@ export default function CommandCenter() {
   // W95.8.1 — drives the prominent animated GenerationProgress block (a ref
   // can't trigger a render, so media-in-flight needs its own state).
   const [mediaGen, setMediaGen] = useState<{ kind: "image" | "video" } | null>(null);
+  // Edit-as-intent — the visibly-active edit target (declared by selecting/acting
+  // on a rendered visual). While set, the composer shows the "Editing your visual"
+  // pill and a typed instruction routes to runEdit, not the orchestrator.
+  const [activeArtifact, setActiveArtifact] = useState<{ kind: "image" | "video"; sourceUrl: string } | null>(null);
   // W64 B2 (D13) — shared schedule_followup modal state.
   const [followupOpen, setFollowupOpen] = useState(false);
   const [followupSeed, setFollowupSeed] = useState("");
@@ -451,6 +457,31 @@ export default function CommandCenter() {
     }
   }
 
+  // Apply an edit-as-intent op to an artifact. "refine" focuses the composer
+  // (free-text path); "variations" reuses the existing re-gen grid; image ops
+  // hit runEdit. VIDEO edits are tier-gated in Tranche C (Task 9) — guarded here.
+  async function applyEdit(op: string, instruction: string, sourceUrl: string, kind: "image" | "video") {
+    setActiveArtifact({ kind, sourceUrl });
+    if (op === "refine") { inputRef.current?.focus(); return; }
+    if (op === "variations") { void generateImageOptions(); return; }
+    if (kind === "video") return; // video edits are tier-gated in Task 9
+    if (mediaBusyRef.current) return;
+    mediaBusyRef.current = true;
+    setMediaGen({ kind });
+    try {
+      const { url, error } = await runEdit({ kind, sourceUrl, instruction });
+      if (url) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind, urls: [url] } }]);
+        setActiveArtifact({ kind, sourceUrl: url }); // edited result becomes the new target → the loop
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: error ?? "Couldn't apply that edit — try again." }]);
+      }
+    } finally {
+      mediaBusyRef.current = false;
+      setMediaGen(null);
+    }
+  }
+
   async function generateInlineMedia(kind: "image" | "video", tier: Tier) {
     const prompt = lastCompleted?.output ?? "";
     if (!prompt.trim()) {
@@ -540,6 +571,24 @@ export default function CommandCenter() {
   async function send(text?: string, options?: SendOptions) {
     const content = (text ?? input).trim();
     if (!content || phase === "routing" || phase === "generating") return;
+
+    // Edit-as-intent free-text gate — only when an artifact is the visibly-active
+    // target AND the text is edit-shaped. An explicit "new/another <thing>" cue
+    // clears the target so the same words start a fresh generation instead.
+    if (activeArtifact && !options?.skipConfirm) {
+      if (/\b(new|another|different)\b.*\b(image|picture|photo|visual|video|logo|graphic)\b/i.test(content)) {
+        setActiveArtifact(null);
+      } else {
+        const cls = classifyEditKeyword(content, activeArtifact.kind);
+        if (cls) {
+          setMessages((prev) => [...prev, { role: "user", content }]);
+          setInput("");
+          if (cls.op === "variations") void generateImageOptions();
+          else void applyEdit(cls.op, cls.editPrompt, activeArtifact.sourceUrl, activeArtifact.kind);
+          return;
+        }
+      }
+    }
 
     // PR-Tranche-2.5 (W26 fix) — auto-transition done → idle so the input
     // stays alive for follow-ups. Was previously trapped at "done" until
@@ -983,19 +1032,18 @@ export default function CommandCenter() {
                       {kind === "video" ? "Your video" : multi ? `Your visuals — ${urls.length} to choose from` : "Your visual"}
                     </span>
                   </div>
-                  {kind === "image" ? (
-                    <div className={multi ? "grid grid-cols-3 gap-1 p-1" : ""}>
-                      {urls.map((u, idx) => (
-                        <div key={idx} className="relative group">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={u} alt={`Option ${idx + 1}`} style={{ display: "block", width: "100%", height: "auto", maxHeight: multi ? "220px" : "560px", objectFit: "contain", background: "#0D0D16" }} />
-                          <a href={u} download target="_blank" rel="noopener noreferrer" className="absolute bottom-1 right-1 px-2 py-0.5 rounded text-xs font-semibold transition-opacity" style={{ background: "rgba(13,13,22,0.85)", color: "#A07BFF", border: "1px solid #2A2A38" }}>
-                            Download
-                          </a>
-                        </div>
-                      ))}
+                  {/* Single image: rendered here. The multi-image grid is owned by
+                      EditAffordances (it makes each option selectable for refine). */}
+                  {kind === "image" && !multi && (
+                    <div className="relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={urls[0]} alt="Your visual" style={{ display: "block", width: "100%", height: "auto", maxHeight: "560px", objectFit: "contain", background: "#0D0D16" }} />
+                      <a href={urls[0]} download target="_blank" rel="noopener noreferrer" className="absolute bottom-1 right-1 px-2 py-0.5 rounded text-xs font-semibold transition-opacity" style={{ background: "rgba(13,13,22,0.85)", color: "#A07BFF", border: "1px solid #2A2A38" }}>
+                        Download
+                      </a>
                     </div>
-                  ) : (
+                  )}
+                  {kind === "video" && (
                     <>
                       <video src={urls[0]} controls autoPlay loop muted style={{ display: "block", width: "100%", maxHeight: "560px", background: "#0D0D16" }} />
                       <div className="px-4 py-2 text-right" style={{ borderTop: "1px solid #1E1E2A" }}>
@@ -1003,6 +1051,7 @@ export default function CommandCenter() {
                       </div>
                     </>
                   )}
+                  <EditAffordances kind={kind} urls={urls} onEdit={(op, instruction, sourceUrl) => void applyEdit(op, instruction, sourceUrl, kind)} />
                 </div>
               );
             }
@@ -1163,6 +1212,15 @@ export default function CommandCenter() {
       <div style={{ borderTop: messages.length > 0 ? "1px solid #1E1E2A" : "none" }}>
         {/* W95.8.1 — prominent, always-in-motion generation state at the composer */}
         {mediaGen && <GenerationProgress kind={mediaGen.kind} />}
+        {activeArtifact && (
+          <div className="px-5 pt-3">
+            <span className="inline-flex items-center gap-2 text-xs" style={{ background: "rgba(91,33,232,0.18)", color: "#A07BFF", border: "1px solid rgba(91,33,232,0.35)", borderRadius: 999, padding: "4px 10px" }}>
+              <span aria-hidden="true">🖼️</span>
+              Editing your visual ↑
+              <button type="button" aria-label="Stop editing this visual" onClick={() => setActiveArtifact(null)} style={{ background: "transparent", border: "none", color: "#A07BFF", cursor: "pointer", padding: 0, lineHeight: 1 }}>✕</button>
+            </span>
+          </div>
+        )}
         <textarea
           ref={inputRef}
           value={input}
