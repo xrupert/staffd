@@ -44,8 +44,13 @@ export const INFLIGHT_WINDOW_MS = 15 * 60 * 1000;
  * model; omitting it lets dedup run BEFORE prompt enrichment (saving the
  * Anthropic enrich call too, not just the Muapi submit).
  */
-export function fingerprintFor(userId: string, kind: GenKind, prompt: string, aspectRatio: string): string {
-  return createHash("sha256").update(`${userId}|${kind}|${prompt.trim()}|${aspectRatio}`).digest("hex");
+export function fingerprintFor(userId: string, kind: GenKind, prompt: string, aspectRatio: string, variant = ""): string {
+  // W95.9.3 — `variant` (e.g. a per-option seed) distinguishes the otherwise-
+  // identical requests behind "give me 3 options", so dedup doesn't collapse
+  // them into one image. Appended only when present → existing fingerprints
+  // (no variant) are unchanged.
+  const v = variant ? `|${variant}` : "";
+  return createHash("sha256").update(`${userId}|${kind}|${prompt.trim()}|${aspectRatio}${v}`).digest("hex");
 }
 
 /** Return the id of a CURRENTLY in-flight (pending, within window) job with this

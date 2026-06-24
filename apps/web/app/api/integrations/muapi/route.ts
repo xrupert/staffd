@@ -206,12 +206,13 @@ export async function POST(req: Request) {
   if (!pbUrl) return Response.json({ error: "Service unavailable" }, { status: 503 });
 
   try {
-    const { kind, prompt, aspectRatio, tier: reqTier, department } = (await req.json()) as {
+    const { kind, prompt, aspectRatio, tier: reqTier, department, seed } = (await req.json()) as {
       kind: "image" | "video";
       prompt: string;
       aspectRatio?: string;
       tier?: string;        // W95.7.3d-T1 — customer-selected tier
       department?: string;  // drives the default tier + model routing (W95.7.3d-h1: model resolved server-side only)
+      seed?: number;        // W95.9.3 — per-option seed so "3 options" are distinct (dedup + model)
     };
 
     // SECURITY (W95.7.3d-h6) — resolve the user from their SESSION TOKEN, never a
@@ -230,7 +231,10 @@ export async function POST(req: Request) {
     // department default); the locked weight is what we gate + charge.
     const dept = department ?? "";
     const tier: Tier = (["quick", "pro", "premium"].includes(reqTier ?? "") ? reqTier : defaultTierFor(dept, kind)) as Tier;
-    const creditWeight = tierWeight(kind, tier);
+    // W95.9.3 — images are UNMETERED (cost ~$0.015 — rationing pennies is the
+    // fear-meter we're burying). Only video carries a credit weight; this also
+    // lets the customer get 3 options to pick from at no credit cost.
+    const creditWeight = kind === "image" ? 0 : tierWeight(kind, tier);
 
     // Decision 74 — super-admin bypass. If caller is super-admin: skip the
     // credit pre-flight gate entirely (they have no quota). The actual
@@ -270,7 +274,7 @@ export async function POST(req: Request) {
     // and the Muapi submit, saving both. Succeeded jobs never dedupe (a repeat
     // prompt is a legitimate re-generation). Fingerprint omits model (it's
     // deterministic from kind+prompt) so it can be computed pre-enrich.
-    const fingerprint = fingerprintFor(userId, kind, prompt, ratio);
+    const fingerprint = fingerprintFor(userId, kind, prompt, ratio, seed != null ? String(seed) : "");
     const dupId = await findInflightByFingerprint(pbUrl, adminToken, fingerprint);
     if (dupId) {
       return Response.json({ success: true, jobId: dupId, status: "pending", deduped: true }, { status: 202 });
@@ -308,6 +312,7 @@ export async function POST(req: Request) {
       body.output_format = "png";
       body.output_quality = 95;
     }
+    if (seed != null) body.seed = seed; // W95.9.3 — distinct seed per option
 
     // W95.7.3c-b1 — register a completion webhook (push delivery) when a
     // MUAPI_WEBHOOK_SECRET is configured; closes the closed-tab leak by

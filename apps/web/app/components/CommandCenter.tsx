@@ -25,8 +25,9 @@ interface Message {
   content: string;
   isOutput?: boolean;
   lockedAlternative?: string;
-  /** W95.9.x — a finished generation renders INLINE (image/video), not as a raw link. */
-  media?: { kind: "image" | "video"; url: string };
+  /** W95.9.x — a finished generation renders INLINE (image/video), not as a raw link.
+   *  Images return ~3 options to choose from (cheap); video is a single result. */
+  media?: { kind: "image" | "video"; urls: string[] };
 }
 
 
@@ -409,11 +410,45 @@ export default function CommandCenter() {
   // operator's 3× video press no longer queues 3 jobs). Result lands as
   // markdown in an assistant message; video can take a minute (no 60s timeout).
   // W95.7.3d-T1 — chip opens the tier picker; confirm runs generateInlineMedia.
+  // VIDEO opens the tier picker (it's the metered one). IMAGES skip the picker
+  // entirely (W95.9.3 — unmetered) and generate 3 options to choose from.
   function openGenTier(kind: "image" | "video") {
     const prompt = lastCompleted?.output ?? "";
     if (!prompt.trim()) { console.warn(`[W64] generate_${kind} with no completed output — noop`); return; }
     if (mediaBusyRef.current) return;
+    if (kind === "image") { void generateImageOptions(); return; }
     setPendingGen({ kind, department: "", prompt });
+  }
+
+  // W95.9.3 — images are cheap (~$0.015) and unmetered, so a real-designer
+  // experience: generate 3 options at once for the customer to pick from. No
+  // tier picker, no credit popup. Square aspect suits logos/marks/icons.
+  async function generateImageOptions(count = 3) {
+    const prompt = lastCompleted?.output ?? "";
+    if (!prompt.trim()) { console.warn("[W95.9.3] generate_image with no completed output — noop"); return; }
+    const userId = pb.authStore.record?.id ?? "";
+    if (!userId || mediaBusyRef.current) return;
+    mediaBusyRef.current = true;
+    setMediaGen({ kind: "image" });
+    try {
+      // Distinct seed per option so each is a genuinely different visual (and so
+      // the fingerprint dedup doesn't collapse the 3 identical prompts into one).
+      const base = Date.now();
+      const results = await Promise.all(
+        Array.from({ length: count }, (_, idx) =>
+          runGeneration({ userId, kind: "image", prompt, aspectRatio: "1:1", tier: "premium", seed: base + idx }).catch(() => ({ url: undefined, error: "failed" })),
+        ),
+      );
+      const urls = results.map((r) => r.url).filter((u): u is string => !!u);
+      if (urls.length > 0) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind: "image", urls } }]);
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't generate the visuals — try again." }]);
+      }
+    } finally {
+      mediaBusyRef.current = false;
+      setMediaGen(null);
+    }
   }
 
   async function generateInlineMedia(kind: "image" | "video", tier: Tier) {
@@ -436,7 +471,7 @@ export default function CommandCenter() {
       if (url) {
         // W95.9.x — render the result INLINE (img/video + download), never a raw
         // link the customer has to copy into a browser, and never the vendor URL.
-        setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind, url } }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind, urls: [url] } }]);
       } else {
         setMessages((prev) => [...prev, { role: "assistant", content: error ?? `Couldn't generate the ${label} — try again.` }]);
       }
@@ -939,21 +974,34 @@ export default function CommandCenter() {
             // W95.9.x — a finished generation renders inline (img/video + download),
             // not a raw vendor link the customer has to paste into a browser.
             if (msg.media) {
+              const { kind, urls } = msg.media;
+              const multi = kind === "image" && urls.length > 1;
               return (
                 <div key={i} className="rounded-xl overflow-hidden" style={{ background: "#0D0D16", border: "1px solid #2A2A38" }}>
-                  <div className="px-4 py-2 flex items-center justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
+                  <div className="px-4 py-2" style={{ borderBottom: "1px solid #1E1E2A" }}>
                     <span className="text-xs font-semibold" style={{ color: "#7070A0" }}>
-                      {msg.media.kind === "video" ? "Your video" : "Your visual"}
+                      {kind === "video" ? "Your video" : multi ? `Your visuals — ${urls.length} to choose from` : "Your visual"}
                     </span>
-                    <a href={msg.media.url} download target="_blank" rel="noopener noreferrer" className="text-xs transition-colors hover:text-white" style={{ color: "#A07BFF" }}>
-                      Download
-                    </a>
                   </div>
-                  {msg.media.kind === "image" ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={msg.media.url} alt="Generated by your specialist" style={{ display: "block", width: "100%", height: "auto", maxHeight: "560px", objectFit: "contain", background: "#0D0D16" }} />
+                  {kind === "image" ? (
+                    <div className={multi ? "grid grid-cols-3 gap-1 p-1" : ""}>
+                      {urls.map((u, idx) => (
+                        <div key={idx} className="relative group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt={`Option ${idx + 1}`} style={{ display: "block", width: "100%", height: "auto", maxHeight: multi ? "220px" : "560px", objectFit: "contain", background: "#0D0D16" }} />
+                          <a href={u} download target="_blank" rel="noopener noreferrer" className="absolute bottom-1 right-1 px-2 py-0.5 rounded text-xs font-semibold transition-opacity" style={{ background: "rgba(13,13,22,0.85)", color: "#A07BFF", border: "1px solid #2A2A38" }}>
+                            Download
+                          </a>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <video src={msg.media.url} controls autoPlay loop muted style={{ display: "block", width: "100%", maxHeight: "560px", background: "#0D0D16" }} />
+                    <>
+                      <video src={urls[0]} controls autoPlay loop muted style={{ display: "block", width: "100%", maxHeight: "560px", background: "#0D0D16" }} />
+                      <div className="px-4 py-2 text-right" style={{ borderTop: "1px solid #1E1E2A" }}>
+                        <a href={urls[0]} download target="_blank" rel="noopener noreferrer" className="text-xs transition-colors hover:text-white" style={{ color: "#A07BFF" }}>Download</a>
+                      </div>
+                    </>
                   )}
                 </div>
               );

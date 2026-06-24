@@ -322,9 +322,12 @@ describe("CommandCenter B2 pins — inline media + schedule + W35 email", () => 
     expect(src).not.toContain("![Generated visual](");
     expect(src).not.toContain("[▶ Watch it here](");
     // Now: a structured media message rendered inline as an element + download.
-    expect(src).toContain('media: { kind, url }');
+    expect(src).toMatch(/media: \{ kind[:,]/);
     expect(src).toContain("<img");
     expect(src).toContain("<video");
+    // W95.9.3 — images return multiple options (urls[]) generated unmetered.
+    expect(src).toContain("generateImageOptions");
+    expect(src).toContain('aspectRatio: "1:1"');
   });
 
   it("media failures land as plain assistant messages — no silent failure", () => {

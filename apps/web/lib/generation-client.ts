@@ -30,7 +30,7 @@ type StatusResponse = { status?: string; url?: string; error?: string };
  * stops polling early and resolves `{ error: "cancelled" }`.
  */
 export async function runGeneration(
-  opts: { userId: string; kind: GenKind; prompt: string; aspectRatio?: string; tier?: string; department?: string },
+  opts: { userId: string; kind: GenKind; prompt: string; aspectRatio?: string; tier?: string; department?: string; seed?: number },
   shouldCancel?: () => boolean,
 ): Promise<GenOutcome> {
   let res: Response;
@@ -42,7 +42,7 @@ export async function runGeneration(
       headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
       // W95.7.3d-T1 — forward tier + department so the server charges the tier
       // weight and routes to the tier's best model.
-      body: JSON.stringify({ userId: opts.userId, kind: opts.kind, prompt: opts.prompt, aspectRatio: opts.aspectRatio, tier: opts.tier, department: opts.department }),
+      body: JSON.stringify({ userId: opts.userId, kind: opts.kind, prompt: opts.prompt, aspectRatio: opts.aspectRatio, tier: opts.tier, department: opts.department, seed: opts.seed }),
     });
   } catch (e) {
     return { error: `Couldn't reach the generation service: ${e instanceof Error ? e.message : String(e)}` };
