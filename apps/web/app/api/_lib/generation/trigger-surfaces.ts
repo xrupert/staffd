@@ -4,12 +4,16 @@
  * tier gate. Each entry pairs a UI surface that calls `runGeneration` with the
  * tier-gate component it routes through.
  *
+ * // Surfaces may invoke either paid-generation driver: runGeneration for text-to-X
+ * // flows, or runEdit for edit-as-intent flows. Both are paid triggers; a video
+ * // edit must mount its listed gate before submitting, same as a video generation.
+ *
  * This registry is the single declared set of trigger surfaces; the guard test
  * (`__tests__/generation/trigger-surfaces.test.ts`) fails CI if a `runGeneration`
- * call site appears anywhere under app/ or lib/ that is NOT listed here, or if a
- * listed file stops referencing its gate. Adding a new generation trigger (e.g.
- * the future L4 workflow planner) therefore forces a conscious register-and-gate
- * step — an ungated trigger can no longer slip in unnoticed.
+ * or `runEdit` call site appears anywhere under app/ or lib/ that is NOT listed
+ * here, or if a listed file stops referencing its gate. Adding a new generation
+ * trigger (e.g. the future L4 workflow planner) therefore forces a conscious
+ * register-and-gate step — an ungated trigger can no longer slip in unnoticed.
  *
  * `file` is the path relative to apps/web. `gate` is the component the surface
  * must mount before any submit:

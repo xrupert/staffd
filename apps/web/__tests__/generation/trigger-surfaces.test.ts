@@ -28,8 +28,8 @@ const webRoot = resolve(__dirname, "..", "..");
 // The shared driver that DEFINES runGeneration — not a trigger surface itself.
 const DRIVER = join("lib", "generation-client.ts");
 
-// A "call site" = `runGeneration(` not immediately preceded by `function `.
-const CALL = /(?<!function )\brunGeneration\s*\(/;
+// A "call site" = `runGeneration(` or `runEdit(` not immediately preceded by `function `.
+const CALL = /(?<!function )\brun(Generation|Edit)\s*\(/;
 
 function findCallSites(): string[] {
   const hits: string[] = [];
@@ -50,17 +50,17 @@ function findCallSites(): string[] {
 }
 
 describe("W95.7.3d-h2 — generation trigger-surface invariant (Standard #38)", () => {
-  it("every runGeneration call site is a DECLARED surface in the registry", () => {
+  it("every runGeneration / runEdit call site is a DECLARED surface in the registry", () => {
     const callSites = findCallSites();
     const declared = GENERATION_TRIGGER_SURFACES.map((s) => s.file).sort();
     expect(callSites, `undeclared generation trigger(s):\n${callSites.filter((f) => !declared.includes(f)).join("\n")}`)
       .toEqual(declared);
   });
 
-  it("every declared surface file exists, still calls runGeneration, and references its tier gate", () => {
+  it("every declared surface file exists, still calls runGeneration or runEdit, and references its tier gate", () => {
     for (const s of GENERATION_TRIGGER_SURFACES) {
       const src = readFileSync(resolve(webRoot, s.file), "utf8");
-      expect(CALL.test(src), `${s.file} no longer calls runGeneration — stale registry entry`).toBe(true);
+      expect(CALL.test(src), `${s.file} no longer calls runGeneration or runEdit — stale registry entry`).toBe(true);
       expect(src.includes(s.gate), `${s.file} must reference its tier gate ${s.gate}`).toBe(true);
     }
   });
