@@ -34,6 +34,11 @@ vi.mock("../../app/api/_lib/vault/queue", () => ({
   enqueue: vi.fn(async () => undefined),
 }));
 
+// h6e — briefing/handoff now bind the body pbToken to userId; pass that gate.
+vi.mock("../../app/api/_lib/integrations/identity", () => ({
+  verifyUserOwnsSelf: async () => true,
+}));
+
 import { POST as orchestratePost } from "../../app/api/orchestrate/route";
 import { POST as briefingPost } from "../../app/api/briefing/route";
 import { POST as handoffPost } from "../../app/api/handoff/suggest/route";

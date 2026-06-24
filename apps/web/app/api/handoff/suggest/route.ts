@@ -23,22 +23,26 @@
  * 6 s, retries 0. Spec §B5 acceptance #3.
  */
 
-import { adminHeaders, getAdminToken, pbUrl } from "../../_lib/pb";
+import { pbUrl } from "../../_lib/pb";
 import { runOrchestrator } from "../../_lib/orchestrator";
+import { verifyUserOwnsSelf } from "../../_lib/integrations/identity";
 import type { ActionCandidate } from "../../_lib/orchestrator/types";
 
 /**
  * W62 — persist the analyzer's action candidates onto the source document
  * so W63 (UI) and W65 (threading) can read them alongside the work.
- * Fire-and-forget admin PATCH; an empty array is persisted deliberately
+ * Fire-and-forget PATCH; an empty array is persisted deliberately
  * ("analyzed, nothing applies" is a distinct state from "never analyzed").
+ *
+ * h6e — uses the caller's pbToken (not the admin token) so PocketBase row
+ * rules enforce document ownership; a caller cannot clobber action_candidates
+ * on a document they don't own.
  */
-async function persistActionCandidates(documentId: string, candidates: ActionCandidate[]): Promise<void> {
+async function persistActionCandidates(documentId: string, candidates: ActionCandidate[], pbToken: string): Promise<void> {
   try {
-    const token = await getAdminToken();
     const res = await fetch(`${pbUrl()}/api/collections/documents/records/${encodeURIComponent(documentId)}`, {
       method: "PATCH",
-      headers: adminHeaders(token),
+      headers: { Authorization: pbToken, "Content-Type": "application/json" },
       body: JSON.stringify({ action_candidates: candidates }),
     });
     if (!res.ok) {
@@ -68,6 +72,11 @@ export async function POST(req: Request) {
 
   const { documentId, query, pbToken, userId, clientId } = body;
   if (!userId || !pbToken) {
+    return Response.json({ error: "unauthorized" }, { status: 401 });
+  }
+  // h6e — bind the body pbToken to the claimed userId; the orchestrator runs
+  // as this user, so an unbound token would let any session act as another.
+  if (!(await verifyUserOwnsSelf(userId, pbToken))) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -121,7 +130,7 @@ export async function POST(req: Request) {
     const candidates = response.ok
       ? response.actionCandidates
       : response.degraded.actionCandidates;
-    if (candidates) void persistActionCandidates(documentId, candidates);
+    if (candidates) void persistActionCandidates(documentId, candidates, pbToken);
   }
 
   return Response.json(response);

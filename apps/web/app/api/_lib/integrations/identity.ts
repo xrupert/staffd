@@ -25,3 +25,25 @@ export async function whoAmI(req: Request): Promise<AuthedUser | null> {
     return null;
   }
 }
+
+/**
+ * h6e — bind a body `pbToken` to a body `userId`. Routes that take the session
+ * token in the request body (rather than the Authorization header / query)
+ * must confirm the token actually belongs to the claimed user before keying an
+ * admin-token operation on that user; otherwise any valid session can act as
+ * anyone. Returns true only when the token's owner === userId.
+ */
+export async function verifyUserOwnsSelf(userId: string, pbToken: string): Promise<boolean> {
+  if (!userId || !pbToken) return false;
+  try {
+    const res = await fetch(`${pbUrl()}/api/collections/users/auth-refresh`, {
+      method: "POST",
+      headers: { Authorization: pbToken },
+    });
+    if (!res.ok) return false;
+    const data = (await res.json()) as { record?: { id?: string } };
+    return data.record?.id === userId;
+  } catch {
+    return false;
+  }
+}

@@ -24,6 +24,7 @@
 import { runOrchestrator } from "../_lib/orchestrator";
 import { adminHeaders, getAdminToken, pbUrl } from "../_lib/pb";
 import { enqueue } from "../_lib/vault/queue";
+import { verifyUserOwnsSelf } from "../_lib/integrations/identity";
 
 async function persistBrief(opts: {
   userId: string;
@@ -68,6 +69,11 @@ export async function POST(req: Request) {
 
   const { userId, pbToken, clientId } = body;
   if (!userId || !pbToken) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  // h6e — bind the body pbToken to the claimed userId before persisting a brief
+  // into that user's library/vault via the admin token below.
+  if (!(await verifyUserOwnsSelf(userId, pbToken))) {
     return new Response("Unauthorized", { status: 401 });
   }
 

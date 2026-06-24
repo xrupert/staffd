@@ -33,6 +33,11 @@ vi.mock("../../app/api/_lib/vault/queue", () => ({
   enqueue: vi.fn(async () => undefined),
 }));
 
+// h6e — the route now binds the body pbToken to userId; pass that gate here.
+vi.mock("../../app/api/_lib/integrations/identity", () => ({
+  verifyUserOwnsSelf: async () => true,
+}));
+
 import { POST } from "../../app/api/briefing/route";
 
 let docPosts: Array<Record<string, unknown>>;

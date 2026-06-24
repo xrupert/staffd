@@ -28,6 +28,11 @@ vi.mock("../../app/api/_lib/pb", () => ({
   pbFirst: async () => null,
 }));
 
+// h6e — the route now binds the body pbToken to userId; pass that gate here.
+vi.mock("../../app/api/_lib/integrations/identity", () => ({
+  verifyUserOwnsSelf: async () => true,
+}));
+
 import { POST } from "../../app/api/handoff/suggest/route";
 
 let patches: Array<{ url: string; body: Record<string, unknown> }>;
