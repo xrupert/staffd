@@ -28,10 +28,18 @@ const DEFAULT_MODELS: Record<GenKind, TierModels> = {
   // video in words, so we MUST route to t2v models (prompt-only). The earlier
   // i2v ("image-to-video") slugs REQUIRED a source image (image_url/images_list)
   // that the conversational flow never provides → every video submit 400'd.
+  //
+  // W95.7.3e-vid2 (verified 2026-06-24 against the OpenAPI; costs from the live
+  // muapi usage dashboard): pixverse was BOTH worse AND no cheaper —
+  // pixverse-v6-t2v billed $0.585 for an incoherent clip while veo3-fast bills
+  // $0.60 for genuinely usable output. So the everyday tier is now Google Veo 3
+  // Fast; cinematic is full Veo 3 / Sora 2 (~$2.50). All slugs have a real
+  // POST /api/v1/<slug> with required=["prompt"]. Models are a swappable
+  // registry — update these picks as the leaderboard turns, no code change.
   video: {
-    quick: ["pixverse-v5.5-t2v", "hunyuan-text-to-video"],          // $0.10–0.15
-    pro: ["pixverse-v6-t2v", "minimax-hailuo-02-standard-t2v"],     // ~$0.30
-    premium: ["openai-sora-2-pro-text-to-video", "kling-v3.0-omni-4k-text-to-video"], // $2.40–2.68
+    quick: ["seedance-2-text-to-video", "veo3-fast-text-to-video"], // cheap, clean
+    pro: ["veo3-fast-text-to-video", "seedance-2-text-to-video"],   // ~$0.60, proven good
+    premium: ["veo3-text-to-video", "openai-sora-2-pro-text-to-video"], // ~$2.50, cinematic
   },
   // TEXT-TO-IMAGE only, every slug verified 2026-06-23 to have a real
   // POST /api/v1/<slug> path + required=["prompt"]. NOTE: flux-schnell / flux-dev

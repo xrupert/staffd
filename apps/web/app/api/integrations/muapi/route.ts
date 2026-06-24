@@ -26,6 +26,7 @@ import { createJob, completeJob, fingerprintFor, findInflightByFingerprint, type
 import { defaultTierFor, tierWeight, type Tier } from "../../_lib/generation/pricing";
 import { routeFor } from "../../_lib/generation/routing";
 import { modelTierWeight } from "../../_lib/generation/catalog";
+import { buildEnricherSystemPrompt } from "../../_lib/generation/enricher-prompt";
 import { whoAmI } from "../../_lib/integrations/identity";
 
 const anthropic = new Anthropic();
@@ -69,36 +70,14 @@ function needsEnrichment(text: string): boolean {
 }
 
 async function enrichToPrompt(rawInput: string, kind: "image" | "video"): Promise<string> {
-  if (!needsEnrichment(rawInput)) return rawInput.trim();
+  // vid1 — video ALWAYS goes through the shot director: a terse idea renders as
+  // badly as an over-stuffed script, so both extremes need shaping into one
+  // coherent shot. Images keep the heuristic skip (a dense prompt is ready).
+  if (kind === "image" && !needsEnrichment(rawInput)) return rawInput.trim();
 
-  const mediumWord = kind === "image" ? "image" : "video";
-  const systemPrompt = `You are STAFFD's prompt enricher. You receive creative briefs, strategy docs, layout specs, or raw user requests and turn them into a single DENSE, SOPHISTICATED ${mediumWord} generation prompt of 100-300 words that produces extraordinary output.
-
-YOU NEVER COMPRESS OR SIMPLIFY. You ENRICH. Every strategic choice in the source must survive into the prompt, plus you add the dense visual modifiers needed for a stunning render.
-
-WHAT TO INCLUDE — ALL AXES, SPECIFIC TO THE SOURCE:
-- Subject with specific details (age, expression, clothing, posture, what they're doing)
-- Setting with specific details (location, era, time of day, atmosphere)
-- Framing and composition (wide / medium / close, angle, depth of field, rule of thirds, etc.)
-- Lighting — direction, quality, color temperature, contrast, time of day
-- Mood (single specific word — heroic, intimate, foreboding, jubilant, etc.)
-- Medium and style (oil painting / photography / 3D render / editorial illustration / propaganda poster, etc.)
-- Multiple style references where they unlock fidelity (Norman Rockwell, Wes Anderson palette, Pixar 3D, Annie Leibovitz portraiture, vintage propaganda, etc.)
-- Specific palette / color anchors
-- Texture and material detail
-- Lens and camera notes when photoreal (35mm, shallow depth of field, golden hour, etc.)
-- For ${mediumWord} with text: write the actual text in quotes, specify typography style and exact placement (lower-third banner, diagonal sash, top-left, etc.)
-
-WHAT YOU MUST NEVER DO:
-- Never strip detail to "make it shorter."
-- Never mention any external platform or model name.
-- Never include negative prompts or aspect ratio flags (--ar 16:9 etc.).
-- Never write "Here's the prompt" or any preamble.
-- Never use markdown, bullet lists, or section headers — produce continuous prose suitable to send to an image model.
-
-If the source contains text-on-${mediumWord} (quoted lines, "reading", "saying", overlay text, headlines), include it in your prompt with typography style and placement preserved.
-
-Output ONLY the dense enriched prompt. Nothing else.`;
+  // vid1 — medium-specific: image ENRICHES (dense single frame), video DISTILLS
+  // to one renderable continuous shot. See _lib/generation/enricher-prompt.ts.
+  const systemPrompt = buildEnricherSystemPrompt(kind);
 
   try {
     const msg = await anthropic.messages.create({
