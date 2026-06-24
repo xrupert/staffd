@@ -25,6 +25,12 @@ vi.mock("../../app/api/_lib/auth/super-admin", () => ({ trySuperAdminByUserId: (
 vi.mock("../../app/api/_lib/pb", () => ({ getAdminToken: async () => "admin-token" }));
 vi.mock("../../app/api/_lib/generation/edit-ops-llm", () => ({ classifyEditLLM: async () => null }));
 
+let routeForEditImpl: ((op: string) => string[]) | null = null;
+vi.mock("../../app/api/_lib/generation/routing", async (orig) => {
+  const actual = await orig<typeof import("../../app/api/_lib/generation/routing")>();
+  return { ...actual, routeForEdit: (op: string) => (routeForEditImpl ?? actual.routeForEdit)(op as never) };
+});
+
 import { POST } from "../../app/api/generation/edit/route";
 
 function req(body: unknown) {
@@ -35,6 +41,7 @@ function req(body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  routeForEditImpl = null;
   process.env.MUAPI_API_KEY = "k";
   process.env.NEXT_PUBLIC_POCKETBASE_URL = "http://pb";
   whoAmI.mockResolvedValue({ id: "u1", email: "u@x.com" });
@@ -96,5 +103,18 @@ describe("POST /api/generation/edit", () => {
     const data = await res.json();
     expect(data).toMatchObject({ success: true, status: "completed", url: "https://out/edited.png" });
     expect(completeJob).toHaveBeenCalledTimes(1);
+  });
+
+  it("502 when createJob returns null", async () => {
+    createJob.mockResolvedValue(null);
+    const res = await POST(req({ kind: "image", sourceUrl: "https://x/a.png", instruction: "make it blue" }));
+    expect(res.status).toBe(502);
+  });
+
+  it("routing_unresolved 500 when no slug resolves for the op", async () => {
+    routeForEditImpl = () => [];
+    const res = await POST(req({ kind: "image", sourceUrl: "https://x/a.png", instruction: "make it blue" }));
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("routing_unresolved");
   });
 });

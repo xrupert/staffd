@@ -43,7 +43,7 @@ export async function POST(req: Request) {
 
     if (kind !== "image" && kind !== "video") return Response.json({ error: "kind must be 'image' or 'video'" }, { status: 400 });
     if (!sourceUrl?.trim()) return Response.json({ error: "source_required" }, { status: 400 });
-    if (!instruction?.trim()) return Response.json({ error: "instruction is required" }, { status: 400 });
+    if (!instruction?.trim()) return Response.json({ error: "instruction_required" }, { status: 400 });
 
     let cls: EditClassification = classifyEditKeyword(instruction, kind);
     if (!cls) cls = await classifyEditLLM(instruction, kind);
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     const preState = superAdmin ? null : await getCreditState(pbUrl, userId);
     if (preState && preState.totalRemaining[kind] < creditWeight) {
       return Response.json(
-        { error: "out_of_credits", message: `This ${kind} edit costs ${creditWeight} credits — you have ${preState.totalRemaining[kind]}.`, remaining: preState.totalRemaining[kind], required: creditWeight, plan: preState.plan },
+        { error: "out_of_credits", message: `This ${kind} edit costs ${creditWeight} credits — you have ${preState.totalRemaining[kind]}.`, remaining: preState.totalRemaining[kind], required: creditWeight, plan: preState.plan, monthly: preState.monthlyAllowance[kind] },
         { status: 402 },
       );
     }
@@ -98,8 +98,8 @@ export async function POST(req: Request) {
 
     return Response.json({ success: true, jobId, status: "pending", op }, { status: 202 });
   } catch (err) {
-    console.error("Edit route error:", err);
-    const msg = err instanceof Error ? err.message : "Failed to edit";
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("Edit route error:", msg);
     return Response.json({ error: "Edit failed", detail: msg }, { status: 502 });
   }
 }
