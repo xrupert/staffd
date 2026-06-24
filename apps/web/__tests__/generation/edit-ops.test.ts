@@ -60,3 +60,28 @@ describe("metadata", () => {
     expect(OP_KIND.add_captions).toBe("video");
   });
 });
+
+describe("classifyEditKeyword — false-positive guards (review I1/I2)", () => {
+  it("empty / whitespace → null", () => {
+    expect(classifyEditKeyword("", "image")).toBeNull();
+    expect(classifyEditKeyword("   ", "image")).toBeNull();
+  });
+  it("non-edit image phrases with stray verbs → null", () => {
+    expect(classifyEditKeyword("add me to the list", "image")).toBeNull();
+    expect(classifyEditKeyword("move to draft", "image")).toBeNull();
+  });
+  it("non-edit video message → null", () => {
+    expect(classifyEditKeyword("publish this video", "video")).toBeNull();
+  });
+  it("bare duration mention is NOT a trim → null", () => {
+    expect(classifyEditKeyword("i need it in 30 seconds", "video")).toBeNull();
+  });
+  it("explicit trim-to-duration IS a trim", () => {
+    expect(classifyEditKeyword("trim to 10 seconds", "video")?.op).toBe("trim");
+  });
+  it("still classifies real edits after tightening", () => {
+    expect(classifyEditKeyword("add a drop shadow", "image")?.op).toBe("instruct_edit");
+    expect(classifyEditKeyword("make it transparent", "image")?.op).toBe("remove_background");
+    expect(classifyEditKeyword("no background + a thin black outline", "image")?.op).toBe("instruct_edit");
+  });
+});

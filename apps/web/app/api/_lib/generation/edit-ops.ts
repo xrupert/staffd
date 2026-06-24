@@ -57,11 +57,11 @@ export const EDIT_OP_SPECS: Record<EditOp, EditOpSpec> = {
 
 const BG_REMOVAL = /\b(no background|without (a |the )?background|remove (the )?background|make it transparent|make (it |the image )?transparent|transparent(ly)?|cut ?out|cutout|knock ?out)\b/;
 // "another edit beyond background" cues — presence alongside BG_REMOVAL means COMPOUND → instruct_edit.
-const OTHER_IMAGE_EDIT = /\b(outline|border|stroke|shadow|make it|change|recolou?r|add|replace|turn it|brighten|darken|crop|swap|put|color|colour|bigger|smaller|move)\b/;
+const OTHER_IMAGE_EDIT = /\b(outline|border|stroke|shadow|make it|change the|recolou?r|add (a |an |some )?[a-z]|replace|turn it|brighten|darken|crop|swap|color|colour|bigger|smaller)\b/;
 const VARIATIONS = /\b(variations?|more (options|like this|versions?)|other options|different versions?|another version)\b/;
 
 const CAPTIONS = /\b(captions?|subtitles?|text overlay)\b/;
-const TRIM = /\b(trim|shorter|cut (to|down)|first \d+\s?s(econds?)?|\d+\s?seconds?)\b/;
+const TRIM = /\b(trim|shorter|cut (to|it |down)|first \d+\s?s(econds?)?|to \d+\s?s(econds?)?)\b/;
 const RECOMBINE = /\b(re-?order|combine|stitch|merge|join|sequence|rearrange)\b/;
 
 /**
