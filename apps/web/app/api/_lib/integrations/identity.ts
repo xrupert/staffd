@@ -8,9 +8,8 @@ import { pbUrl } from "../pb";
 
 export type AuthedUser = { id: string; email: string };
 
-export async function whoAmI(req: Request): Promise<AuthedUser | null> {
-  const url = new URL(req.url);
-  const pbToken = url.searchParams.get("pbToken") ?? req.headers.get("authorization") ?? "";
+/** Verify a PB *user* session token directly. Returns the user, or null. */
+export async function whoAmIByToken(pbToken: string): Promise<AuthedUser | null> {
   if (!pbToken) return null;
   try {
     const res = await fetch(`${pbUrl()}/api/collections/users/auth-refresh`, {
@@ -24,6 +23,46 @@ export async function whoAmI(req: Request): Promise<AuthedUser | null> {
   } catch {
     return null;
   }
+}
+
+export async function whoAmI(req: Request): Promise<AuthedUser | null> {
+  const url = new URL(req.url);
+  const pbToken = url.searchParams.get("pbToken") ?? req.headers.get("authorization") ?? "";
+  return whoAmIByToken(pbToken);
+}
+
+/** True when the token is a valid PocketBase superuser (admin) token. */
+export async function isAdminToken(pbToken: string): Promise<boolean> {
+  if (!pbToken) return false;
+  try {
+    const res = await fetch(`${pbUrl()}/api/collections/_superusers/auth-refresh`, {
+      method: "POST",
+      headers: { Authorization: pbToken },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * h6f — resolve the trusted user id for /api/agent, which must never trust a
+ * body `userId`:
+ *   - a valid USER session token → that token's owner (body userId ignored).
+ *   - a valid ADMIN/superuser token (internal worker, e.g. workflow-drain,
+ *     passes the admin token as pbToken) → trust the body userId so
+ *     worker-initiated runs keep their user context.
+ *   - otherwise (no/garbage token) → null (anonymous; no user-scoped work).
+ */
+export async function resolveAgentUserId(
+  pbToken: string | undefined,
+  bodyUserId: string | undefined,
+): Promise<string | null> {
+  if (!pbToken) return null;
+  const user = await whoAmIByToken(pbToken);
+  if (user) return user.id;
+  if (await isAdminToken(pbToken)) return bodyUserId?.trim() || null;
+  return null;
 }
 
 /**

@@ -5,6 +5,7 @@ import { fetchVault, renderVaultBlock, retrieve } from "../_lib/vault";
 import { recordTrialRun, resolveDepartments } from "../_lib/trial";
 import { checkAndIncrementRateLimit } from "../_lib/ratelimit";
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
+import { resolveAgentUserId } from "../_lib/integrations/identity";
 import { enqueue } from "../_lib/vault/queue";
 import { runOrchestrator } from "../_lib/orchestrator";
 import { getVoiceBlock } from "../_lib/vault/voice";
@@ -76,7 +77,7 @@ export async function POST(req: Request) {
       task,
       department,
       agentId,
-      userId,
+      userId: claimedUserId,
       pbToken,
       templateContent,
       clientId,
@@ -91,6 +92,13 @@ export async function POST(req: Request) {
       clientId?: string; // Agency: scope vault to this client
       threadId?: string; // V5 — optional client-supplied conversation thread id
     };
+
+    // h6f — never trust the body `userId`. Resolve the trusted id from the
+    // pbToken: a user session binds to its own id; the internal worker
+    // (workflow-drain) presents the admin token and may carry the body userId;
+    // anything else is anonymous. All user-scoped reads/writes below (trial
+    // gate, voice profile, vault, conversation persistence) key off this.
+    const userId = await resolveAgentUserId(pbToken, claimedUserId);
 
     // V5 — Every /api/agent call belongs to a conversation thread. Client may
     // supply one to maintain context across requests; otherwise we generate
@@ -135,7 +143,7 @@ export async function POST(req: Request) {
       }
       const synth = await runOrchestrator({
         intent: "synthesize",
-        userId,
+        userId: userId ?? "",
         pbToken,
         clientId,
         context: { query: task, agentId },
@@ -179,7 +187,7 @@ export async function POST(req: Request) {
       ? await fetchVault(pbToken, userId, { clientId })
       : null;
     const [voiceBlock, trialStateForPacks] = await Promise.all([
-      getVoiceBlock(userId, department),
+      getVoiceBlock(userId ?? undefined, department),
       userId ? resolveDepartments(userId, { vaultIndustry: bridgingIndustryFor(vault) }) : Promise.resolve(null),
     ]);
     const vaultBlock = renderVaultBlock(vault, { detail: "full" });

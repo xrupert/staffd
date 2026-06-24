@@ -227,6 +227,28 @@ reintroducing it; W95.7.3d-h2 converts the gate from a hope into a mechanical
 invariant. Both customer-cost transparency (#27 UX-law) and margin protection
 (#33 cost exposure) depend on it.*
 
+### #39 — Admin-token routes must authenticate the caller; never trust a body `userId`.
+Any route that performs a per-user operation with the PocketBase **admin/superuser
+token** (`getAdminToken` or a local `_superusers/auth-with-password` helper — which
+bypasses row rules) MUST resolve the acting user from the *session*, not from a
+`userId`/`user_id` taken out of `req.json()` / the query string. The acting id
+comes from one of: `whoAmI(req)` (Authorization header / `?pbToken=`),
+`verifyUserOwnsSelf(userId, pbToken)` for routes that carry the session token in
+the body (it must *bind* the token to the claimed id, not merely check the token is
+non-empty), or — for genuinely internal/worker callers — an explicit gate
+(`x-worker-secret`, `CRON_SECRET`, a verified admin token, or a Stripe webhook
+signature). A route that instead forwards the *caller's* `pbToken` so PB row rules
+enforce ownership is already safe and should say so in a one-line comment. *Why:
+trusting a body `userId` next to an admin token lets any unauthenticated (or any
+merely-authenticated) caller act as another user — IDOR on their data plus cost/
+abuse. The W95.7.3d-h6 sweep found this across the integrations/muapi cost route,
+stripe/portal + 4 stripe/checkout routes (h6/h6b/h6c), 5 admin-token routes
+(clients, clients/[id], departments/choose, trial, workflow/enqueue — h6d),
+briefing + handoff/suggest (body pbToken not bound to userId — h6e), and /api/agent
+(voice-profile read + conversation/vault write keyed on an unverified body userId —
+h6f, fixed via `resolveAgentUserId`: a user token binds to its own id, the worker's
+admin token may carry the body id, everything else is anonymous).*
+
 ---
 
 *New Standards append here with the next free number. If SA supplies the missing

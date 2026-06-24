@@ -63,6 +63,10 @@ vi.mock("../../app/api/_lib/vault", () => ({
 }));
 vi.mock("../../app/api/_lib/vault/queue", () => ({ enqueue: vi.fn(async () => undefined) }));
 vi.mock("../../app/api/_lib/vault/voice", () => ({ getVoiceBlock: async () => "" }));
+// h6f — agent resolves the trusted userId from the token; honor the body id here.
+vi.mock("../../app/api/_lib/integrations/identity", () => ({
+  resolveAgentUserId: async (_pb: string | undefined, uid?: string) => uid ?? null,
+}));
 vi.mock("../../app/api/_lib/conversations", () => ({ ensureConversationThreadRow: vi.fn(async () => undefined) }));
 vi.mock("../../app/api/_lib/auth/super-admin", () => ({ trySuperAdminFromToken: async () => null }));
 vi.mock("../../app/api/_lib/auth/super-admin-logging", () => ({ logSuperAdminUsage: vi.fn(async () => undefined) }));
