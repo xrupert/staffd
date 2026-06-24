@@ -457,15 +457,17 @@ export default function CommandCenter() {
     }
   }
 
-  // Apply an edit-as-intent op to an artifact. "refine" focuses the composer
-  // (free-text path); "variations" reuses the existing re-gen grid; image ops
-  // hit runEdit. VIDEO edits are tier-gated in Tranche C (Task 9) — guarded here.
-  async function applyEdit(op: string, instruction: string, sourceUrl: string, kind: "image" | "video") {
+  // Apply an edit-as-intent op to an artifact. Returns true when it handled the
+  // message (edit submitted / refine focus / variations), false only when the
+  // server judged the text "not_an_edit" so the caller falls back to normal
+  // routing. "refine" focuses the composer; "variations" reuses the re-gen grid;
+  // image ops hit runEdit. VIDEO edits are tier-gated in Tranche C (Task 9).
+  async function applyEdit(op: string, instruction: string, sourceUrl: string, kind: "image" | "video"): Promise<boolean> {
     setActiveArtifact({ kind, sourceUrl });
-    if (op === "refine") { inputRef.current?.focus(); return; }
-    if (op === "variations") { void generateImageOptions(); return; }
-    if (kind === "video") return; // video edits are tier-gated in Task 9
-    if (mediaBusyRef.current) return;
+    if (op === "refine") { inputRef.current?.focus(); return true; }
+    if (op === "variations") { void generateImageOptions(); return true; }
+    if (kind === "video") return true; // video edits are tier-gated in Task 9
+    if (mediaBusyRef.current) return true;
     mediaBusyRef.current = true;
     setMediaGen({ kind });
     try {
@@ -473,9 +475,14 @@ export default function CommandCenter() {
       if (url) {
         setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind, urls: [url] } }]);
         setActiveArtifact({ kind, sourceUrl: url }); // edited result becomes the new target → the loop
-      } else {
-        setMessages((prev) => [...prev, { role: "assistant", content: error ?? "Couldn't apply that edit — try again." }]);
+        return true;
       }
+      if (error === "not_an_edit") {
+        setActiveArtifact(null); // not actually an edit — caller falls back to normal routing
+        return false;
+      }
+      setMessages((prev) => [...prev, { role: "assistant", content: error ?? "Couldn't apply that edit — try again." }]);
+      return true;
     } finally {
       mediaBusyRef.current = false;
       setMediaGen(null);
@@ -572,21 +579,25 @@ export default function CommandCenter() {
     const content = (text ?? input).trim();
     if (!content || phase === "routing" || phase === "generating") return;
 
-    // Edit-as-intent free-text gate — only when an artifact is the visibly-active
-    // target AND the text is edit-shaped. An explicit "new/another <thing>" cue
-    // clears the target so the same words start a fresh generation instead.
+    // Edit-as-intent free-text gate — when an artifact is the visibly-active
+    // target, a typed instruction is an EDIT of it, not a new request. An explicit
+    // "new/another <thing>" cue drops edit mode. Otherwise route OPTIMISTICALLY to
+    // the edit path: the server (keyword + LLM) decides; if it's genuinely not an
+    // edit, applyEdit returns false and we fall through to normal routing below.
     if (activeArtifact && !options?.skipConfirm) {
       if (/\b(new|another|different)\b.*\b(image|picture|photo|visual|video|logo|graphic)\b/i.test(content)) {
         setActiveArtifact(null);
       } else {
         const cls = classifyEditKeyword(content, activeArtifact.kind);
-        if (cls) {
-          setMessages((prev) => [...prev, { role: "user", content }]);
-          setInput("");
-          if (cls.op === "variations") void generateImageOptions();
-          else void applyEdit(cls.op, cls.editPrompt, activeArtifact.sourceUrl, activeArtifact.kind);
-          return;
-        }
+        setMessages((prev) => [...prev, { role: "user", content }]);
+        setInput("");
+        if (cls?.op === "variations") { void generateImageOptions(); return; }
+        const edited = await applyEdit(cls?.op ?? "instruct_edit", cls?.editPrompt ?? content, activeArtifact.sourceUrl, activeArtifact.kind);
+        if (edited) return;
+        // Server said not_an_edit → continue to the orchestrator below. The user
+        // message is already in the thread; the normal path rebuilds the SAME
+        // single message from the (stale) `messages` closure, so it does NOT
+        // double-add (both setMessages calls converge to one user message).
       }
     }
 
