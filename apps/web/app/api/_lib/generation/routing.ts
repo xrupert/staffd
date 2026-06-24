@@ -19,6 +19,7 @@
  */
 
 import { defaultTierFor, type GenKind, type Tier } from "./pricing";
+import type { EditOp } from "./edit-ops";
 
 type TierModels = Record<Tier, string[]>;
 
@@ -51,6 +52,26 @@ const DEFAULT_MODELS: Record<GenKind, TierModels> = {
   },
 };
 
+/**
+ * Edit-as-intent model band — op → ordered slug preference. Same swappable-
+ * registry pattern as DEFAULT_MODELS; resolved server-side only (slugs never
+ * reach the client). `variations` is intentionally absent (client re-gen path).
+ * Slugs verified against the live muapi OpenAPI; body field names live in
+ * edit-ops.ts EDIT_OP_SPECS.
+ */
+const EDIT_MODELS: Partial<Record<EditOp, string[]>> = {
+  remove_background: ["remove-background", "birefnet-v2"],
+  instruct_edit:     ["nano-banana-pro-edit", "flux-2-pro-edit"],
+  recombine:         ["video-combiner"],
+  trim:              ["video-combiner"],
+  add_captions:      ["motion-graphics-edit"],
+};
+
+/** Ordered model preference for an edit op (empty for client-handled ops). */
+export function routeForEdit(op: EditOp): string[] {
+  return EDIT_MODELS[op] ?? [];
+}
+
 /** Per-department overrides (optional). Marketing shown as the example shape. */
 const ROUTING: Record<string, Partial<Record<GenKind, TierModels>>> = {
   marketing: {
@@ -78,6 +99,7 @@ export function allRoutingSlugs(): string[] {
     if (dept.video) add(dept.video);
     if (dept.image) add(dept.image);
   }
+  for (const list of Object.values(EDIT_MODELS)) list?.forEach((s) => slugs.add(s));
   return [...slugs];
 }
 
