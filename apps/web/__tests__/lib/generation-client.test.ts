@@ -1,12 +1,14 @@
 /**
  * W95.7.3b — runGeneration client: fast-path (URL on submit), submit→poll to
  * completion, failure surfacing, and the cancel hook.
+ *
+ * Task 6 additions: runEdit — 422→not_an_edit, fast-path completed-on-submit.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 vi.mock("../../lib/pb", () => ({ default: { authStore: { token: "tok" } } }));
-import { runGeneration } from "../../lib/generation-client";
+import { runGeneration, runEdit } from "../../lib/generation-client";
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
@@ -52,5 +54,29 @@ describe("runGeneration (W95.7.3b)", () => {
     const p = runGeneration({ userId: "u1", kind: "video", prompt: "x" });
     await vi.advanceTimersByTimeAsync(5000);
     expect(await p).toEqual({ error: "model error" });
+  });
+});
+
+describe("runEdit (Task 6)", () => {
+  it("422 response maps to { error: 'not_an_edit' }", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false,
+      status: 422,
+      json: async () => ({ error: "cannot classify as edit" }),
+    })));
+    const r = await runEdit({ kind: "image", sourceUrl: "https://cdn/i.png", instruction: "make it blue" });
+    expect(r).toEqual({ error: "not_an_edit" });
+  });
+
+  it("fast path — completed on submit returns { url } without polling", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ jobId: "e1", status: "completed", url: "https://cdn/edited.png" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    const r = await runEdit({ kind: "image", sourceUrl: "https://cdn/i.png", instruction: "make it blue" });
+    expect(r).toEqual({ url: "https://cdn/edited.png" });
+    expect(fetchMock).toHaveBeenCalledTimes(1); // submit only, no status poll
   });
 });
