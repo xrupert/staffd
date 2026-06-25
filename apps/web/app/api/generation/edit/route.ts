@@ -98,8 +98,12 @@ export async function POST(req: Request) {
 
     return Response.json({ success: true, jobId, status: "pending", op }, { status: 202 });
   } catch (err) {
+    // Brand voice (Model B3): the raw error can carry a vendor slug / "Muapi"
+    // (submitPrediction throws `Muapi <status> on <slug>: ...`). Log it server-
+    // side for debugging, but NEVER return it to the customer — surface a
+    // STAFFD-voiced message only.
     const msg = err instanceof Error ? err.message : String(err);
     console.error("Edit route error:", msg);
-    return Response.json({ error: "Edit failed", detail: msg }, { status: 502 });
+    return Response.json({ error: "edit_failed", message: "We couldn't apply that edit just now — please try again." }, { status: 502 });
   }
 }
