@@ -83,4 +83,38 @@ describe("W95.3.5 document_extraction_worker", () => {
     const patch = calls.find((c) => c.url.includes("/documents/records/d-1") && c.method === "PATCH");
     expect(patch!.body!.extraction_status).toBe("error");
   });
+
+  // B3 (the production "never finishes" bug): a failure BEFORE the parser — here a
+  // file-fetch 403 — must STILL mark the document error on the final attempt, not
+  // leave it stuck at "pending" forever (the parser path was the only one that
+  // recorded an error state).
+  function setFetchFileFetchFails(task: Task) {
+    calls = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+      calls.push({ url, method, body });
+      if (url.includes("/workflow_tasks/records?") && method === "GET") return { ok: true, json: async () => ({ items: [task] }) };
+      if (url.includes("/documents/records/") && method === "GET") return { ok: true, json: async () => ({ id: "d-1", file: "report.pdf", user: "userA" }) };
+      if (url.includes("/api/files/token") && method === "POST") return { ok: true, json: async () => ({ token: "ftok" }) };
+      if (url.includes("/api/files/documents/")) return { ok: false, status: 403, text: async () => "Forbidden" }; // FILE FETCH FAILS
+      return { ok: true, json: async () => ({}) };
+    }));
+  }
+
+  it("on the FINAL attempt with a file-fetch failure, marks the document error (not stuck pending) — B3", async () => {
+    setFetchFileFetchFails(extractionTask({ retry_count: 2 }));
+    const res = await GET(req());
+    expect((await res.json()).succeeded).toBe(1); // handled, not a throw-loop
+    const docErrPatch = calls.find((c) => c.url.includes("/documents/records/d-1") && c.method === "PATCH" && c.body?.extraction_status === "error");
+    expect(docErrPatch, "document must reach error state when the file-fetch fails on the final attempt").toBeTruthy();
+  });
+
+  it("on a NON-final file-fetch failure, retries (does not write a terminal error yet)", async () => {
+    setFetchFileFetchFails(extractionTask({ retry_count: 0 }));
+    const res = await GET(req());
+    expect((await res.json()).failed).toBe(0); // retry, not terminal
+    const taskPatch = calls.filter((c) => c.url.includes("/workflow_tasks/records/et-1") && c.method === "PATCH");
+    expect(taskPatch[taskPatch.length - 1]!.body!.status).toBe("retrying");
+  });
 });

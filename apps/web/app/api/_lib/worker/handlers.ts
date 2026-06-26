@@ -81,38 +81,51 @@ const mirrorRetry: WorkerHandler = async (task, ctx) => {
 const documentExtraction: WorkerHandler = async (task, ctx) => {
   const p = task.input_payload as { document_id?: string; ext?: string };
   if (!p.document_id) throw new Error("extraction: missing document_id");
+  const docId = p.document_id;
   const patchDoc = (patch: Record<string, unknown>) =>
-    fetch(`${ctx.pb}/api/collections/documents/records/${p.document_id}`, { method: "PATCH", headers: ctx.authHeaders, body: JSON.stringify(patch) });
+    fetch(`${ctx.pb}/api/collections/documents/records/${docId}`, { method: "PATCH", headers: ctx.authHeaders, body: JSON.stringify(patch) });
+  const isFinal = (task.retry_count ?? 0) >= 2;
 
-  const docRes = await fetch(`${ctx.pb}/api/collections/documents/records/${p.document_id}`, { headers: { Authorization: ctx.adminToken } });
-  if (!docRes.ok) throw new Error(`extraction: document ${p.document_id} not found (${docRes.status})`);
-  const doc = (await docRes.json()) as { id: string; file?: string };
-  const kind = extractKindFor(p.ext ?? (doc.file?.split(".").pop() ?? ""));
-  if (!kind || !doc.file) {
-    await patchDoc({ extraction_status: "error", output: "[No extractable text for this file type.]" });
-    return { text: "extraction:skipped", tokensActual: 0 };
-  }
-
-  let fileToken = "";
+  // B3 fix — EVERY failure path (doc-fetch, file-token, file-fetch, parse) flows
+  // through one catch. Previously only a parser failure recorded a terminal error
+  // state; a throw at the doc-fetch or file-fetch step left the document stuck at
+  // "pending" FOREVER (the production "never finishes" bug). Now any final-attempt
+  // failure marks the document "error" (never stuck), and the exact failing step
+  // is logged for observability.
   try {
-    const tk = await fetch(`${ctx.pb}/api/files/token`, { method: "POST", headers: ctx.authHeaders });
-    if (tk.ok) fileToken = ((await tk.json()) as { token?: string }).token ?? "";
-  } catch { /* try without token */ }
-  const fileUrl = `${ctx.pb}/api/files/documents/${p.document_id}/${encodeURIComponent(doc.file)}${fileToken ? `?token=${fileToken}` : ""}`;
-  const blobRes = await fetch(fileUrl, { headers: { Authorization: ctx.adminToken } });
-  if (!blobRes.ok) throw new Error(`extraction: file fetch failed (${blobRes.status})`);
-  const buf = new Uint8Array(await blobRes.arrayBuffer());
+    const docRes = await fetch(`${ctx.pb}/api/collections/documents/records/${docId}`, { headers: { Authorization: ctx.adminToken } });
+    if (!docRes.ok) throw new Error(`document fetch failed (${docRes.status})`);
+    const doc = (await docRes.json()) as { id: string; file?: string };
+    const kind = extractKindFor(p.ext ?? (doc.file?.split(".").pop() ?? ""));
+    if (!kind || !doc.file) {
+      await patchDoc({ extraction_status: "error", output: "[No extractable text for this file type.]" });
+      return { text: "extraction:skipped", tokensActual: 0 };
+    }
 
-  const result = await extractText(buf, kind);
-  if (result.ok) {
+    let fileToken = "";
+    try {
+      const tk = await fetch(`${ctx.pb}/api/files/token`, { method: "POST", headers: ctx.authHeaders });
+      if (tk.ok) fileToken = ((await tk.json()) as { token?: string }).token ?? "";
+    } catch { /* try without token */ }
+    const fileUrl = `${ctx.pb}/api/files/documents/${docId}/${encodeURIComponent(doc.file)}${fileToken ? `?token=${fileToken}` : ""}`;
+    const blobRes = await fetch(fileUrl, { headers: { Authorization: ctx.adminToken } });
+    if (!blobRes.ok) throw new Error(`file fetch failed (${blobRes.status})`);
+    const buf = new Uint8Array(await blobRes.arrayBuffer());
+
+    const result = await extractText(buf, kind);
+    if (!result.ok) throw new Error(`parse failed: ${result.reason ?? "unknown"}`);
     await patchDoc({ output: result.text || "[Document uploaded — no readable text found.]", extraction_status: "extracted" });
     return { text: `extracted:${result.text.length}`, tokensActual: 0 };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : "unknown";
+    // Observability — the exact failing step lands in the Vercel function logs.
+    console.error(`[document_extraction] doc=${docId} retry=${task.retry_count ?? 0} final=${isFinal} failed: ${reason}`);
+    if (isFinal) {
+      await patchDoc({ extraction_status: "error", output: "[We couldn't read this file automatically. Your specialist can still work from the file name and your description.]" });
+      return { text: `extraction:failed-final:${reason}`, tokensActual: 0 };
+    }
+    throw err; // non-final → let W71 retry
   }
-  if ((task.retry_count ?? 0) >= 2) {
-    await patchDoc({ extraction_status: "error", output: "[We couldn't read this file automatically. Your specialist can still work from the file name and your description.]" });
-    return { text: "extraction:failed-final", tokensActual: 0 };
-  }
-  throw new Error(`extraction failed: ${result.reason ?? "unknown"}`);
 };
 
 // ── listmonk_subscribe (W95.4a) — add a contact to the customer's list (bus) ──
