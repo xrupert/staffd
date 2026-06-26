@@ -23,7 +23,7 @@ type UploadResult =
   | { ok: boolean; total: number; succeeded: number; failed: number; errors: { row: number; reason: string }[]; documents?: DocItem[] }
   | { error: string; detail?: string };
 type Session = { id: string; kind: string; summary?: string; succeeded?: number; failed?: number; created: string };
-type DocStatus = { name: string; state: "processing" | "ready" | "error"; preview?: string };
+type DocStatus = { name: string; state: "processing" | "ready" | "error" | "slow"; preview?: string };
 
 // Lightweight client-side preview parse (display only — the server is the
 // authority). Splits on newlines, naive comma split (good enough for a glance).
@@ -157,11 +157,15 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
   const [statuses, setStatuses] = useState<Record<string, DocStatus>>({});
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Poll a pending document until extraction finishes (or ~30s elapse).
+  // Poll a pending document until extraction finishes. The drain runs on a
+  // ~60s cron, so a 30s window gave up before the work could even start (it
+  // looked permanently stuck). Poll for ~3 minutes — comfortably past one cron
+  // cycle plus extraction — and if it's still going, leave an honest "still
+  // working" note rather than an endless spinner (a reload re-reads the truth).
   const pollDoc = useCallback(async (id: string, name: string) => {
     const token = pb.authStore.token;
-    for (let i = 0; i < 10; i++) {
-      await new Promise((r) => setTimeout(r, 3000));
+    for (let i = 0; i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 6000));
       try {
         const res = await fetch(`/api/documents/${id}`, { headers: token ? { Authorization: token } : {} });
         if (!res.ok) continue;
@@ -170,6 +174,7 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
         if (d.extraction_status === "error") { setStatuses((s) => ({ ...s, [id]: { name, state: "error" } })); return; }
       } catch { /* keep polling */ }
     }
+    setStatuses((s) => ({ ...s, [id]: { name, state: "slow" } }));
   }, []);
 
   const submit = async () => {
@@ -227,7 +232,7 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
               <div className="flex items-center justify-between gap-3">
                 <span style={{ color: "#C0C0D8" }} className="truncate">{s.name}</span>
                 <span className="text-xs shrink-0" style={{ color: s.state === "ready" ? "#7CD992" : s.state === "error" ? "#E0B060" : "#8A8AA0" }}>
-                  {s.state === "ready" ? "✓ Ready" : s.state === "error" ? "Couldn't read" : "Processing…"}
+                  {s.state === "ready" ? "✓ Ready" : s.state === "error" ? "Couldn't read" : s.state === "slow" ? "Still working — reload to check" : "Processing…"}
                 </span>
               </div>
               {s.state === "ready" && s.preview && <p className="text-xs mt-1" style={faint}>{s.preview}{s.preview.length >= 200 ? "…" : ""}</p>}

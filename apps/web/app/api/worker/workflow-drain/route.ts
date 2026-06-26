@@ -29,6 +29,12 @@ import { notifyUser } from "../../_lib/notifications/notify";
 
 const TASKS_PER_TICK = 10;
 
+// The drain processes up to TASKS_PER_TICK tasks per invocation, some of which
+// call /api/agent (LLM, slow). At Vercel's low default function timeout a batch
+// could be killed mid-task, orphaning a task in "running". Raise the ceiling so
+// a normal batch finishes cleanly (Pro plan allows up to 300s).
+export const maxDuration = 60;
+
 async function consumeStream(stream: ReadableStream<Uint8Array>): Promise<string> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
