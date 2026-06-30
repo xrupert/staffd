@@ -150,12 +150,15 @@ function ContactsCard({ onDone }: { onDone: () => void }) {
   );
 }
 
-// Vercel Serverless Functions enforce a hard ~4.5MB request-body cap at the
-// PLATFORM level — before our route code (and our own 25MB-per-file check)
-// ever runs. A request over this silently gets the platform's own (non-JSON)
-// error page, which used to surface as an opaque "Something went wrong."
-// 4MB gives safe headroom under that cap for multipart boundary overhead.
-const PLATFORM_BODY_LIMIT_BYTES = 4 * 1024 * 1024;
+// Documents now upload DIRECTLY to PocketBase (the browser's own session, the
+// same pattern already used by the Vault logo upload) — the Vercel 4.5MB body
+// cap no longer applies, since file bytes never pass through a Vercel
+// function. These are our actual intended limits (PocketBase enforces the
+// same at the field level as defense-in-depth).
+const MAX_DOC_BYTES = 25 * 1024 * 1024;       // 25 MB / file
+const MAX_SESSION_BYTES = 100 * 1024 * 1024;  // 100 MB / batch
+const TEXT_EXT = new Set(["txt", "md"]);
+const BINARY_EXT = new Set(["pdf", "docx"]);
 
 function DocumentsCard({ onDone }: { onDone: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
@@ -185,37 +188,78 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
   }, []);
 
   const totalBytes = files.reduce((n, f) => n + f.size, 0);
-  const oversizedFiles = files.filter((f) => f.size > PLATFORM_BODY_LIMIT_BYTES);
-  const tooLargeToSend = totalBytes > PLATFORM_BODY_LIMIT_BYTES;
+  const oversizedFiles = files.filter((f) => f.size > MAX_DOC_BYTES);
+  const tooLargeToSend = oversizedFiles.length > 0 || totalBytes > MAX_SESSION_BYTES;
 
   const submit = async () => {
     if (files.length === 0 || tooLargeToSend) return;
     setBusy(true); setResult(null); setStatuses({});
+    const clientErrors: { row: number; reason: string }[] = [];
+    const createdIds: { id: string; name: string }[] = [];
+
+    let idx = 0;
+    for (const file of files) {
+      idx++;
+      const e = file.name.toLowerCase().split(".").pop() ?? "";
+      if (!TEXT_EXT.has(e) && !BINARY_EXT.has(e)) {
+        clientErrors.push({ row: idx, reason: `unsupported type ".${e}" (allowed: PDF, DOCX, TXT, MD)` });
+        continue;
+      }
+      try {
+        const fd = new FormData();
+        fd.append("user", pb.authStore.record?.id ?? "");
+        fd.append("client", "");
+        fd.append("department", "library");
+        fd.append("agent_name", "Uploaded document");
+        fd.append("prompt", file.name);
+        fd.append("source", "upload");
+        fd.append("extraction_status", "pending"); // finalize decides the real outcome
+        fd.append("output", "[Reading this document… your specialist will have it shortly.]");
+        fd.append("file", file, file.name);
+        // Direct to PocketBase — no Vercel function in the file path, so the
+        // platform's ~4.5MB body cap never applies (only our own 25MB limit,
+        // already gated client-side and enforced at the PB field level).
+        const rec = await pb.collection("documents").create(fd);
+        createdIds.push({ id: (rec as { id: string }).id, name: file.name });
+      } catch (e) {
+        clientErrors.push({ row: idx, reason: e instanceof Error ? e.message : "upload_failed" });
+      }
+    }
+
+    if (createdIds.length === 0) {
+      setResult({ error: clientErrors[0]?.reason ?? "upload_failed" });
+      setBusy(false);
+      return;
+    }
+
     try {
       const token = pb.authStore.token;
-      const fd = new FormData(); for (const f of files) fd.append("file", f);
-      const res = await fetch("/api/upload/documents", { method: "POST", headers: token ? { Authorization: token } : {}, body: fd });
-      // The platform can reject an oversized request with its OWN non-JSON
-      // error page before our route ever runs — don't assume res.json() will
-      // succeed just because fetch didn't throw.
-      let data: UploadResult;
-      try {
-        data = await res.json() as UploadResult;
-      } catch {
-        data = res.status === 413
-          ? { error: "too_large" }
-          : { error: "upload_failed", detail: `status ${res.status}` };
-      }
-      setResult(data);
-      if ("documents" in data && data.documents) {
+      const finRes = await fetch("/api/upload/documents/finalize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: token } : {}) },
+        body: JSON.stringify({ documentIds: createdIds.map((d) => d.id) }),
+      });
+      const finData = await finRes.json().catch(() => null) as
+        | { ok: boolean; total: number; succeeded: number; failed: number; results: { document_id: string; name: string; status: "extracted" | "extraction_pending" }[]; errors: { document_id: string; reason: string }[] }
+        | null;
+
+      if (!finRes.ok || !finData) {
+        setResult({ error: "upload_failed", detail: `finalize status ${finRes.status}` });
+      } else {
+        const documents = finData.results.map((r) => ({ document_id: r.document_id, name: r.name, status: r.status }));
+        const allErrors = [...clientErrors, ...finData.errors.map((e, i) => ({ row: i + 1, reason: e.reason }))];
+        setResult({ ok: true, total: files.length, succeeded: finData.succeeded, failed: clientErrors.length + finData.failed, errors: allErrors, documents });
         const init: Record<string, DocStatus> = {};
-        for (const d of data.documents) init[d.document_id] = { name: d.name, state: d.status === "extracted" ? "ready" : "processing" };
+        for (const d of documents) init[d.document_id] = { name: d.name, state: d.status === "extracted" ? "ready" : "processing" };
         setStatuses(init);
-        for (const d of data.documents) if (d.status === "extraction_pending") void pollDoc(d.document_id, d.name);
+        for (const d of documents) if (d.status === "extraction_pending") void pollDoc(d.document_id, d.name);
       }
-      if (res.ok) { setFiles([]); onDone(); }
-    } catch { setResult({ error: "upload_failed" }); }
-    finally { setBusy(false); }
+    } catch {
+      setResult({ error: "upload_failed", detail: "finalize unreachable" });
+    }
+
+    setFiles([]); onDone();
+    setBusy(false);
   };
 
   const statusList = Object.entries(statuses);
@@ -240,8 +284,8 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
             {files.map((f, i) => (
               <li key={i}>
                 • {f.name}{" "}
-                <span style={f.size > PLATFORM_BODY_LIMIT_BYTES ? { color: "#E0B060" } : faint}>
-                  ({Math.round(f.size / 1024)} KB{f.size > PLATFORM_BODY_LIMIT_BYTES ? " — too large" : ""})
+                <span style={f.size > MAX_DOC_BYTES ? { color: "#E0B060" } : faint}>
+                  ({Math.round(f.size / 1024)} KB{f.size > MAX_DOC_BYTES ? " — too large" : ""})
                 </span>
               </li>
             ))}
@@ -249,8 +293,8 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
           {tooLargeToSend && (
             <p className="text-xs mb-3" style={{ color: "#E0B060" }}>
               {oversizedFiles.length > 0
-                ? `${oversizedFiles.length === 1 ? "That file is" : "Those files are"} too large to upload — keep each file under ${Math.round(PLATFORM_BODY_LIMIT_BYTES / (1024 * 1024))}MB.`
-                : `These files total more than ${Math.round(PLATFORM_BODY_LIMIT_BYTES / (1024 * 1024))}MB — upload them in smaller batches.`}
+                ? `${oversizedFiles.length === 1 ? "That file is" : "Those files are"} too large to upload — keep each file under ${Math.round(MAX_DOC_BYTES / (1024 * 1024))}MB.`
+                : `These files total more than ${Math.round(MAX_SESSION_BYTES / (1024 * 1024))}MB — upload them in smaller batches.`}
             </p>
           )}
           <button onClick={() => void submit()} disabled={busy || tooLargeToSend}
