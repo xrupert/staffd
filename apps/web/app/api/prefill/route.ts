@@ -1,9 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { randomUUID } from "node:crypto";
 import { resolveIndustryToPackId } from "@staffd/agents";
 
 const anthropic = new Anthropic();
 
 export async function POST(req: Request) {
+  // Forensic W95.7.3d-INV1 — same masking pattern as /api/agent: log a
+  // correlatable ref so a generic client message can be traced to the real
+  // server error.
+  const reqId = randomUUID().slice(0, 8);
   try {
     const { url } = await req.json() as { url: string };
 
@@ -15,12 +20,23 @@ export async function POST(req: Request) {
     try {
       const res = await fetch(url, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1)" },
-        signal: AbortSignal.timeout(8000),
+        // 8s was tight for real business sites (slow TTFB, large pages) and a
+        // timeout looked identical to "site doesn't exist." 20s gives real
+        // sites a fair shot.
+        signal: AbortSignal.timeout(20000),
       });
+      if (!res.ok) {
+        console.warn(`[prefill:${reqId}] fetch non-ok status=${res.status} url=${url}`);
+        return Response.json(
+          { error: "Could not reach that website. Check the URL and try again.", ref: reqId },
+          { status: 422 }
+        );
+      }
       html = await res.text();
-    } catch {
+    } catch (err) {
+      console.warn(`[prefill:${reqId}] fetch failed url=${url}:`, err);
       return Response.json(
-        { error: "Could not reach that website. Check the URL and try again." },
+        { error: "Could not reach that website. Check the URL and try again.", ref: reqId },
         { status: 422 }
       );
     }
@@ -57,8 +73,11 @@ Return ONLY the JSON object. No explanation, no markdown, no code fences.`,
     const content = message.content[0];
     if (!content || content.type !== "text") throw new Error("Unexpected response");
 
-    const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error("No JSON in response");
+    // Claude sometimes wraps the JSON in ```json fences despite being told
+    // not to — strip them before matching so that doesn't silently fail.
+    const stripped = content.text.replace(/```(?:json)?\s*([\s\S]*?)```/i, "$1");
+    const jsonMatch = stripped.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error(`No JSON in response: ${content.text.slice(0, 200)}`);
 
     const data = JSON.parse(jsonMatch[0]) as {
       business_name?: string;
@@ -72,9 +91,9 @@ Return ONLY the JSON object. No explanation, no markdown, no code fences.`,
     const industry_category = resolveIndustryToPackId(data.industry);
     return Response.json(industry_category ? { ...data, industry_category } : data);
   } catch (err) {
-    console.error("Prefill error:", err);
+    console.error(`[prefill:${reqId}] error:`, err);
     return Response.json(
-      { error: "Couldn't extract info automatically. Please fill in manually." },
+      { error: "Couldn't extract info automatically. Please fill in manually.", ref: reqId },
       { status: 500 }
     );
   }

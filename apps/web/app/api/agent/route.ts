@@ -72,6 +72,11 @@ async function writeConversationTurnAndEnqueue(opts: {
 }
 
 export async function POST(req: Request) {
+  // Forensic W95.7.3d-INV1 — a short, correlatable reference so an opaque
+  // client-side error can be matched to the real server log line. Logged in
+  // EVERY error path inside this handler (not just the outer catch) so any
+  // failure here is traceable, never just "Something went wrong."
+  const reqId = randomUUID().slice(0, 8);
   try {
     const {
       task,
@@ -431,7 +436,10 @@ export async function POST(req: Request) {
       },
     });
   } catch (err) {
-    console.error("Agent route error:", err);
-    return new Response("Something went wrong", { status: 500 });
+    console.error(`[agent:${reqId}] route error:`, err);
+    return Response.json(
+      { error: "agent_failed", ref: reqId, message: "Your specialist hit a snag. Try again — if it keeps happening, mention this reference." },
+      { status: 500 },
+    );
   }
 }

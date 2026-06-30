@@ -150,6 +150,13 @@ function ContactsCard({ onDone }: { onDone: () => void }) {
   );
 }
 
+// Vercel Serverless Functions enforce a hard ~4.5MB request-body cap at the
+// PLATFORM level — before our route code (and our own 25MB-per-file check)
+// ever runs. A request over this silently gets the platform's own (non-JSON)
+// error page, which used to surface as an opaque "Something went wrong."
+// 4MB gives safe headroom under that cap for multipart boundary overhead.
+const PLATFORM_BODY_LIMIT_BYTES = 4 * 1024 * 1024;
+
 function DocumentsCard({ onDone }: { onDone: () => void }) {
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -177,14 +184,28 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
     setStatuses((s) => ({ ...s, [id]: { name, state: "slow" } }));
   }, []);
 
+  const totalBytes = files.reduce((n, f) => n + f.size, 0);
+  const oversizedFiles = files.filter((f) => f.size > PLATFORM_BODY_LIMIT_BYTES);
+  const tooLargeToSend = totalBytes > PLATFORM_BODY_LIMIT_BYTES;
+
   const submit = async () => {
-    if (files.length === 0) return;
+    if (files.length === 0 || tooLargeToSend) return;
     setBusy(true); setResult(null); setStatuses({});
     try {
       const token = pb.authStore.token;
       const fd = new FormData(); for (const f of files) fd.append("file", f);
       const res = await fetch("/api/upload/documents", { method: "POST", headers: token ? { Authorization: token } : {}, body: fd });
-      const data = await res.json() as UploadResult;
+      // The platform can reject an oversized request with its OWN non-JSON
+      // error page before our route ever runs — don't assume res.json() will
+      // succeed just because fetch didn't throw.
+      let data: UploadResult;
+      try {
+        data = await res.json() as UploadResult;
+      } catch {
+        data = res.status === 413
+          ? { error: "too_large" }
+          : { error: "upload_failed", detail: `status ${res.status}` };
+      }
       setResult(data);
       if ("documents" in data && data.documents) {
         const init: Record<string, DocStatus> = {};
@@ -192,7 +213,7 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
         setStatuses(init);
         for (const d of data.documents) if (d.status === "extraction_pending") void pollDoc(d.document_id, d.name);
       }
-      setFiles([]); onDone();
+      if (res.ok) { setFiles([]); onDone(); }
     } catch { setResult({ error: "upload_failed" }); }
     finally { setBusy(false); }
   };
@@ -216,9 +237,23 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
       {files.length > 0 && (
         <div className="mt-3">
           <ul className="text-xs space-y-1 mb-3" style={muted}>
-            {files.map((f, i) => <li key={i}>• {f.name} <span style={faint}>({Math.round(f.size / 1024)} KB)</span></li>)}
+            {files.map((f, i) => (
+              <li key={i}>
+                • {f.name}{" "}
+                <span style={f.size > PLATFORM_BODY_LIMIT_BYTES ? { color: "#E0B060" } : faint}>
+                  ({Math.round(f.size / 1024)} KB{f.size > PLATFORM_BODY_LIMIT_BYTES ? " — too large" : ""})
+                </span>
+              </li>
+            ))}
           </ul>
-          <button onClick={() => void submit()} disabled={busy}
+          {tooLargeToSend && (
+            <p className="text-xs mb-3" style={{ color: "#E0B060" }}>
+              {oversizedFiles.length > 0
+                ? `${oversizedFiles.length === 1 ? "That file is" : "Those files are"} too large to upload — keep each file under ${Math.round(PLATFORM_BODY_LIMIT_BYTES / (1024 * 1024))}MB.`
+                : `These files total more than ${Math.round(PLATFORM_BODY_LIMIT_BYTES / (1024 * 1024))}MB — upload them in smaller batches.`}
+            </p>
+          )}
+          <button onClick={() => void submit()} disabled={busy || tooLargeToSend}
             className="text-sm px-4 py-2 rounded-xl btn-primary text-white font-semibold disabled:opacity-50">
             {busy ? "Uploading…" : `Upload ${files.length} document${files.length === 1 ? "" : "s"}`}
           </button>
@@ -254,6 +289,8 @@ function ResultBanner({ result, noun }: { result: UploadResult | null; noun: str
       <p className="text-sm mt-4" style={{ color: "#E08080" }}>
         {result.error === "invalid_csv"
           ? "We couldn't read that file — make sure it has a name column."
+          : result.error === "too_large" || result.error === "session_too_large"
+          ? "That upload was too large. Try fewer or smaller files at a time."
           : "Something went wrong with that upload. Give it another try."}
       </p>
     );

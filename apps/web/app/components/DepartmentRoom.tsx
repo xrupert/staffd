@@ -361,7 +361,19 @@ export default function DepartmentRoom({
         setShowUpgrade(true);
         return;
       }
-      if (!res.ok) throw new Error("Agent request failed");
+      if (!res.ok) {
+        // Forensic W95.7.3d-INV1 — surface the real (brand-safe) error instead
+        // of a fixed string; mirrors the CommandCenter fix.
+        const bodyText = await res.text().catch(() => "");
+        let friendly = "";
+        try {
+          const parsed = JSON.parse(bodyText) as { message?: string; error?: string; ref?: string };
+          friendly = parsed.message || (parsed.ref ? `Something went wrong (ref: ${parsed.ref}). Try again.` : "");
+        } catch {
+          friendly = bodyText.trim();
+        }
+        throw new Error(friendly || `Agent request failed (${res.status})`);
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -395,8 +407,9 @@ export default function DepartmentRoom({
       if (!isFollowUp) {
         setTrialRemaining(prev => prev !== null ? Math.max(0, prev - 1) : null);
       }
-    } catch {
-      setError("Something went wrong. Try again.");
+    } catch (err) {
+      // Forensic W95.7.3d-INV1 — show the real message when we have one.
+      setError(err instanceof Error && err.message ? err.message : "Something went wrong. Try again.");
     } finally {
       setLoading(false);
     }

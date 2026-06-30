@@ -854,7 +854,25 @@ export default function CommandCenter() {
           threadId: threadId || undefined,
         }),
       });
-      if (!res.ok) throw new Error("Agent failed");
+      if (!res.ok) {
+        // Forensic W95.7.3d-INV1 — don't discard the response body. Known
+        // error paths (rate limit, trial-exhausted, "agent_failed" with a
+        // log-correlatable ref) already carry a real, brand-safe message;
+        // surface it instead of always showing a generic, undiagnosable string.
+        const bodyText = await res.text().catch(() => "");
+        let friendly = "";
+        try {
+          const parsed = JSON.parse(bodyText) as { message?: string; error?: string; ref?: string };
+          friendly = parsed.message
+            || (parsed.error === "trial_exhausted" ? "You've used today's free specialist time — upgrade to keep going." : "")
+            || (parsed.ref ? `Something went wrong (ref: ${parsed.ref}). Try again.` : "");
+        } catch {
+          // Not JSON — some paths (rate limit, "Task is required") return
+          // plain, already-human-readable text. Use it directly.
+          friendly = bodyText.trim();
+        }
+        throw new Error(friendly || `Agent failed (${res.status})`);
+      }
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -888,9 +906,12 @@ export default function CommandCenter() {
         aborted = true;
         setMessages((prev) => prev.slice(0, -1));
       } else {
+        // Forensic W95.7.3d-INV1 — show the real (brand-safe) message when we
+        // have one, instead of always masking it as "Something went wrong."
+        const msg = err instanceof Error && err.message ? err.message : "Something went wrong. Try again.";
         setMessages((prev) => {
           const updated = [...prev];
-          updated[updated.length - 1] = { role: "assistant", content: "Something went wrong. Try again.", isOutput: false };
+          updated[updated.length - 1] = { role: "assistant", content: msg, isOutput: false };
           return updated;
         });
       }
