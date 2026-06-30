@@ -195,7 +195,11 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
     if (files.length === 0 || tooLargeToSend) return;
     setBusy(true); setResult(null); setStatuses({});
     const clientErrors: { row: number; reason: string }[] = [];
-    const createdIds: { id: string; name: string }[] = [];
+    // Carries the ORIGINAL file-selection row so a later finalize error can be
+    // attributed to the right row, not a fabricated 1..N re-index (review fix —
+    // a re-derived index collided across create-failures and finalize-failures
+    // in the same batch, mislabeling which file actually failed).
+    const createdIds: { id: string; name: string; row: number }[] = [];
 
     let idx = 0;
     for (const file of files) {
@@ -220,7 +224,7 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
         // platform's ~4.5MB body cap never applies (only our own 25MB limit,
         // already gated client-side and enforced at the PB field level).
         const rec = await pb.collection("documents").create(fd);
-        createdIds.push({ id: (rec as { id: string }).id, name: file.name });
+        createdIds.push({ id: (rec as { id: string }).id, name: file.name, row: idx });
       } catch (e) {
         clientErrors.push({ row: idx, reason: e instanceof Error ? e.message : "upload_failed" });
       }
@@ -247,7 +251,13 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
         setResult({ error: "upload_failed", detail: `finalize status ${finRes.status}` });
       } else {
         const documents = finData.results.map((r) => ({ document_id: r.document_id, name: r.name, status: r.status }));
-        const allErrors = [...clientErrors, ...finData.errors.map((e, i) => ({ row: i + 1, reason: e.reason }))];
+        // Look up the ORIGINAL row by document_id — finalize errors are keyed
+        // by id, not position, and re-deriving an index here would collide
+        // with clientErrors' real row numbers (review fix).
+        const allErrors = [
+          ...clientErrors,
+          ...finData.errors.map((e) => ({ row: createdIds.find((c) => c.id === e.document_id)?.row ?? -1, reason: e.reason })),
+        ];
         setResult({ ok: true, total: files.length, succeeded: finData.succeeded, failed: clientErrors.length + finData.failed, errors: allErrors, documents });
         const init: Record<string, DocStatus> = {};
         for (const d of documents) init[d.document_id] = { name: d.name, state: d.status === "extracted" ? "ready" : "processing" };
