@@ -107,4 +107,11 @@ describe("POST /api/upload/documents/finalize", () => {
     const data = await res.json();
     expect(data.errors).toContainEqual({ document_id: "missing", reason: "not_found" });
   });
+
+  it("400 on a malformed (non-JSON) request body, does not throw", async () => {
+    const res = await POST(new Request("http://localhost/api/upload/documents/finalize", {
+      method: "POST", headers: { "Content-Type": "application/json", Authorization: "t" }, body: "not json",
+    }));
+    expect(res.status).toBe(400);
+  });
 });
