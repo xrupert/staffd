@@ -250,7 +250,15 @@ function DocumentsCard({ onDone }: { onDone: () => void }) {
       if (!finRes.ok || !finData) {
         setResult({ error: "upload_failed", detail: `finalize status ${finRes.status}` });
       } else {
-        const documents = finData.results.map((r) => ({ document_id: r.document_id, name: r.name, status: r.status }));
+        // finalize's `name` is doc.file — PocketBase's STORED filename (it
+        // sanitizes + appends a random suffix on create), correct for building
+        // fetch URLs but not for display. Prefer the clean original name the
+        // user actually selected, already on hand in createdIds (review fix).
+        const documents = finData.results.map((r) => ({
+          document_id: r.document_id,
+          name: createdIds.find((c) => c.id === r.document_id)?.name ?? r.name,
+          status: r.status,
+        }));
         // Look up the ORIGINAL row by document_id — finalize errors are keyed
         // by id, not position, and re-deriving an index here would collide
         // with clientErrors' real row numbers (review fix).
