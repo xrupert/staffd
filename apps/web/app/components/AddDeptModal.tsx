@@ -29,7 +29,7 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
     try {
       const userId    = pb.authStore.record?.id ?? "";
       const userEmail = (pb.authStore.record?.email as string) ?? "";
-      const res = await fetch("/api/stripe/checkout-addon", {
+      const res = await fetch("/api/billing/checkout-addon", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ userId, userEmail, department: selected }),
@@ -38,7 +38,7 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
       if (data.url) {
         window.location.href = data.url;
       } else {
-        console.error("Addon checkout error:", data.error);
+        console.error("Addon checkout error:", data.error === "billing_not_configured" ? "Billing isn't connected yet — check back soon." : data.error);
         setLoading(false);
       }
     } catch {

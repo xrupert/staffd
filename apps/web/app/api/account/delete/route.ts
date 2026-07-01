@@ -18,6 +18,7 @@
 
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 import { isSuperAdmin, type SuperAdminUser } from "../../_lib/auth/super-admin";
+import { getBillingProvider, BillingNotConfiguredError } from "../../_lib/billing/provider";
 
 // Mirror of export route's collection list. Order matters loosely: dependent
 // collections (vault_embeddings_index, document_versions) deleted before
@@ -109,7 +110,10 @@ async function cascadeDelete(adminToken: string, collection: string, userId: str
 }
 
 async function cancelStripeSubscription(adminToken: string, userId: string): Promise<{ cancelled: boolean; detail?: string }> {
-  // Fetch the user's subscription to get the Stripe subscription id
+  // Fetch the user's subscription to get the billing-provider subscription id.
+  // NOTE: the real schema field is `stripe_sub_id` (see
+  // setup/subscriptions/route.ts) — the old code read a non-existent
+  // `stripe_subscription_id` and silently no-op'd. Fixed here.
   try {
     const filter = `user='${pbEscape(userId)}'`;
     const res = await fetch(
@@ -118,30 +122,18 @@ async function cancelStripeSubscription(adminToken: string, userId: string): Pro
     );
     if (!res.ok) return { cancelled: false, detail: "subscriptions_fetch_failed" };
     const data = (await res.json()) as {
-      items?: Array<{ stripe_subscription_id?: string; stripe_customer?: string }>;
+      items?: Array<{ stripe_sub_id?: string; stripe_customer?: string }>;
     };
     const sub = data.items?.[0];
-    const stripeSubId = sub?.stripe_subscription_id;
-    if (!stripeSubId) return { cancelled: true, detail: "no_active_stripe_subscription" };
+    const subId = sub?.stripe_sub_id;
+    if (!subId) return { cancelled: true, detail: "no_active_subscription" };
 
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeKey) return { cancelled: false, detail: "stripe_not_configured" };
-
-    // Use Stripe REST API directly to avoid pulling the SDK into the route
-    // bundle (already imported elsewhere; this is a single call).
-    const stripeRes = await fetch(
-      `https://api.stripe.com/v1/subscriptions/${encodeURIComponent(stripeSubId)}`,
-      {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${stripeKey}` },
-      },
-    );
-    if (!stripeRes.ok) {
-      const detail = await stripeRes.text();
-      return { cancelled: false, detail: `stripe_${stripeRes.status}: ${detail.slice(0, 200)}` };
-    }
+    await getBillingProvider().cancelSubscription(subId);
     return { cancelled: true };
   } catch (err) {
+    if (err instanceof BillingNotConfiguredError) {
+      return { cancelled: false, detail: "billing_not_configured" };
+    }
     return { cancelled: false, detail: err instanceof Error ? err.message : "unknown" };
   }
 }

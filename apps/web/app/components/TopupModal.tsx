@@ -4,10 +4,10 @@
  * TopupModal — credit-pack purchase modal (W47, §3-aligned).
  *
  * Six SKUs match ARCH §3: three image packs, three video packs. Prices
- * match `/api/setup/stripe`. Clicking a pack POSTs to
- * `/api/stripe/checkout-topup`, which returns a Stripe Checkout URL; we
- * redirect to it. The webhook credits the matching bucket (image or video
- * — ARCH §12) on success and the dashboard widget re-fetches.
+ * match the configured price ids. Clicking a pack POSTs to
+ * `/api/billing/checkout-topup`, which returns a provider-hosted checkout
+ * URL; we redirect to it. The webhook credits the matching bucket (image or
+ * video — ARCH §12) on success and the dashboard widget re-fetches.
  */
 
 import { useState } from "react";
@@ -48,7 +48,7 @@ export default function TopupModal({ open, onClose }: Props) {
     try {
       const userId = pb.authStore.record?.id ?? "";
       const userEmail = (pb.authStore.record?.email as string | undefined) ?? "";
-      const res = await fetch("/api/stripe/checkout-topup", {
+      const res = await fetch("/api/billing/checkout-topup", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ userId, userEmail, pack }),
@@ -57,7 +57,7 @@ export default function TopupModal({ open, onClose }: Props) {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        setError(data.error ?? "checkout_failed");
+        setError(data.error === "billing_not_configured" ? "Billing isn't connected yet — check back soon." : (data.error ?? "checkout_failed"));
         setLoadingPack(null);
       }
     } catch {
@@ -133,7 +133,7 @@ export default function TopupModal({ open, onClose }: Props) {
                       </div>
                       {isLoading && (
                         <div className="text-xs mt-2" style={{ color: "#A07BFF" }}>
-                          Opening Stripe…
+                          Opening checkout…
                         </div>
                       )}
                     </button>
@@ -153,7 +153,7 @@ export default function TopupModal({ open, onClose }: Props) {
         )}
 
         <div className="px-6 py-3 text-xs" style={{ borderTop: "1px solid #1E1E2A", color: "#5A5A70" }}>
-          Payment processed by Stripe. You'll be redirected.
+          Payment processed securely. You'll be redirected.
         </div>
       </div>
     </div>

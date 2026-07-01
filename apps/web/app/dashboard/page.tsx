@@ -69,7 +69,7 @@ export default function DashboardPage() {
         : name.slice(0, 2).toUpperCase()
     );
     void loadVaultHealth();
-    // Handle Stripe redirect params
+    // Handle checkout redirect params
     const params = new URLSearchParams(window.location.search);
     const checkout = params.get("checkout");
     const addon    = params.get("addon");
@@ -112,7 +112,7 @@ export default function DashboardPage() {
           setShowDeptPicker(true);
         }
 
-        // If user signed up via the pricing page, fire Stripe checkout for the
+        // If user signed up via the pricing page, fire checkout for the
         // plan they picked. This runs once and only when they're still on starter.
         const pendingPlan = localStorage.getItem("staffd_pending_plan");
         const pendingInterval = localStorage.getItem("staffd_pending_interval") ?? "annual";
@@ -121,7 +121,7 @@ export default function DashboardPage() {
           localStorage.removeItem("staffd_pending_interval");
           const userEmail = (pb.authStore.record?.email as string) ?? "";
           try {
-            const checkoutRes = await fetch("/api/stripe/checkout", {
+            const checkoutRes = await fetch("/api/billing/checkout", {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
               body: JSON.stringify({
@@ -322,7 +322,7 @@ export default function DashboardPage() {
               <button
                 onClick={async () => {
                   const userId = pb.authStore.record?.id ?? "";
-                  const res = await fetch("/api/stripe/portal", { method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token }, body: JSON.stringify({ userId }) });
+                  const res = await fetch("/api/billing/portal", { method: "POST", headers: { "Content-Type": "application/json", Authorization: pb.authStore.token }, body: JSON.stringify({ userId }) });
                   const data = await res.json() as { url?: string };
                   if (data.url) window.location.href = data.url;
                 }}

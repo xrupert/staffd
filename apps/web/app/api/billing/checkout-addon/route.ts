@@ -1,16 +1,17 @@
 /**
- * POST /api/stripe/checkout-addon
- * Body: { userId, userEmail, department }
- * Returns: { url } — Stripe Checkout URL for the $29/mo department add-on
+ * POST /api/billing/checkout-addon
+ * Body: { department }
+ * Returns: { url } — checkout URL for the $29/mo department add-on, or a
+ * 503 { error: "billing_not_configured" } until a real provider is wired in.
  *
  * Eligibility: Growth and Pro plans only (Agency already has all depts;
  * Starter must upgrade first). Server-side validates plan eligibility.
  */
 
-import Stripe from "stripe";
 import { resolveAppUrl } from "../../../../lib/env";
-import { pbEscape } from "../../_lib/pb";
+import { getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
+import { getBillingProvider, BillingNotConfiguredError } from "../../_lib/billing/provider";
 
 const ELIGIBLE_PLANS = new Set(["growth", "pro"]);
 
@@ -26,31 +27,13 @@ function getPrices(): Record<string, string> {
   }
 }
 
-async function getAdminToken(pbUrl: string): Promise<string> {
-  const res = await fetch(`${pbUrl}/api/collections/_superusers/auth-with-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      identity: process.env.PB_ADMIN_EMAIL ?? "",
-      password: process.env.PB_ADMIN_PASSWORD ?? "",
-    }),
-  });
-  if (!res.ok) throw new Error("PocketBase admin auth failed");
-  const { token } = (await res.json()) as { token: string };
-  return token;
-}
-
 export async function POST(req: Request) {
   const { department } = (await req.json()) as { department: string };
 
-  const secretKey = process.env.STRIPE_SECRET_KEY;
-  const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
-
-  if (!secretKey || !pbUrl) {
+  if (!process.env.NEXT_PUBLIC_POCKETBASE_URL) {
     return Response.json({ error: "Payment system not configured" }, { status: 503 });
   }
 
-  // SECURITY (W95.7.3d-h6c) — user from session token, not a body userId/email.
   const me = await whoAmI(req);
   if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
   const userId = me.id;
@@ -66,23 +49,16 @@ export async function POST(req: Request) {
   const prices = getPrices();
   const priceId = prices["dept-addon_monthly"];
   if (!priceId) {
-    return Response.json(
-      { error: "Add-on price not configured. Run /api/setup/stripe to provision it." },
-      { status: 503 }
-    );
+    return Response.json({ error: "Add-on price not configured." }, { status: 503 });
   }
 
-  // PR-Tranche-1.6 — resolveAppUrl handles empty-string env (W8 clone fix).
   const origin = resolveAppUrl(req.headers.get("origin"));
-  const stripe = new Stripe(secretKey);
 
   try {
-    const adminToken = await getAdminToken(pbUrl);
-
-    // Look up subscription record + verify eligibility
+    const adminToken = await getAdminToken();
     const subRes = await fetch(
-      `${pbUrl}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
-      { headers: { Authorization: adminToken } }
+      `${pbUrl()}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
+      { headers: { Authorization: adminToken } },
     );
     const subData = (await subRes.json()) as {
       items?: Array<{
@@ -100,51 +76,32 @@ export async function POST(req: Request) {
     if (!ELIGIBLE_PLANS.has(sub.plan)) {
       return Response.json(
         { error: "Department add-ons are only available on Growth or Pro. Agency includes all departments." },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    // Block buying a dept the user already has
     const alreadyHas = (sub.unlocked_departments ?? []).includes(department) ||
                       Object.keys(sub.dept_addon_subs ?? {}).includes(department);
     if (alreadyHas) {
       return Response.json({ error: "You already have this department unlocked." }, { status: 400 });
     }
 
-    // Resolve customer ID (create if missing — should usually exist already)
-    let customerId = sub.stripe_customer;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: userEmail ?? "",
-        metadata: { staffd_user_id: userId },
-      });
-      customerId = customer.id;
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
+    const provider = getBillingProvider();
+    const session = await provider.createCheckoutSession({
       mode: "subscription",
-      success_url: `${origin}/dashboard?addon=success&dept=${department}`,
-      cancel_url: `${origin}/dashboard?addon=cancelled`,
-      metadata: {
-        staffd_user_id: userId,
-        staffd_addon_type: "department",
-        staffd_addon_dept: department,
-      },
-      allow_promotion_codes: true,
-      billing_address_collection: "auto",
-      subscription_data: {
-        metadata: {
-          staffd_user_id: userId,
-          staffd_addon_type: "department",
-          staffd_addon_dept: department,
-        },
-      },
+      priceId,
+      customerId: sub.stripe_customer,
+      customerEmail: sub.stripe_customer ? undefined : userEmail,
+      successUrl: `${origin}/dashboard?addon=success&dept=${department}`,
+      cancelUrl: `${origin}/dashboard?addon=cancelled`,
+      metadata: { staffd_user_id: userId, staffd_addon_type: "department", staffd_addon_dept: department },
     });
 
     return Response.json({ url: session.url });
   } catch (err) {
+    if (err instanceof BillingNotConfiguredError) {
+      return Response.json({ error: "billing_not_configured" }, { status: 503 });
+    }
     console.error("Addon checkout error:", err);
     return Response.json({ error: "Failed to create checkout session" }, { status: 500 });
   }

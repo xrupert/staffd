@@ -35,21 +35,24 @@ export default function SettingsPage() {
     setEmail((record?.email as string) ?? "");
   }, []);
 
-  // MX-7 — open the Stripe customer portal for self-service billing
-  // (update card, change plan, cancel). Redirects to the hosted portal.
+  // MX-7 — open the billing provider's customer portal for self-service
+  // billing (update card, change plan, cancel). Redirects to the hosted portal.
   async function openBilling() {
     setOpeningBilling(true);
     setBillingMsg(null);
     try {
       const userId = pb.authStore.record?.id ?? "";
-      const res = await fetch("/api/stripe/portal", {
+      const res = await fetch("/api/billing/portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ userId }),
       });
       const data = (await res.json()) as { url?: string; error?: string };
       if (res.ok && data.url) { window.location.href = data.url; return; }
-      setBillingMsg({ text: data.error ?? "Couldn't open billing — try again.", ok: false });
+      setBillingMsg({
+        text: data.error === "billing_not_configured" ? "Billing isn't connected yet — check back soon." : (data.error ?? "Couldn't open billing — try again."),
+        ok: false,
+      });
     } catch {
       setBillingMsg({ text: "Couldn't reach billing right now.", ok: false });
     } finally {
@@ -238,11 +241,11 @@ export default function SettingsPage() {
         <SchedulingSettings />
 
         {/* Connected social accounts */}
-        {/* Billing section (MX-7) — self-service via Stripe customer portal */}
+        {/* Billing section (MX-7) — self-service via the billing provider's portal */}
         <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
           <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Billing</h2>
           <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>
-            Manage your plan, update your payment method, view invoices, or cancel — in Stripe&apos;s secure portal.
+            Manage your plan, update your payment method, view invoices, or cancel — in our secure billing portal.
           </p>
           {billingMsg && (
             <div

@@ -119,7 +119,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
     try {
       const userId    = pb.authStore.record?.id ?? "";
       const userEmail = (pb.authStore.record?.email as string) ?? "";
-      const res = await fetch("/api/stripe/checkout", {
+      const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ planId, interval, userId, userEmail }),
@@ -128,7 +128,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
       if (data.url) {
         window.location.href = data.url;
       } else {
-        console.error("Checkout error:", data.error);
+        console.error("Checkout error:", data.error === "billing_not_configured" ? "Billing isn't connected yet — check back soon." : data.error);
         setCheckingOut(null);
       }
     } catch {
@@ -140,7 +140,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
     setPortalLoading(true);
     try {
       const userId = pb.authStore.record?.id ?? "";
-      const res = await fetch("/api/stripe/portal", {
+      const res = await fetch("/api/billing/portal", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
         body: JSON.stringify({ userId }),

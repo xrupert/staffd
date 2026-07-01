@@ -53,7 +53,7 @@ export default function PrivacyPage() {
               <li><strong style={{ color: "#F0F0F8" }}>Account information</strong> — your name, email, and password (hashed) when you sign up.</li>
               <li><strong style={{ color: "#F0F0F8" }}>Business Vault data</strong> — anything you enter into your Business Vault (business name, industry, target audience, contact info, etc.).</li>
               <li><strong style={{ color: "#F0F0F8" }}>Work product</strong> — documents, drafts, and reports your staff produces for you.</li>
-              <li><strong style={{ color: "#F0F0F8" }}>Subscription data</strong> — your plan, billing status, and Stripe customer ID (we never store your card details).</li>
+              <li><strong style={{ color: "#F0F0F8" }}>Subscription data</strong> — your plan, billing status, and payment-processor customer ID (we never store your card details).</li>
               <li><strong style={{ color: "#F0F0F8" }}>Anonymous usage analytics</strong> — collected via Plausible Analytics, which does not use cookies or track individuals.</li>
             </ul>
           </Section>
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
               <li>To personalize the work your staff produces for your business.</li>
               <li>To remember context across sessions so your team gets better over time.</li>
               <li>To deliver, maintain, and improve the STAFFD platform.</li>
-              <li>To process subscription payments via Stripe.</li>
+              <li>To process subscription payments via our payment processor.</li>
               <li>To communicate with you about your account or service updates.</li>
             </ul>
           </Section>
@@ -85,7 +85,7 @@ export default function PrivacyPage() {
             <p>STAFFD shares the minimum data necessary with these service providers:</p>
             <ul className="list-disc pl-5 space-y-2 mt-3">
               <li><strong style={{ color: "#F0F0F8" }}>Anthropic</strong> — to produce the work your staff delivers (your task + Vault context).</li>
-              <li><strong style={{ color: "#F0F0F8" }}>Stripe</strong> — to process subscription payments. Stripe handles all card data directly.</li>
+              <li><strong style={{ color: "#F0F0F8" }}>Our payment processor</strong> — to process subscription payments. It handles all card data directly.</li>
               <li><strong style={{ color: "#F0F0F8" }}>Vercel</strong> — to host the STAFFD application.</li>
               <li><strong style={{ color: "#F0F0F8" }}>Railway</strong> — to host backend services (database, integrations).</li>
             </ul>

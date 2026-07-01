@@ -104,7 +104,7 @@ export default function TermsPage() {
 
           <Section title="6. Subscriptions and billing">
             <ul className="list-disc pl-5 space-y-2">
-              <li>Subscriptions are billed monthly or annually via Stripe.</li>
+              <li>Subscriptions are billed monthly or annually via our payment processor.</li>
               <li>Plans renew automatically at the end of each billing period until cancelled.</li>
               <li>You can cancel any time via your account dashboard — cancellation takes effect at the end of the current period.</li>
               <li>Annual subscriptions are non-refundable except during the 7-day money-back guarantee window.</li>
@@ -137,7 +137,7 @@ export default function TermsPage() {
           <Section title="9. Service availability">
             <p>
               We aim for high uptime but make no guarantee of uninterrupted service. Planned
-              maintenance, third-party outages (Anthropic, Stripe, Railway, etc.), or other
+              maintenance, third-party outages (Anthropic, our payment processor, Railway, etc.), or other
               circumstances may cause temporary unavailability.
             </p>
           </Section>

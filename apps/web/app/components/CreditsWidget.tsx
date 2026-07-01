@@ -7,7 +7,7 @@
  * conversations are unlimited, so no agent counter is ever rendered here
  * (the API may still emit agentCreditsTopup; it stays invisible).
  * "Top up" CTA opens the existing TopupModal when a balance runs low.
- * Re-fetches on visibility change so a successful Stripe checkout (which
+ * Re-fetches on visibility change so a successful checkout (which
  * redirects back to /dashboard?topup=success) shows the updated balance
  * immediately.
  */

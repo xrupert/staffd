@@ -47,7 +47,6 @@ const okJson = (data: unknown, status = 200) => ({
 
 beforeEach(() => {
   process.env.ADMIN_EMAIL = ADMIN_EMAIL;
-  process.env.STRIPE_SECRET_KEY = "sk_test_fake";
   fetchMock = vi.fn();
   globalThis.fetch = fetchMock as unknown as typeof fetch;
 });
@@ -55,7 +54,6 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.ADMIN_EMAIL;
-  delete process.env.STRIPE_SECRET_KEY;
 });
 
 describe("POST /api/account/delete", () => {
@@ -98,9 +96,8 @@ describe("POST /api/account/delete", () => {
     expect(body.error).toBe("confirm_email_mismatch");
   });
 
-  it("cascades delete on correct confirm_email + cancels Stripe + deletes user record", async () => {
+  it("cascades delete on correct confirm_email + cancels the billing subscription + deletes user record", async () => {
     const deletedCollections: string[] = [];
-    let stripeCancelled = false;
     let userDeleted = false;
 
     fetchMock.mockImplementation(async (input: string | URL, init?: RequestInit) => {
@@ -108,20 +105,14 @@ describe("POST /api/account/delete", () => {
       if (u.includes("auth-refresh")) {
         return okJson({ record: { id: USER_ID, email: USER_EMAIL } });
       }
-      // Stripe DELETE
-      if (u.startsWith("https://api.stripe.com/v1/subscriptions/") && init?.method === "DELETE") {
-        stripeCancelled = true;
-        return okJson({ id: "sub_123", status: "canceled" });
-      }
-      // Per-collection row list. Subscriptions row gets BOTH `id` (for cascade
-      // delete) and `stripe_subscription_id` (for the Stripe cancel path
-      // — both read the same first item).
+      // Per-collection row list. Subscriptions row carries `stripe_sub_id`
+      // (the REAL schema field — see setup/subscriptions/route.ts).
       const listMatch = u.match(/\/api\/collections\/([^/]+)\/records\?filter=/);
       if (listMatch && (!init?.method || init.method === "GET")) {
         const c = listMatch[1]!;
         if (c === "subscriptions") {
           return okJson({
-            items: [{ id: `row_${c}`, stripe_subscription_id: "sub_123" }],
+            items: [{ id: `row_${c}`, stripe_sub_id: "sub_123" }],
             totalPages: 1,
           });
         }
@@ -146,15 +137,31 @@ describe("POST /api/account/delete", () => {
     const body = await res.json();
     expect(body.ok).toBe(true);
     expect(body.user_deleted).toBe(true);
-    expect(body.stripe.cancelled).toBe(true);
+    // No real provider is configured yet — cancellation reports not-cancelled,
+    // but deletion must still proceed (fail-open).
+    expect(body.stripe.cancelled).toBe(false);
 
-    // Spot-check that core collections were hit
     expect(deletedCollections).toContain("documents");
     expect(deletedCollections).toContain("conversations");
     expect(deletedCollections).toContain("vault_patterns");
     expect(deletedCollections).toContain("subscriptions");
-    expect(stripeCancelled).toBe(true);
     expect(userDeleted).toBe(true);
+  });
+
+  it("proceeds with deletion even when billing cancellation is not configured (fail-open)", async () => {
+    fetchMock.mockImplementation(async (input: string | URL) => {
+      const u = typeof input === "string" ? input : input.toString();
+      if (u.includes("auth-refresh")) {
+        return okJson({ record: { id: USER_ID, email: USER_EMAIL } });
+      }
+      if (u.includes("/records?filter=")) return okJson({ items: [], totalPages: 0 });
+      return okJson({});
+    });
+    const res = await POST(makeReq({ confirm_email: USER_EMAIL }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.user_deleted).toBe(true);
   });
 
   it("is case-insensitive on confirm_email match", async () => {
