@@ -21,6 +21,7 @@ export type IntentType =
   | "reply_to_ticket"
   | "resolve_ticket"
   | "tag_conversation"
+  | "publish_post"
   | "disable_autopilot";
 
 export type IntentResult = {
@@ -60,6 +61,8 @@ export const INTENT_FIELDS: Record<IntentType, IntentSpec> = {
   reply_to_ticket:    { keys: ["conversation_identifier", "message_summary", "tone"], required: "message_summary", autopilotPolicy: "never" },
   resolve_ticket:     { keys: ["conversation_identifier"], required: "conversation_identifier", autopilotPolicy: "never" },
   tag_conversation:   { keys: ["conversation_identifier", "label"], required: "label", autopilotPolicy: "never" },
+  // Postiz social publishing — customer-facing, always reviewed before it posts.
+  publish_post:       { keys: ["message_summary", "platforms", "schedule_date", "image_url"], required: "message_summary", autopilotPolicy: "never" },
   disable_autopilot:  { keys: ["intent_type"], required: "intent_type", autopilotPolicy: "never" },
 };
 

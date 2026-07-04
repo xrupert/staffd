@@ -36,6 +36,10 @@ export async function testConnection(type: IntegrationType, r: Resolved): Promis
       case "docuseal":
         res = await fetch(`${base}/api/templates?limit=1`, { headers: { "X-Auth-Token": r.key } });
         break;
+      case "postiz":
+        // Cheapest authed read: list connected social channels (org-scoped key).
+        res = await fetch(`${base}/public/v1/integrations`, { headers: { Authorization: r.key } });
+        break;
       default:
         return { ok: false, error: "Unknown integration type" };
     }

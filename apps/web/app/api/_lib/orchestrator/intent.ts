@@ -41,6 +41,7 @@ Intent types and their fields (use these exact field keys; omit keys you can't f
 - reply_to_ticket — draft a reply to a support conversation. fields: message_summary(req — what to say), conversation_identifier (sender name/email or id), tone (friendly|formal|apologetic)
 - resolve_ticket — mark a support conversation resolved/closed. fields: conversation_identifier(req — sender name/email or id)
 - tag_conversation — label a support conversation. fields: label(req), conversation_identifier
+- publish_post — post/publish/share something on social media (Instagram, Facebook, X/Twitter, LinkedIn, TikTok...). fields: message_summary(req — what the post should say/announce), platforms (comma list of named platforms, empty = all), schedule_date (ISO datetime if they named a time), image_url (only if a specific image URL was referenced)
 - disable_autopilot — turn OFF automatic handling for an action. fields: intent_type(req) — map the user's words to the canonical intent key: "contacts"→create_contact, "leads"→capture_lead, "email list"/"newsletter"→add_to_email_list, "tasks"→create_task, "follow-ups"→schedule_followup, "interactions"→log_interaction, "expenses"→log_expense, "contact updates"→update_contact
 
 Shape: {"intents":[{"type":"<type>","fields":{...},"confidence":0.0-1.0}, ...]}

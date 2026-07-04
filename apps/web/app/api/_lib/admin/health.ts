@@ -12,7 +12,7 @@
  * implementation, this is the spec it must satisfy.
  */
 
-/** The 11 V1 worker handlers (workflow-drain dispatch targets). */
+/** The 12 V1 worker handlers (workflow-drain dispatch targets). */
 export const EXPECTED_WORKERS = [
   "mirror_retry_worker",
   "document_extraction_worker",
@@ -25,9 +25,10 @@ export const EXPECTED_WORKERS = [
   "chatwoot_resolve_worker",
   "chatwoot_tag_worker",
   "chatwoot_send_worker",
+  "postiz_publish_worker",
 ] as const;
 
-/** The 13 V1 conversational intents (business writes/delegates; meta-controls excluded). */
+/** The 14 V1 conversational intents (business writes/delegates; meta-controls excluded). */
 export const EXPECTED_INTENTS = [
   "create_contact",
   "log_interaction",
@@ -42,12 +43,13 @@ export const EXPECTED_INTENTS = [
   "reply_to_ticket",
   "resolve_ticket",
   "tag_conversation",
+  "publish_post",
 ] as const;
 
 /** The V1 recipes (recipe_id → second worker on review-approve). */
-export const EXPECTED_RECIPES = ["reply_to_ticket", "send_for_signature"] as const;
+export const EXPECTED_RECIPES = ["reply_to_ticket", "send_for_signature", "publish_post"] as const;
 
-export const VENDOR_KEYS = ["twenty", "listmonk", "chatwoot", "docuseal", "plausible"] as const;
+export const VENDOR_KEYS = ["twenty", "listmonk", "chatwoot", "docuseal", "plausible", "postiz"] as const;
 
 export type HealthReport = {
   ok: boolean;

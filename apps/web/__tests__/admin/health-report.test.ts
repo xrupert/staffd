@@ -15,7 +15,7 @@ function green(): HealthInputs {
     commitHandlers: [...EXPECTED_INTENTS, "disable_autopilot", "undo"],
     workerHandlers: [...EXPECTED_WORKERS],
     recipeIds: [...EXPECTED_RECIPES],
-    vendorConfigured: { twenty: true, listmonk: true, chatwoot: false, docuseal: false, plausible: true },
+    vendorConfigured: { twenty: true, listmonk: true, chatwoot: false, docuseal: false, plausible: true, postiz: false },
     migrations: [{ route: "contacts", applied: true }, { route: "businesses-v3", applied: true }],
   };
 }
@@ -30,7 +30,7 @@ describe("buildHealthReport (W95.7)", () => {
     expect(r.migrations).toMatchObject({ total: 2, applied: 2, pending: [] });
     expect(r.recipes.paradigm_doc_in_sync).toBe(true);
     // Vendor map always lists all five with client_present true.
-    expect(Object.keys(r.vendor_clients).sort()).toEqual(["chatwoot", "docuseal", "listmonk", "plausible", "twenty"]);
+    expect(Object.keys(r.vendor_clients).sort()).toEqual(["chatwoot", "docuseal", "listmonk", "plausible", "postiz", "twenty"]);
     expect(r.vendor_clients.twenty).toEqual({ client_present: true, env_configured: true });
     expect(r.vendor_clients.chatwoot).toEqual({ client_present: true, env_configured: false });
   });

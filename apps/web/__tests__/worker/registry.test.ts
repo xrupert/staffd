@@ -39,7 +39,7 @@ describe("worker registry", () => {
       "chatwoot_resolve_worker", "chatwoot_send_worker", "chatwoot_tag_worker",
       "document_extraction_worker", "docuseal_send_worker", "docuseal_void_worker",
       "listmonk_subscribe_worker", "listmonk_unsubscribe_worker", "mirror_retry_worker",
-      "twenty_delete_worker", "twenty_update_worker",
+      "postiz_publish_worker", "twenty_delete_worker", "twenty_update_worker",
     ]);
   });
   it("isWorkerTask is true for known specialist_ids, false otherwise", () => {

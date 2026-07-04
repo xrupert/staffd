@@ -261,6 +261,24 @@ const replyToTicket: CommitHandler = async (f, ctx) => {
   return { ok: true, record_id: wfId, extra: { workflow_id: wfId, expected_completion_message: "Reputation is drafting your reply — you'll review it before it sends." } };
 };
 
+// ── publish_post (Postiz) — delegate to Marketing WITH review step. The draft
+// task writes the post copy; on approve, postiz_publish_worker uploads any
+// image and creates the post via the customer's Postiz org (never auto-posts).
+const publishPost: CommitHandler = async (f, ctx) => {
+  const summary = (f.message_summary ?? "").trim();
+  if (!summary) return { ok: false, status: 400, error: "message_summary_required" };
+  const platforms = (f.platforms ?? "").trim();
+  const wfId = await createWorkflow(`Social post — ${summary.slice(0, 40)}`, summary, ctx, { reviewRequired: true, recipeId: "publish_post" });
+  if (!wfId) return { ok: false, status: 502, error: "workflow_create_failed" };
+  await createTaskRow(wfId, specialistFor("marketing", `social media post: ${summary}`), "marketing",
+    {
+      task: `Draft a social media post. Goal: ${summary}.${platforms ? ` Platforms: ${platforms}.` : ""} Write the final post copy only — ready to publish, no preamble, no hashtag spam.`,
+      message_summary: summary, platforms, schedule_date: f.schedule_date ?? "", image_url: f.image_url ?? "",
+    }, [], ctx);
+  decide(ctx, "post_drafted", `Drafting a social post: ${summary.slice(0, 60)}`, wfId);
+  return { ok: true, record_id: wfId, extra: { workflow_id: wfId, expected_completion_message: "Marketing is drafting your post — you'll review it before it publishes." } };
+};
+
 // ── resolve_ticket / tag_conversation (W95.6.x) — direct status changes; the
 // worker resolves the identifier → conversation id (keeps Chatwoot in workers).
 const resolveTicket: CommitHandler = async (f, ctx) => {
@@ -386,6 +404,7 @@ export const COMMIT_HANDLERS: Record<string, CommitHandler> = {
   draft_campaign: delegate("draft_campaign"),
   send_for_signature: delegate("send_for_signature"),
   reply_to_ticket: replyToTicket, // delegate WITH review step (W95.6.x)
+  publish_post: publishPost,      // delegate WITH review step (Postiz)
   // Chatwoot direct status changes (W95.6.x)
   resolve_ticket: resolveTicket,
   tag_conversation: tagConversation,

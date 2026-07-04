@@ -18,6 +18,7 @@ import { TwentyClient } from "../integrations/twenty/client";
 import { ListmonkClient } from "../integrations/listmonk/client";
 import { DocusealClient } from "../integrations/docuseal/client";
 import { ChatwootClient } from "../integrations/chatwoot/client";
+import { PostizClient, type PostizMedia } from "../integrations/postiz/client";
 import { extractKindFor, extractText } from "../upload/extract";
 
 export type HandlerResult = { text: string; tokensActual: number };
@@ -268,6 +269,49 @@ const chatwootSend: WorkerHandler = async (task, ctx) => {
   return { text: `replied:${id}`, tokensActual: 0 };
 };
 
+// ── postiz_publish (social publishing) — post the REVIEWED draft via the
+// customer's Postiz org. Chained after the Marketing draft by the approve
+// endpoint (SECOND_WORKER). Platforms filter matches channel identifier OR
+// name (case-insensitive substring); empty platforms = all connected channels.
+const postizPublish: WorkerHandler = async (task, ctx) => {
+  const p = task.input_payload as { platforms?: string; schedule_date?: string; image_url?: string };
+  // Only publish the REVIEWED draft; exit cleanly if cancelled at review.
+  const { draft, cancelled } = await workflowDraft(ctx, task.workflow_id ?? "");
+  if (cancelled) { console.log(`postiz_publish tombstoned-cancelled wf=${task.workflow_id}`); return { text: "tombstoned-cancelled", tokensActual: 0 }; }
+  if (!draft) throw new Error("postiz publish: no approved draft");
+
+  const client = await PostizClient.forCustomer(task.user);
+  if (!client) throw new Error("postiz not configured");
+
+  const channels = await client.listChannels();
+  if (channels.length === 0) throw new Error("postiz publish: no connected social channels");
+  const wanted = (p.platforms ?? "").toLowerCase().split(",").map((s) => s.trim()).filter(Boolean);
+  const targets = wanted.length === 0
+    ? channels
+    : channels.filter((c) => wanted.some((w) => c.identifier.toLowerCase().includes(w) || c.name.toLowerCase().includes(w)));
+  if (targets.length === 0) throw new Error(`postiz publish: no channel matches "${p.platforms}"`);
+
+  // Optional image: ingest the remote URL (e.g. a Muapi visual) into Postiz
+  // media first — platforms reject foreign URLs, Postiz-hosted paths work.
+  let media: PostizMedia[] = [];
+  if ((p.image_url ?? "").trim()) {
+    const m = await client.uploadFromUrl(p.image_url!.trim());
+    if (m) media = [m];
+    else console.warn(`postiz publish: image ingest failed, posting text-only (wf=${task.workflow_id})`);
+  }
+
+  const scheduled = (p.schedule_date ?? "").trim();
+  const ok = await client.createPost({
+    type: scheduled ? "schedule" : "now",
+    date: scheduled || new Date().toISOString(),
+    channelIds: targets.map((c) => c.id),
+    content: draft,
+    media,
+  });
+  if (!ok) throw new Error("postiz publish failed");
+  return { text: `published:${targets.map((c) => c.identifier).join(",")}${scheduled ? ` at ${scheduled}` : ""}`, tokensActual: 0 };
+};
+
 export const WORKER_HANDLERS: Record<string, WorkerHandler> = {
   mirror_retry_worker: mirrorRetry,
   document_extraction_worker: documentExtraction,
@@ -280,4 +324,5 @@ export const WORKER_HANDLERS: Record<string, WorkerHandler> = {
   chatwoot_resolve_worker: chatwootResolve,
   chatwoot_tag_worker: chatwootTag,
   chatwoot_send_worker: chatwootSend,
+  postiz_publish_worker: postizPublish,
 };

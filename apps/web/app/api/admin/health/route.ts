@@ -22,6 +22,7 @@ import { ListmonkClient } from "../../_lib/integrations/listmonk/client";
 import { ChatwootClient } from "../../_lib/integrations/chatwoot/client";
 import { DocusealClient } from "../../_lib/integrations/docuseal/client";
 import { PlausibleClient } from "../../_lib/integrations/plausible/client";
+import { PostizClient } from "../../_lib/integrations/postiz/client";
 
 type ColDef = { name: string; fields?: { name: string }[] };
 
@@ -55,6 +56,7 @@ export async function GET(req: Request) {
     chatwoot: ChatwootClient.configured,
     docuseal: DocusealClient.configured,
     plausible: PlausibleClient.configured,
+    postiz: PostizClient.configured,
   };
 
   const report = buildHealthReport({

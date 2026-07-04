@@ -19,9 +19,9 @@ import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../pb";
 import { isSuperAdmin, trySuperAdminByUserId } from "../auth/super-admin";
 import { decryptSecret } from "./crypto";
 
-export type IntegrationType = "twenty" | "chatwoot" | "listmonk" | "plausible" | "docuseal";
+export type IntegrationType = "twenty" | "chatwoot" | "listmonk" | "plausible" | "docuseal" | "postiz";
 
-export const INTEGRATION_TYPES: IntegrationType[] = ["twenty", "chatwoot", "listmonk", "plausible", "docuseal"];
+export const INTEGRATION_TYPES: IntegrationType[] = ["twenty", "chatwoot", "listmonk", "plausible", "docuseal", "postiz"];
 
 export type Resolved = {
   source: "user" | "operator";
@@ -56,6 +56,7 @@ export function operatorCredentials(type: IntegrationType): Resolved | null {
     case "listmonk": url = e("LISTMONK_URL"); key = e("LISTMONK_PASSWORD"); config = { username: e("LISTMONK_USERNAME") }; break;
     case "plausible": url = e("PLAUSIBLE_API_URL") || e("NEXT_PUBLIC_PLAUSIBLE_URL"); key = e("PLAUSIBLE_API_KEY"); config = { site_id: e("PLAUSIBLE_SITE_ID") }; break;
     case "docuseal": url = e("DOCUSEAL_URL"); key = e("DOCUSEAL_API_KEY"); break;
+    case "postiz": url = e("POSTIZ_URL"); key = e("POSTIZ_API_KEY"); break;
   }
   if (!url || !key) return null;
   return { source: "operator", url, key, config };

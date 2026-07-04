@@ -85,6 +85,7 @@ customer-facing side effect:
 |---|---|
 | `reply_to_ticket` | `chatwoot_send_worker` |
 | `send_for_signature` | `docuseal_send_worker` |
+| `publish_post` | `postiz_publish_worker` |
 
 This keeps the *first* worker (drafting) and the *second* worker (the audited,
 vendor-touching send) decoupled: the review gate sits between them, and the

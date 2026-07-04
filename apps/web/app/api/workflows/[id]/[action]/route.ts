@@ -16,7 +16,7 @@ import { recordDecision } from "../../../_lib/vault/outcomes";
 
 // W95.7 — exported so the substrate health check can introspect the recipe
 // registry (recipe_id → second worker). Behaviour unchanged.
-export const SECOND_WORKER: Record<string, string> = { reply_to_ticket: "chatwoot_send_worker", send_for_signature: "docuseal_send_worker" };
+export const SECOND_WORKER: Record<string, string> = { reply_to_ticket: "chatwoot_send_worker", send_for_signature: "docuseal_send_worker", publish_post: "postiz_publish_worker" };
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string; action: string }> }) {
   const me = await whoAmI(req);
@@ -57,6 +57,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const fp = (first?.input_payload ?? {}) as Record<string, unknown>;
   const payload = wf.recipe_id === "reply_to_ticket"
     ? { conversation_identifier: fp.conversation_identifier ?? "" }
+    : wf.recipe_id === "publish_post"
+    ? { platforms: fp.platforms ?? "", schedule_date: fp.schedule_date ?? "", image_url: fp.image_url ?? "" }
     : { document_identifier: fp.document_identifier ?? "", signer_email: fp.signer_email ?? "", signer_name: fp.signer_name ?? "" };
 
   const mk = await fetch(`${pb}/api/collections/workflow_tasks/records`, {
