@@ -78,6 +78,7 @@ export async function POST(req: Request) {
   let task: string;
   let rationale: string;
   let lockedAlt: string;
+  let multiDept: boolean;
 
   if (response.ok) {
     department = response.decision.department ?? "marketing";
@@ -85,22 +86,30 @@ export async function POST(req: Request) {
     task = (response.decision.task ?? userMessage).trim() || userMessage;
     rationale = (response.decision.rationale ?? "").trim();
     lockedAlt = extractLockedAlternative(response.notes);
+    multiDept = response.decision.multiDept === true;
   } else {
     department = response.degraded.department ?? "marketing";
     agentId = response.degraded.agentId;
     task = (response.degraded.task ?? userMessage).trim() || userMessage;
     rationale = (response.degraded.rationale ?? "").trim();
     lockedAlt = "";
+    // Degraded routing never escalates to the planner — single-dept is the
+    // safe fallback when the router itself is struggling.
+    multiDept = false;
   }
 
   // Hotfix A2 — agentId is now part of the READY: payload so the Command
   // Center can route the user's confirm action to the SPECIFIC specialist
   // (not the dept's first-in-list default, which caused the SEMrush bug).
+  // Wire-the-loop — multiDept rides along so the Command Center can offer
+  // a multi-department plan (propose-then-ratify) instead of auto-running
+  // one specialist on a goal that needs several.
   const readyLine = `READY:${JSON.stringify({
     department,
     agentId: agentId ?? "",
     task,
     lockedAlternative: lockedAlt,
+    multiDept,
   })}`;
 
   const streamText = rationale ? `${rationale}\n\n${readyLine}` : readyLine;

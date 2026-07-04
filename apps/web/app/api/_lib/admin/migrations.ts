@@ -60,6 +60,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "businesses-v2", label: "Businesses — support inbox id", collection: "businesses", detectField: "chatwoot_inbox_id", note: "adds chatwoot_inbox_id to businesses" },
   // W95.6.x — workflow review step (draft approval before customer-facing send).
   { route: "workflows-v2", label: "Workflows — review step", collection: "workflows", detectField: "draft_output", note: "adds review_required + draft_output to workflows" },
+  // Wire-the-loop — planner goal + follow-on suggestions on workflows.
+  { route: "workflows-v3", label: "Workflows — goal + follow-ons", collection: "workflows", detectField: "suggested_next", note: "adds goal + suggested_next to workflows" },
   // W95.6.y — per-customer Plausible site id on businesses.
   { route: "businesses-v3", label: "Businesses — analytics site id", collection: "businesses", detectField: "plausible_site_id", note: "adds plausible_site_id to businesses" },
   // W95.7.3b — async image/video generation job ledger.

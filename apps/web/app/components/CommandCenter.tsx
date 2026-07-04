@@ -243,6 +243,17 @@ export default function CommandCenter() {
   const [graduationOffer, setGraduationOffer] = useState(false);
   const [intentBusy, setIntentBusy] = useState(false);
   const [undoToast, setUndoToast] = useState<{ auditRowId: string; message: string } | null>(null);
+  // Wire-the-loop — a proposed multi-department plan awaiting the user's
+  // approve/decline. Propose-then-ratify: nothing runs (and no agent tokens
+  // are spent) until the user approves; declining falls back to the routed
+  // single-department specialist.
+  const [planProposal, setPlanProposal] = useState<{
+    goal: string;
+    steps: Array<{ department: string; task: string }>;
+    plan: unknown;
+    fallback: { department: string; task: string; agentId?: string };
+  } | null>(null);
+  const [planBusy, setPlanBusy] = useState(false);
 
   function successCopy(type: string, f: Record<string, string>, data: { expected_completion_message?: string }): string {
     const done: Record<string, string> = {
@@ -683,8 +694,16 @@ export default function CommandCenter() {
       if (readyMatch?.[1]) {
         try {
           const action = JSON.parse(readyMatch[1]) as {
-            department: string; task: string; agentId?: string; lockedAlternative?: string;
+            department: string; task: string; agentId?: string; lockedAlternative?: string; multiDept?: boolean;
           };
+          // Wire-the-loop — a broad multi-department goal escalates to the L4
+          // planner: draft a plan and show it for approval instead of
+          // auto-running one specialist. If the planner is unavailable or the
+          // plan is invalid, fall through to the normal single-dept path.
+          if (action.multiDept === true) {
+            const proposed = await proposePlan(content, action, pbToken);
+            if (proposed) { setPhase("idle"); return; }
+          }
           const deptLabel = DEPT_LABELS[action.department] ?? action.department;
           const agentLabel = (() => {
             if (!action.agentId) return deptLabel;
@@ -710,6 +729,83 @@ export default function CommandCenter() {
       ]);
       setPhase("idle");
     }
+  }
+
+  /**
+   * Wire-the-loop — ask the L4 planner to decompose a multi-department goal
+   * and stage it as a proposal. Returns true when a proposal was staged
+   * (caller stops), false when the caller should fall back to single-dept.
+   */
+  async function proposePlan(
+    goal: string,
+    fallback: { department: string; task: string; agentId?: string },
+    pbToken: string,
+  ): Promise<boolean> {
+    try {
+      const res = await fetch("/api/workflow/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pbToken },
+        body: JSON.stringify({ goal }),
+      });
+      if (!res.ok) return false;
+      const data = (await res.json()) as {
+        ok?: boolean;
+        plan?: unknown;
+        steps?: Array<{ department: string; task: string }>;
+      };
+      const steps = data.steps ?? [];
+      if (!data.ok || !data.plan || steps.length === 0) return false;
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: `This needs more than one team, so I drafted a ${steps.length}-step plan across your departments. Review it below — nothing runs until you approve.`,
+      }]);
+      setPlanProposal({ goal, steps, plan: data.plan, fallback });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Approve the staged plan → /api/workflow/commit → the drain executes it. */
+  async function approvePlan() {
+    if (!planProposal || planBusy) return;
+    setPlanBusy(true);
+    try {
+      const res = await fetch("/api/workflow/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+        body: JSON.stringify({ goal: planProposal.goal, plan: planProposal.plan }),
+      });
+      const data = (await res.json()) as { ok?: boolean; taskCount?: number };
+      if (res.ok && data.ok) {
+        const n = data.taskCount ?? planProposal.steps.length;
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: `Plan approved — ${n} steps are queued across your staff. Work starts within the minute; you'll get a notification when it's done, along with what I'd do next.`,
+        }]);
+        setPlanProposal(null);
+      } else {
+        setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't queue the plan just now — hit Approve again, or decline to run it as a single task." }]);
+      }
+    } catch {
+      setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't queue the plan just now — hit Approve again, or decline to run it as a single task." }]);
+    } finally {
+      setPlanBusy(false);
+    }
+  }
+
+  /** Decline the plan → run the originally-routed single specialist instead. */
+  function declinePlan() {
+    if (!planProposal || planBusy) return;
+    const fb = planProposal.fallback;
+    setPlanProposal(null);
+    setMessages((prev) => [...prev, {
+      role: "assistant",
+      content: `No problem — sending it to ${DEPT_LABELS[fb.department] ?? fb.department} as a single task instead.`,
+    }]);
+    setPhase("generating");
+    const userId = pb.authStore.record?.id ?? "";
+    void runAgent(fb.department, fb.task, userId, pb.authStore.token, fb.agentId);
   }
 
   // PR-Tranche-2.6 (W28) — fire the handoff intent after a successful
@@ -957,6 +1053,8 @@ export default function CommandCenter() {
     // PR-Tranche-2.6 (W28) — clear handoff state on explicit reset
     setFollowUps([]);
     setLastCompleted(null);
+    // Wire-the-loop — an unapproved plan proposal dies with the thread.
+    setPlanProposal(null);
     // Phase 9 — rotate the threadId on reset so the next chat is a fresh
     // conversation. Server-side `conversations` rows stay intact under the
     // old threadId for future thread-picker UX.
@@ -1178,6 +1276,52 @@ export default function CommandCenter() {
               </div>
             );
           })}
+          {/* Wire-the-loop — proposed multi-department plan. Propose-then-
+              ratify: renders after the coordinator's message; Approve queues
+              the workflow onto the drain, decline runs the routed single
+              specialist instead. */}
+          {planProposal && (
+            <div className="rounded-xl overflow-hidden" style={{ background: "#0D0D16", border: "1px solid rgba(91,33,232,0.4)" }}>
+              <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: "1px solid #1E1E2A" }}>
+                <span className="text-sm">🗺️</span>
+                <span className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>Proposed plan</span>
+                <span className="text-xs ml-auto" style={{ color: "#5A5A70" }}>
+                  {planProposal.steps.length} steps · runs in order
+                </span>
+              </div>
+              <div className="px-4 py-3 flex flex-col gap-2.5">
+                {planProposal.steps.map((s, i) => (
+                  <div key={i} className="flex items-start gap-2.5">
+                    <span className="text-xs font-bold w-5 flex-shrink-0 text-right" style={{ color: "#5B21E8" }}>{i + 1}.</span>
+                    <div className="min-w-0">
+                      <span className="text-xs font-semibold" style={{ color: "#A07BFF" }}>
+                        {DEPT_LABELS[s.department] ?? s.department}
+                      </span>
+                      <p className="text-xs" style={{ color: "#D0D0E8", lineHeight: 1.6 }}>{s.task}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 py-3 flex items-center gap-4" style={{ borderTop: "1px solid #1E1E2A" }}>
+                <button
+                  onClick={() => void approvePlan()}
+                  disabled={planBusy}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-white btn-primary"
+                  style={{ opacity: planBusy ? 0.6 : 1, cursor: planBusy ? "wait" : "pointer" }}
+                >
+                  {planBusy ? "Queuing…" : "Approve & run plan"}
+                </button>
+                <button
+                  onClick={declinePlan}
+                  disabled={planBusy}
+                  className="text-xs transition-colors hover:text-white"
+                  style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                >
+                  Just ask {DEPT_LABELS[planProposal.fallback.department] ?? planProposal.fallback.department}
+                </button>
+              </div>
+            </div>
+          )}
           {/* PR-Tranche-2.6 (W28) — cross-functional handoff suggestions.
               Rendered after the message thread; only when phase is done
               (output is complete) and the handoff intent returned

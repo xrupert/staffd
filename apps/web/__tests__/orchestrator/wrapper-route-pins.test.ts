@@ -81,12 +81,28 @@ describe("/api/orchestrate (intent:'route') — wrapper pins", () => {
       agentId: "finance-bookkeeper",
       task: "reconcile the books",
       lockedAlternative: "operations",
+      multiDept: false,
     });
     // Wrapper forwarded intent:"route" with the message context.
     expect(orchMocks.calls[0]).toMatchObject({ intent: "route", userId: "u1" });
   });
 
-  it("degraded envelope still streams a usable READY line (never an empty body)", async () => {
+  it("wire-the-loop — decision.multiDept true rides through to the READY payload", async () => {
+    orchMocks.response = {
+      ok: true,
+      intent: "route",
+      decision: { department: "marketing", agentId: "marketing-content-creator", task: "launch plan", rationale: "Big goal.", multiDept: true },
+      latencyMs: 5, attempts: 1,
+    };
+    const res = await orchestratePost(jsonRequest("https://t/api/orchestrate", {
+      messages: [{ role: "user", content: "launch my new product" }],
+      userId: "u1", pbToken: "t",
+    }));
+    const ready = (await res.text()).match(/READY:(\{.+\})/s);
+    expect(JSON.parse(ready![1]!)).toMatchObject({ multiDept: true, department: "marketing" });
+  });
+
+  it("degraded envelope still streams a usable READY line (never an empty body, never multiDept)", async () => {
     orchMocks.response = {
       ok: false,
       intent: "route",
@@ -101,6 +117,9 @@ describe("/api/orchestrate (intent:'route') — wrapper pins", () => {
     const text = await res.text();
     expect(text).toContain("READY:");
     expect(text).toContain("Routing this to Marketing");
+    // Degraded routing never escalates to the planner.
+    const ready = text.match(/READY:(\{.+\})/s);
+    expect(JSON.parse(ready![1]!)).toMatchObject({ multiDept: false });
   });
 
   it("empty messages → 400", async () => {

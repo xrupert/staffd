@@ -4,10 +4,12 @@
  * Each of these routes uses the PocketBase ADMIN token (which bypasses row
  * rules) while keying the per-user operation on a caller-supplied `userId`.
  * Without authenticating the caller that is an IDOR / abuse vector: a client
- * read/write/delete (clients), a UX-state change (departments/choose), trial
- * accounting (trial), and background-task enqueue (workflow/enqueue) could all
- * be driven for an arbitrary victim id. These pin the 401-without-a-session
- * guard so the caller can only ever act as their authenticated self.
+ * read/write/delete (clients), a UX-state change (departments/choose), and
+ * trial accounting (trial) could all be driven for an arbitrary victim id.
+ * These pin the 401-without-a-session guard so the caller can only ever act
+ * as their authenticated self. (workflow/enqueue was covered here until the
+ * orphaned route was deleted in wire-the-loop — it had zero production
+ * callers; plan/commit are the real task-creation surface.)
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
@@ -19,7 +21,6 @@ import { GET as clientsGet, POST as clientsPost } from "../../app/api/clients/ro
 import { PATCH as clientPatch, DELETE as clientDelete } from "../../app/api/clients/[id]/route";
 import { POST as deptChoose } from "../../app/api/departments/choose/route";
 import { GET as trialGet, POST as trialPost } from "../../app/api/trial/route";
-import { POST as enqueue } from "../../app/api/workflow/enqueue/route";
 
 const get = (qs = "") => new Request(`https://t/x${qs}`);
 const post = (body: object) =>
@@ -61,10 +62,5 @@ describe("admin-token routes — auth required, no body/query userId trust (h6d)
   });
   it("trial POST → 401 without a session", async () => {
     expect((await trialPost(post({ userId: "victim", department: "hr" }))).status).toBe(401);
-  });
-  it("workflow/enqueue POST → 401 without a session", async () => {
-    expect(
-      (await enqueue(post({ userId: "victim", departmentId: "hr", inputPayload: { a: 1 } }))).status,
-    ).toBe(401);
   });
 });

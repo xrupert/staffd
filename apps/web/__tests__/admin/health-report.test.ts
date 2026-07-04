@@ -121,7 +121,7 @@ describe("GET /api/admin/health (W95.7 route)", () => {
     const detectFields: Record<string, string[]> = {
       documents: ["file", "docuseal_submission_id"],
       businesses: ["chatwoot_inbox_id", "plausible_site_id"],
-      workflows: ["draft_output"],
+      workflows: ["draft_output", "suggested_next"],
     };
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       if (url.includes("/api/collections?")) {

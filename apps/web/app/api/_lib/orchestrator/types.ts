@@ -23,6 +23,13 @@ export type OrchestratorDecision = {
   agentId?: string;
   task?: string;
   rationale?: string;
+  /**
+   * Wire-the-loop — true when the router judges the request a broad goal
+   * needing 2+ departments. Consumers escalate to the L4 planner
+   * (/api/workflow/plan) instead of running the single routed specialist.
+   * Additive/optional: absent = false = current single-dept behavior.
+   */
+  multiDept?: boolean;
 };
 
 /** Suggested cross-functional next step from intent=handoff. */

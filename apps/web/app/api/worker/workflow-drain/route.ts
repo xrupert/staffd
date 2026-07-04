@@ -26,6 +26,7 @@ import type {
 import { logWorkflowTransition } from "../../_lib/auth/super-admin-logging";
 import { WORKER_HANDLERS } from "../../_lib/worker/handlers";
 import { notifyUser } from "../../_lib/notifications/notify";
+import { generateFollowOnSuggestions } from "../../_lib/orchestrator/follow-on";
 
 const TASKS_PER_TICK = 10;
 
@@ -197,7 +198,41 @@ export async function GET(req: Request) {
     },
     logTransition: (e) => logWorkflowTransition(e),
     // W95.8 — ping the owner when their planned workflow finishes (best-effort).
-    onComplete: (e) => notifyUser(pb, adminToken, e.user, "workflow.completed", { workflowId: e.workflowId, docId: e.docId }),
+    // Wire-the-loop — before notifying, generate follow-on suggestions for
+    // goal-bearing (planner-created) workflows and stamp them on the row so
+    // the dashboard can offer "what's next" chips. Fail-open: a suggestion
+    // failure never blocks completion or the notification.
+    onComplete: async (e) => {
+      try {
+        const wfRes = await fetch(`${pb}/api/collections/workflows/records/${e.workflowId}`, {
+          headers: { Authorization: adminToken },
+        });
+        const wf = wfRes.ok ? ((await wfRes.json()) as { goal?: string }) : null;
+        const goal = (wf?.goal ?? "").trim();
+        if (goal) {
+          const f = encodeURIComponent(`(workflow_id = "${e.workflowId}")`);
+          const tRes = await fetch(
+            `${pb}/api/collections/workflow_tasks/records?filter=${f}&perPage=50&sort=created&fields=input_payload`,
+            { headers: { Authorization: adminToken } },
+          );
+          const items = tRes.ok
+            ? (((await tRes.json()) as { items?: { input_payload?: { task?: string } }[] }).items ?? [])
+            : [];
+          const stepTasks = items.map((t) => String(t.input_payload?.task ?? "")).filter(Boolean);
+          const suggestions = await generateFollowOnSuggestions(goal, stepTasks);
+          if (suggestions.length > 0) {
+            await fetch(`${pb}/api/collections/workflows/records/${e.workflowId}`, {
+              method: "PATCH",
+              headers: authHeaders,
+              body: JSON.stringify({ suggested_next: suggestions }),
+            });
+          }
+        }
+      } catch (err) {
+        console.warn(`workflow-drain follow-on skipped (wf=${e.workflowId}):`, err);
+      }
+      await notifyUser(pb, adminToken, e.user, "workflow.completed", { workflowId: e.workflowId, docId: e.docId });
+    },
   };
 
   try {

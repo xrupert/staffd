@@ -43,6 +43,7 @@ function parseDecision(text: string): { decision: OrchestratorDecision; lockedAl
         task?: string;
         rationale?: string;
         lockedAlternative?: string;
+        multiDept?: boolean;
       };
       if (parsed.department && parsed.task) {
         return {
@@ -51,6 +52,9 @@ function parseDecision(text: string): { decision: OrchestratorDecision; lockedAl
             agentId: parsed.agentId || undefined,
             task: parsed.task,
             rationale: parsed.rationale ?? "",
+            // Wire-the-loop — strict boolean true only; any other value
+            // (absent, string, truthy junk) stays single-dept.
+            multiDept: parsed.multiDept === true || undefined,
           },
           lockedAlternative: parsed.lockedAlternative || undefined,
         };
@@ -227,7 +231,7 @@ AVAILABLE SPECIALISTS (you MUST pick one of these agentId values):
 ${rosterText}
 
 Return exactly ONE line at the end of your response with this shape and no surrounding prose:
-ROUTE:{"department":"<unlocked-dept>","agentId":"<exact-id-from-list-above>","task":"<specific task>","rationale":"<one short sentence naming the specialist>","lockedAlternative":"<locked-dept-or-empty>"}
+ROUTE:{"department":"<unlocked-dept>","agentId":"<exact-id-from-list-above>","task":"<specific task>","rationale":"<one short sentence naming the specialist>","lockedAlternative":"<locked-dept-or-empty>","multiDept":<true|false>}
 
 CRITICAL routing rules:
 1. agentId MUST be one of the ids in AVAILABLE SPECIALISTS above. Copy-paste exactly. No invented ids.
@@ -235,6 +239,7 @@ CRITICAL routing rules:
 3. Department must be the one that owns the chosen specialist.
 4. rationale should name the specialist by their human name (e.g. "Your SEO Specialist on the Marketing team is the right fit").
 5. Never route to a locked department.
+6. multiDept: set true ONLY when the request is a broad business GOAL that clearly requires substantive work from TWO OR MORE different departments to complete (e.g. "launch my new product", "get me ready for the holiday rush", "grow revenue this quarter"). A single deliverable, question, or task for one team is ALWAYS false — even a big one. When true, STILL pick the best single department + specialist above as the primary route; the platform decides whether to escalate to a multi-department plan.
 
 Reminder (already enforced by brand laws downstream, but informing your choice): the user does not want external tools recommended. Pick the specialist who can actually do the work; that specialist will deliver it.`.trim();
 

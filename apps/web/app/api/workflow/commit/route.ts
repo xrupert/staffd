@@ -42,9 +42,11 @@ export async function POST(req: Request) {
   try { token = await getAdminToken(); } catch { return Response.json({ error: "pb_unconfigured" }, { status: 503 }); }
   const headers = { Authorization: token, "Content-Type": "application/json" };
 
+  // Wire-the-loop — `goal` is stored on the workflow so the drain can generate
+  // follow-on suggestions ("what's next") when the workflow completes.
   const wfRes = await fetch(`${pb}/api/collections/workflows/records`, {
     method: "POST", headers,
-    body: JSON.stringify({ user: me.id, status: "pending", review_required: false }),
+    body: JSON.stringify({ user: me.id, status: "pending", review_required: false, goal }),
   });
   if (!wfRes.ok) return Response.json({ error: "workflow_create_failed" }, { status: 500 });
   const workflowId = ((await wfRes.json()) as { id: string }).id;

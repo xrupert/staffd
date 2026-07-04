@@ -13,6 +13,7 @@ import CreditsWidget from "../components/CreditsWidget";
 import LowCreditsBanner from "../components/LowCreditsBanner";
 import TopupModal from "../components/TopupModal";
 import MorningBriefCard from "../components/MorningBriefCard";
+import StaffWorkQueue from "../components/StaffWorkQueue";
 import InstallPWAModal from "../components/InstallPWAModal";
 
 const DEPARTMENTS = [
@@ -460,6 +461,11 @@ export default function DashboardPage() {
         {/* Phase 6 — Morning Brief: the autonomous "what your staff did
             overnight" surface. Renders nothing when there's no brief yet. */}
         <MorningBriefCard />
+
+        {/* Wire-the-loop — drafts awaiting your approval (the review gate
+            before anything customer-facing sends) + "what's next" follow-on
+            suggestions after a completed plan. Renders nothing when empty. */}
+        <StaffWorkQueue />
 
         {/* Phase 7 — PWA install prompt. Only renders when the browser
             fires beforeinstallprompt; dismissible per session. */}

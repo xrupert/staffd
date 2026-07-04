@@ -50,7 +50,9 @@ describe("POST /api/workflow/commit", () => {
     expect(await res.json()).toMatchObject({ ok: true, workflowId: "wf1", taskCount: 3 });
 
     const wf = creates.find((c) => c.url.includes("/workflows/records"))!;
-    expect(wf.body).toMatchObject({ user: "u1", status: "pending" });
+    // Wire-the-loop — goal is stored on the workflow so the drain can
+    // generate follow-on suggestions on completion.
+    expect(wf.body).toMatchObject({ user: "u1", status: "pending", goal: "Launch the spring promo" });
 
     const tasks = creates.filter((c) => c.url.includes("/workflow_tasks/records"));
     expect(tasks).toHaveLength(3);
