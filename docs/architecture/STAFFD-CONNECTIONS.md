@@ -87,6 +87,7 @@ These five share one resolution pattern (`apps/web/app/api/_lib/integrations/res
 | **Listmonk** | `listmonk` | `LISTMONK_URL`, `LISTMONK_USERNAME`, `LISTMONK_PASSWORD` | Email/newsletter sending |
 | **Plausible** | `plausible` | `PLAUSIBLE_API_URL` (or `NEXT_PUBLIC_PLAUSIBLE_URL`), `PLAUSIBLE_API_KEY`, `PLAUSIBLE_SITE_ID`; client tracking script uses `NEXT_PUBLIC_PLAUSIBLE_DOMAIN` (defaults `urstaffd.com`) | Privacy-first, cookie-free product analytics |
 | **DocuSeal** | `docuseal` | `DOCUSEAL_URL`, `DOCUSEAL_API_KEY` | E-signature — powers the "send for signature" workflow recipe |
+| **Postiz** | `postiz` | `POSTIZ_URL`, `POSTIZ_API_KEY` | Social publishing (X, Instagram, LinkedIn, Facebook, TikTok, ...) — powers the "publish post" workflow recipe; tenant isolation is Postiz-org-level (each customer's API key scopes to their own org) |
 
 **For Lovable:** every one of these should be treated as "may or may not be connected" — the frontend's job is to call the existing `/api/integrations/{type}` routes and render whatever state comes back (connected / not connected / error), never to assume a vendor is live.
 
@@ -121,6 +122,7 @@ If building a settings/connections screen (the natural Lovable-side counterpart 
 | Listmonk | Email | Yes | `/api/integrations/listmonk` |
 | Plausible | Analytics | Yes | `/api/integrations/plausible` |
 | DocuSeal | E-signature | Yes | `/api/integrations/docuseal` |
+| Postiz | Social publishing | Yes | `/api/integrations/postiz` |
 | Billing provider | Payments | No — operator-configured | Returns 503 until wired |
 
 ---
