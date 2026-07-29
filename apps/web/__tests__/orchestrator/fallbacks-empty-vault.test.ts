@@ -99,6 +99,29 @@ describe("routeFallback — neutral routing copy (W27.complete / W36)", () => {
     expect(result.rationale).not.toContain("your");
   });
 
+  // PR-Routing-Fix — the deterministic keyword hint beats every other
+  // degraded pick, so an LLM failure on "harassment claim" lands on Legal,
+  // not Marketing.
+  it("deptHint wins the degraded pick over default and last-used", () => {
+    const result = degradedFor("route", {
+      message: "an employee filed a harassment claim",
+      unlockedDepts: ["marketing", "sales", "legal"],
+      lastUsedDept: "sales",
+      deptHint: "legal",
+    });
+    expect(result.department).toBe("legal");
+    expect(result.rationale).toBe("Routing this to Legal — they'll take it from here.");
+  });
+
+  it("locked deptHint is ignored (never grants entitlement)", () => {
+    const result = degradedFor("route", {
+      message: "x",
+      unlockedDepts: ["marketing", "sales"],
+      deptHint: "legal",
+    });
+    expect(result.department).toBe("marketing"); // first unlocked, hint locked
+  });
+
   it("uses last-used-dept path AND emits same canonical copy form", () => {
     const result = degradedFor("route", {
       message: "x",

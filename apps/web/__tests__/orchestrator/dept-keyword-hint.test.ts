@@ -39,6 +39,20 @@ describe("suggestDepartmentFromKeywords", () => {
     expect(suggestDepartmentFromKeywords("write an SOP for our shipping process")).toBe("operations");
   });
 
+  // PR-Routing-Fix — disputes/claims previously matched nothing and rode
+  // the LLM's marketing anchor.
+  it("routes disputes and claims to legal", () => {
+    expect(suggestDepartmentFromKeywords("an employee filed a harassment claim against a manager")).toBe("legal");
+    expect(suggestDepartmentFromKeywords("we are being sued by a former client")).toBe("legal");
+    expect(suggestDepartmentFromKeywords("respond to this demand letter")).toBe("legal");
+    expect(suggestDepartmentFromKeywords("a discrimination complaint came in")).toBe("legal");
+  });
+
+  it("routes visual design asks to design", () => {
+    expect(suggestDepartmentFromKeywords("I need help with menu design for my restaurant")).toBe("design");
+    expect(suggestDepartmentFromKeywords("logo design for my new brand")).toBe("design");
+  });
+
   it("returns null for ambiguous requests — the LLM decides", () => {
     expect(suggestDepartmentFromKeywords("write today's social post for my business")).toBeNull();
     expect(suggestDepartmentFromKeywords("help me with SEO")).toBeNull();

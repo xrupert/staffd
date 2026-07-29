@@ -15,6 +15,7 @@ const DEFAULT_DEPT = "marketing";
 export type FallbackContext = {
   message?: string;          // route: the user's message
   lastUsedDept?: string;     // route: dept the user used most recently
+  deptHint?: string | null;  // route: deterministic keyword hint (PR-Routing-Fix — beats every other degraded pick)
   unlockedDepts?: string[];  // route/handoff: which depts the user can access
   sourceDoc?: { department?: string; prompt?: string; outputExcerpt?: string }; // handoff
   activitySamples?: Array<{ department: string; count: number; samples: string[] }>; // brief/synthesize
@@ -39,10 +40,16 @@ export function degradedFor(
 
 function routeFallback(ctx: FallbackContext): OrchestratorDecision {
   const unlocked = ctx.unlockedDepts ?? ["marketing", "sales", "legal"];
+  // PR-Routing-Fix — the degraded path previously ALWAYS landed on
+  // Marketing (lastUsedDept was never threaded by production callers, and
+  // DEFAULT_DEPT won every tie). Order now: deterministic keyword hint →
+  // last-used dept → first unlocked. Marketing survives only as the
+  // empty-list last resort.
+  const hinted = ctx.deptHint && unlocked.includes(ctx.deptHint) ? ctx.deptHint : null;
   const lastUsed = ctx.lastUsedDept && unlocked.includes(ctx.lastUsedDept)
     ? ctx.lastUsedDept
     : null;
-  const dept = lastUsed ?? (unlocked.includes(DEFAULT_DEPT) ? DEFAULT_DEPT : unlocked[0] ?? DEFAULT_DEPT);
+  const dept = hinted ?? lastUsed ?? unlocked[0] ?? DEFAULT_DEPT;
   const task = (ctx.message ?? "").trim() || "Continue the conversation.";
   // PR-Tranche-2.6.5 (copy lock) — operator-approved single-form copy.
   // Removes "your" (no false personalization), removes "desk" (non-canonical

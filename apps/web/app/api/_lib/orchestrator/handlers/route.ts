@@ -100,10 +100,14 @@ function pickAgentForDept(
  * Exported for tests. High precision over recall — only obvious keywords.
  */
 const DEPT_KEYWORD_HINTS: ReadonlyArray<[string, RegExp]> = [
-  ["legal", /\b(nda|non[-\s]?disclosure|contract|agreement|terms of service|privacy policy|waiver|indemnif|engagement letter|statement of work|\bsow\b|msa|cease and desist|licensing terms)\b/i],
+  // PR-Routing-Fix — widened: disputes/claims previously matched NOTHING
+  // ("an employee filed a harassment claim" rode the LLM's marketing
+  // anchor). Still precision-first: only unambiguous terms.
+  ["legal", /\b(nda|non[-\s]?disclosure|contract|agreement|terms of service|privacy policy|waiver|indemnif|engagement letter|statement of work|\bsow\b|msa|cease and desist|licensing terms|harassment|discrimination|lawsuit|litigation|demand letter|legal claim|subpoena|sue(d|ing)?|wrongful termination)\b/i],
   ["finance", /\b(invoice|profit and loss|p&l|bookkeep|balance sheet|accounts payable|accounts receivable|cash flow|expense report|quarterly taxes|budget forecast)\b/i],
-  ["hr", /\b(job posting|job description|onboarding plan|performance review|employee handbook|offer letter|interview questions|30[-\s]?60[-\s]?90)\b/i],
+  ["hr", /\b(job posting|job description|onboarding plan|performance review|employee handbook|offer letter|interview questions|30[-\s]?60[-\s]?90|disciplinary (action|process)|employee complaint)\b/i],
   ["operations", /\b(sop|standard operating procedure|process documentation|runbook)\b/i],
+  ["design", /\b(menu design|logo design|brand kit|business card design|flyer design)\b/i],
 ];
 
 export function suggestDepartmentFromKeywords(message: string): string | null {
@@ -143,7 +147,16 @@ export function resolveRoutedDept(
 export function routablePacksFor(
   userIndustry: IndustryPack | null | undefined,
   activePacks: ReadonlyArray<string>,
+  opts?: { comp?: boolean },
 ): string[] {
+  // PR-Routing-Fix — comped/operator accounts own every pack precisely so
+  // they can demo any vertical, but this gate previously excluded ALL of
+  // them (the operator's industry resolves to no pack → empty pool → pack
+  // specialists unreachable in auto-routing). Comp accounts now route
+  // across every active pack; tag scoring + the industry boost still pick
+  // the right specialist. Real customers keep the narrow single-vertical
+  // gate.
+  if (opts?.comp) return [...activePacks];
   if (userIndustry && activePacks.includes(userIndustry)) return [userIndustry];
   return [];
 }
@@ -175,15 +188,19 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   // Only the user's industry pack (when active) joins the AUTO-route pool —
   // see routablePacksFor. Keeps unrelated verticals out of auto-routing for
   // comped/all-packs accounts.
-  const routablePacks = routablePacksFor(userIndustry, activePacks);
+  const routablePacks = routablePacksFor(userIndustry, activePacks, { comp: trialState?.comp ?? false });
 
   // Hotfix bundle A1 — build the full roster of available specialists across
   // unlocked departments so the LLM can pick the right one BY NAME, not just
   // the right department. This is the single biggest fix in this PR: routing
   // to "marketing" alone caused the SEO question to land on the Content
   // Creator who then recommended SEMrush/Ahrefs.
+  // PR-Routing-Fix — alphabetize the PROMPT ordering so Marketing's
+  // first-position anchor (starter-set insertion order) stops biasing the
+  // router. Entitlement arrays elsewhere keep their original order.
+  const promptDepts = [...unlockedDepts].sort();
   const rosterByDept: Record<string, Array<{ id: string; name: string; description: string; tags: string[] }>> = {};
-  for (const d of unlockedDepts) {
+  for (const d of promptDepts) {
     const agents = getDepartmentAgents(d as Department, { activePacks: routablePacks });
     rosterByDept[d] = agents.map((a) => ({
       id: a.id,
@@ -224,7 +241,7 @@ export async function handleRoute(req: OrchestratorRequest): Promise<Orchestrato
   const protocol = `
 You are routing a user request to a SPECIFIC SPECIALIST on the user's staff.
 
-UNLOCKED DEPARTMENTS: ${unlockedDepts.join(", ")}
+UNLOCKED DEPARTMENTS: ${promptDepts.join(", ")}
 LOCKED (do not route here, but you may name in lockedAlternative): ${lockedDepts.join(", ") || "(none)"}${hintLine}
 
 AVAILABLE SPECIALISTS (you MUST pick one of these agentId values):
@@ -235,7 +252,7 @@ ROUTE:{"department":"<unlocked-dept>","agentId":"<exact-id-from-list-above>","ta
 
 CRITICAL routing rules:
 1. agentId MUST be one of the ids in AVAILABLE SPECIALISTS above. Copy-paste exactly. No invented ids.
-2. Match the user's intent to the specialist whose tags + description fit best — NOT the first agent in the department. Example: "help with SEO" → marketing-seo-specialist, NOT marketing-content-creator. "AEO / answer engine optimization" → marketing-agentic-search-optimizer.
+2. Match the user's intent to the specialist whose tags + description fit best — NOT the first agent in the department, and NOT a default department. Examples: "help with SEO" → marketing-seo-specialist, NOT marketing-content-creator; "an employee filed a harassment claim" → the legal department's best-fit specialist, NOT marketing; "write interview questions" → the hr department's best-fit specialist. When an industry-pack specialist (law firm, restaurant, salon, …) fits the request better than a generic one, pick the pack specialist.
 3. Department must be the one that owns the chosen specialist.
 4. rationale should name the specialist by their human name (e.g. "Your SEO Specialist on the Marketing team is the right fit").
 5. Never route to a locked department.
@@ -258,7 +275,7 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
       ok: false,
       intent: "route",
       fallback: "upstream_error",
-      degraded: degradedFor("route", { message: "", unlockedDepts }),
+      degraded: degradedFor("route", { message: "", unlockedDepts, deptHint }),
       vaultCostFlag: retrieval.costFlag,
       latencyMs: 0,
       attempts: 0,
@@ -272,7 +289,7 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
       ok: false,
       intent: "route",
       fallback: result.fallback,
-      degraded: degradedFor("route", { message, unlockedDepts }),
+      degraded: degradedFor("route", { message, unlockedDepts, deptHint }),
       vaultCostFlag: retrieval.costFlag,
       latencyMs: result.latencyMs,
       attempts: result.attempts,
@@ -287,7 +304,7 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
       ok: false,
       intent: "route",
       fallback: "upstream_error",
-      degraded: degradedFor("route", { message, unlockedDepts }),
+      degraded: degradedFor("route", { message, unlockedDepts, deptHint }),
       vaultCostFlag: retrieval.costFlag,
       latencyMs: result.latencyMs,
       attempts: result.attempts,

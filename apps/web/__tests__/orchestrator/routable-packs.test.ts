@@ -45,4 +45,20 @@ describe("routablePacksFor (auto-route vertical gate)", () => {
   it("empty active packs → empty regardless of industry", () => {
     expect(routablePacksFor("real-estate", [])).toEqual([]);
   });
+
+  // PR-Routing-Fix — the operator/comp exception. Comped accounts own every
+  // pack precisely to demo any vertical; the gate previously made pack
+  // specialists unreachable for them (industry resolves to no pack → []).
+  describe("comp accounts (operator dogfooding)", () => {
+    it("comp + no resolved industry → ALL active packs are routable", () => {
+      expect(routablePacksFor(null, ALL, { comp: true })).toEqual(ALL);
+    });
+    it("comp + resolved industry → still all packs (demo any vertical)", () => {
+      expect(routablePacksFor("law", ALL, { comp: true })).toEqual(ALL);
+    });
+    it("comp: false behaves exactly like the legacy gate", () => {
+      expect(routablePacksFor(null, ALL, { comp: false })).toEqual([]);
+      expect(routablePacksFor("law", ALL, { comp: false })).toEqual(["law"]);
+    });
+  });
 });

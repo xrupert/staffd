@@ -48,6 +48,8 @@ interface AgentMeta {
   emoji: string;
   color: string;
   tags: string[];
+  /** Industry-pack id when this is a pack specialist (PR-Routing-Fix). */
+  pack?: string | null;
 }
 
 interface Template {
@@ -192,7 +194,11 @@ export default function DepartmentRoom({
 
   async function loadAgents() {
     try {
-      const res = await fetch(`/api/agents/${department}`);
+      // PR-Routing-Fix — pass userId so the roster includes the industry-pack
+      // specialists the user owns (the API only merges packs when userId is
+      // present; omitting it made pack specialists invisible in every room).
+      const uid = pb.authStore.record?.id ?? "";
+      const res = await fetch(`/api/agents/${department}${uid ? `?userId=${encodeURIComponent(uid)}` : ""}`);
       if (!res.ok) return;
       const data = (await res.json()) as AgentMeta[];
       setAgents(data);
@@ -818,7 +824,23 @@ export default function DepartmentRoom({
   const quickActions = activeAgent ? getQuickActions(activeAgent.id) : [];
 
   // Category tab derived values
-  const categories = DEPARTMENT_CATEGORIES[department] ?? [];
+  // PR-Routing-Fix — pack specialists aren't listed in the static category
+  // registry, which made them unselectable even when the roster included
+  // them. Owned-pack agents get a synthetic "Industry Specialists" tab.
+  const packAgentsInRoster = agents.filter((a) => a.pack);
+  const baseCategories = DEPARTMENT_CATEGORIES[department] ?? [];
+  const categories = packAgentsInRoster.length > 0
+    ? [
+        ...baseCategories,
+        {
+          id: "industry-pack",
+          label: "Industry Specialists",
+          tagline: "Specialists from your industry packs — built for your vertical.",
+          capabilities: packAgentsInRoster.map((a) => a.name),
+          agentIds: packAgentsInRoster.map((a) => a.id),
+        } satisfies DeptCategory,
+      ]
+    : baseCategories;
   const activeCategoryDef = categories.find(c => c.id === activeCategory) ?? categories[0] ?? null;
   const activeCategoryAgents = activeCategoryDef
     ? agents.filter(a => activeCategoryDef.agentIds.includes(a.id))
