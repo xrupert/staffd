@@ -56,6 +56,13 @@ const DESIRED_FIELDS = [
   { name: "quiet_hours_end",         type: "number", required: false }, // 0-23 local (wraparound supported)
   { name: "brief_snoozed_until",     type: "text",   required: false }, // ISO datetime
   { name: "skip_next_brief",         type: "bool",   required: false },
+
+  // PR-Paddle-A — Paddle billing identifiers (stripe_* fields retained
+  // untouched per the Stripe-removal decision; no data migration) + the
+  // Cinema-pack top-up counter read by cinematicGate(packTopups).
+  { name: "paddle_customer",    type: "text",   required: false }, // ctm_...
+  { name: "paddle_sub_id",      type: "text",   required: false }, // sub_...
+  { name: "cinema_pack_topups", type: "number", required: false }, // purchased cinematic clips
 ];
 
 export async function POST() {

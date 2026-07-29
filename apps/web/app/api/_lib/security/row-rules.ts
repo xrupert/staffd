@@ -171,6 +171,13 @@ export const EXPECTED_COLLECTIONS: ExpectedEntry[] = [
     systemManaged: true,
     note: "W47 — one row per processed Stripe event id; webhook checks before processing so re-deliveries never double-credit. Admin-token-only access.",
   },
+  // Paddle webhook idempotency ledger (PR-Paddle-A — successor to stripe_events)
+  {
+    name: "billing_events",
+    rules: ADMIN_ONLY_RULES,
+    systemManaged: true,
+    note: "PR-Paddle-A — one row per processed Paddle event id (UNIQUE index); webhook inserts before processing so re-deliveries never double-apply. Admin-token-only access.",
+  },
   // W71 — Task Bus substrate
   { name: "workflows", rules: USER_OWNED_RULES },
   { name: "workflow_tasks", rules: USER_OWNED_RULES },

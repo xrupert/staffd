@@ -1,8 +1,9 @@
 /**
  * POST /api/billing/checkout
  * Body: { planId, interval }
- * Returns: { url } — the billing-provider-hosted checkout page URL, or a
- * 503 { error: "billing_not_configured" } until a real provider is wired in.
+ * Returns: { url } for redirect providers, or { overlay } — the Paddle.js
+ * overlay descriptor (price id + customData) the client opens — or a
+ * 503 { error: "billing_not_configured" } until a provider is wired in.
  *
  * See docs/superpowers/specs/2026-06-25-remove-stripe-billing-provider-seam-design.md
  */
@@ -10,15 +11,8 @@
 import { resolveAppUrl } from "../../../../lib/env";
 import { getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
-import { getBillingProvider, BillingNotConfiguredError } from "../../_lib/billing/provider";
-
-function getPrices(): Record<string, string> {
-  try {
-    return JSON.parse(process.env.STRIPE_PRICES ?? "{}") as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
+import { getBillingProvider, BillingNotConfiguredError, checkoutResponse } from "../../_lib/billing/provider";
+import { getPaddlePrices } from "../../_lib/billing/prices";
 
 export async function POST(req: Request) {
   const body = (await req.json()) as { planId: string; interval: string };
@@ -39,7 +33,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "planId and interval are required" }, { status: 400 });
   }
 
-  const prices = getPrices();
+  const prices = getPaddlePrices();
   const priceKey = `${planId}_${interval}`;
   const priceId = prices[priceKey];
   if (!priceId) {
@@ -57,11 +51,11 @@ export async function POST(req: Request) {
       `${pbUrl()}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
       { headers: { Authorization: adminToken } },
     );
-    const data = (await res.json()) as { items?: Array<{ stripe_customer?: string }> };
-    const customerId = data.items?.[0]?.stripe_customer || undefined;
+    const data = (await res.json()) as { items?: Array<{ paddle_customer?: string }> };
+    const customerId = data.items?.[0]?.paddle_customer || undefined;
 
     const provider = getBillingProvider();
-    const session = await provider.createCheckoutSession({
+    const intent = await provider.createCheckoutSession({
       mode: "subscription",
       priceId,
       customerId,
@@ -71,7 +65,7 @@ export async function POST(req: Request) {
       metadata: { staffd_user_id: userId, staffd_plan: planId },
     });
 
-    return Response.json({ url: session.url });
+    return Response.json(checkoutResponse(intent));
   } catch (err) {
     if (err instanceof BillingNotConfiguredError) {
       return Response.json({ error: "billing_not_configured" }, { status: 503 });

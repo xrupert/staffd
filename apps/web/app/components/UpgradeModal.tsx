@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import pb from "../../lib/pb";
+import { followCheckout, BILLING_NOT_CONFIGURED_MSG, type CheckoutRouteResponse } from "../../lib/paddle-client";
 
 interface Plan {
   id: string;
@@ -117,18 +118,17 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
     if (checkingOut) return;
     setCheckingOut(planId);
     try {
-      const userId    = pb.authStore.record?.id ?? "";
-      const userEmail = (pb.authStore.record?.email as string) ?? "";
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
-        body: JSON.stringify({ planId, interval, userId, userEmail }),
+        body: JSON.stringify({ planId, interval }),
       });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        console.error("Checkout error:", data.error === "billing_not_configured" ? "Billing isn't connected yet — check back soon." : data.error);
+      const data = (await res.json()) as CheckoutRouteResponse;
+      const outcome = await followCheckout(data);
+      if (outcome !== "redirected") {
+        if (outcome !== "opened") {
+          console.error("Checkout error:", outcome === "not_configured" ? BILLING_NOT_CONFIGURED_MSG : data.error);
+        }
         setCheckingOut(null);
       }
     } catch {

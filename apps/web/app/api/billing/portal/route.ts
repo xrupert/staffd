@@ -28,8 +28,8 @@ export async function POST(req: Request) {
       `${pbUrl()}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
       { headers: { Authorization: adminToken } },
     );
-    const data = (await res.json()) as { items?: Array<{ stripe_customer?: string }> };
-    const customerId = data.items?.[0]?.stripe_customer;
+    const data = (await res.json()) as { items?: Array<{ paddle_customer?: string }> };
+    const customerId = data.items?.[0]?.paddle_customer;
 
     if (!customerId) {
       return Response.json(

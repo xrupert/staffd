@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import pb from "../../lib/pb";
+import { followCheckout } from "../../lib/paddle-client";
 import { useEffectivePlan, isSuperAdminClient, type Plan } from "../../lib/hooks/useEffectivePlan";
 import { signOut } from "../../lib/auth/signOut";
 import NotificationBell from "../components/NotificationBell";
@@ -120,17 +121,13 @@ export default function DashboardPage() {
         if (pendingPlan && pendingPlan !== "starter" && (data.plan ?? "starter") === "starter") {
           localStorage.removeItem("staffd_pending_plan");
           localStorage.removeItem("staffd_pending_interval");
-          const userEmail = (pb.authStore.record?.email as string) ?? "";
           try {
             const checkoutRes = await fetch("/api/billing/checkout", {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
-              body: JSON.stringify({
-                planId: pendingPlan, interval: pendingInterval, userId, userEmail,
-              }),
+              body: JSON.stringify({ planId: pendingPlan, interval: pendingInterval }),
             });
-            const co = (await checkoutRes.json()) as { url?: string };
-            if (co.url) window.location.href = co.url;
+            await followCheckout(await checkoutRes.json());
           } catch { /* user can still pick a plan from the dashboard */ }
         }
       }

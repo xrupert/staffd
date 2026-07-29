@@ -164,10 +164,11 @@ describe("GET /api/admin/verify-row-rules", () => {
         name === "super_admin_audit_log" ||
         name === "super_admin_usage_log" ||
         name === "stripe_events" ||
+        name === "billing_events" ||
         name === "admin_migration_log" ||
         name === "generation_models"
       ) {
-        // Decision 73 / 74 + W47 + W95.7.3d — ADMIN_ONLY pattern (all-null), systemManaged
+        // Decision 73 / 74 + W47 + W95.7.3d + PR-Paddle-A — ADMIN_ONLY pattern (all-null), systemManaged
         return {
           listRule: null,
           viewRule: null,
@@ -254,7 +255,8 @@ describe("GET /api/admin/verify-row-rules", () => {
     // W95.7.3b — 38 = 37 + generation_jobs (async image/video job ledger, USER_OWNED)
     // W95.7.3d-T1 — 39 = 38 + generation_models (Muapi catalog cache, ADMIN_ONLY)
     // W95.8 — 40 = 39 + notifications (system→user inbox, USER_OWNED)
-    expect(body.collections_checked).toBe(40);
+    // PR-Paddle-A — 41 = 40 + billing_events (Paddle webhook dedup ledger, ADMIN_ONLY)
+    expect(body.collections_checked).toBe(41);
     expect(body.collections.every((c: { status: string }) => c.status === "✅")).toBe(true);
   });
 

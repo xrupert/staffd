@@ -66,6 +66,13 @@
 ## SECTION 1 — ACTIVE STATE
 
 ### Last completed work
+- **PR-Paddle-A (2026-07-29)** — Paddle wired behind the BillingProvider seam (SA-ratified: new value-priced catalog, overlay checkout)
+  - `PaddleBillingProvider` (`_lib/billing/paddle.ts`, lazy SDK) + `CheckoutIntent` overlay/redirect union on the seam; `getBillingProvider()` env-switched on `PADDLE_API_KEY`
+  - `PADDLE_PRICES` map (`_lib/billing/prices.ts`) replaces STRIPE_PRICES; 4 checkout routes + portal + account-delete moved to `paddle_customer`/`paddle_sub_id`
+  - `/api/webhooks/paddle`: signature verify, `billing_events` dedup (new setup route + ADMIN_ONLY row rules + migration registry entry), plan/dept-addon/CEO-addon sync mirroring the old Stripe semantics, Cinema-pack → `cinema_pack_topups`
+  - TopupModal now sells the 2 Cinema packs (legacy credit SKUs removed per ratified catalog); `lib/paddle-client.ts` opens the overlay from `{ overlay }` responses
+  - Seed script `apps/web/scripts/paddle-seed-catalog.mjs` + runbook `docs/operator-runbooks/paddle-setup.md`
+  - **OPERATOR ACTIONS pending:** Paddle sandbox account → keys in Vercel/.env.local → run seed → webhook destination + secret → run billing-events migration (runbook has the steps)
 - **Landing page full redesign** — `apps/web/app/page.tsx` rebuilt: sticky nav, hero + product mock, How It Works, all 10 departments, 4 feature highlights, pricing callout, trust section, final CTA, proper footer. Zero console errors. 476/477 tests still green.
 - **W71.5** — Super-admin dogfooding pack (commit `9737e8a`)
   - `COMP_EMAILS` exported, `chris.rupert@cybridagency.com` added

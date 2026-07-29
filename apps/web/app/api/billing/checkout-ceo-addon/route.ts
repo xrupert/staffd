@@ -10,17 +10,10 @@
 import { resolveAppUrl } from "../../../../lib/env";
 import { getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
-import { getBillingProvider, BillingNotConfiguredError } from "../../_lib/billing/provider";
+import { getBillingProvider, BillingNotConfiguredError, checkoutResponse } from "../../_lib/billing/provider";
+import { getPaddlePrices } from "../../_lib/billing/prices";
 
 const ELIGIBLE_PLANS = new Set(["starter", "growth"]);
-
-function getPrices(): Record<string, string> {
-  try {
-    return JSON.parse(process.env.STRIPE_PRICES ?? "{}") as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
 
 export async function POST(req: Request) {
   if (!process.env.NEXT_PUBLIC_POCKETBASE_URL) {
@@ -32,7 +25,7 @@ export async function POST(req: Request) {
   const userId = me.id;
   const userEmail = me.email;
 
-  const prices = getPrices();
+  const prices = getPaddlePrices();
   const priceId = prices["ceo-addon_monthly"];
   if (!priceId) {
     return Response.json({ error: "CEO add-on price not configured." }, { status: 503 });
@@ -47,7 +40,7 @@ export async function POST(req: Request) {
       { headers: { Authorization: adminToken } },
     );
     const subData = (await subRes.json()) as {
-      items?: Array<{ plan: string; stripe_customer?: string; ceo_addon_sub?: string }>;
+      items?: Array<{ plan: string; paddle_customer?: string; ceo_addon_sub?: string }>;
     };
     const sub = subData.items?.[0];
 
@@ -62,17 +55,17 @@ export async function POST(req: Request) {
     }
 
     const provider = getBillingProvider();
-    const session = await provider.createCheckoutSession({
+    const intent = await provider.createCheckoutSession({
       mode: "subscription",
       priceId,
-      customerId: sub.stripe_customer,
-      customerEmail: sub.stripe_customer ? undefined : userEmail,
+      customerId: sub.paddle_customer,
+      customerEmail: sub.paddle_customer ? undefined : userEmail,
       successUrl: `${origin}/dashboard?addon=ceo-success`,
       cancelUrl: `${origin}/dashboard?addon=cancelled`,
       metadata: { staffd_user_id: userId, staffd_addon_type: "ceo" },
     });
 
-    return Response.json({ url: session.url });
+    return Response.json(checkoutResponse(intent));
   } catch (err) {
     if (err instanceof BillingNotConfiguredError) {
       return Response.json({ error: "billing_not_configured" }, { status: 503 });

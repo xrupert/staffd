@@ -111,9 +111,8 @@ async function cascadeDelete(adminToken: string, collection: string, userId: str
 
 async function cancelStripeSubscription(adminToken: string, userId: string): Promise<{ cancelled: boolean; detail?: string }> {
   // Fetch the user's subscription to get the billing-provider subscription id.
-  // NOTE: the real schema field is `stripe_sub_id` (see
-  // setup/subscriptions/route.ts) — the old code read a non-existent
-  // `stripe_subscription_id` and silently no-op'd. Fixed here.
+  // PR-Paddle-A: prefer paddle_sub_id; stripe_sub_id kept as a legacy
+  // fallback (schema fields retained per the Stripe-removal decision).
   try {
     const filter = `user='${pbEscape(userId)}'`;
     const res = await fetch(
@@ -122,10 +121,10 @@ async function cancelStripeSubscription(adminToken: string, userId: string): Pro
     );
     if (!res.ok) return { cancelled: false, detail: "subscriptions_fetch_failed" };
     const data = (await res.json()) as {
-      items?: Array<{ stripe_sub_id?: string; stripe_customer?: string }>;
+      items?: Array<{ paddle_sub_id?: string; stripe_sub_id?: string }>;
     };
     const sub = data.items?.[0];
-    const subId = sub?.stripe_sub_id;
+    const subId = sub?.paddle_sub_id || sub?.stripe_sub_id;
     if (!subId) return { cancelled: true, detail: "no_active_subscription" };
 
     await getBillingProvider().cancelSubscription(subId);

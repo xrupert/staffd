@@ -1,34 +1,29 @@
 "use client";
 
 /**
- * TopupModal — credit-pack purchase modal (W47, §3-aligned).
+ * TopupModal — Cinema-pack purchase modal (PR-Paddle-A, value-priced model).
  *
- * Six SKUs match ARCH §3: three image packs, three video packs. Prices
- * match the configured price ids. Clicking a pack POSTs to
- * `/api/billing/checkout-topup`, which returns a provider-hosted checkout
- * URL; we redirect to it. The webhook credits the matching bucket (image or
- * video — ARCH §12) on success and the dashboard widget re-fetches.
+ * SA 2026-07-29: the six legacy image/video credit packs are gone. The one
+ * purchasable top-up is Cinema extension packs — extra cinematic clips for
+ * the month (+10/$39, +30/$99). Clicking a pack POSTs to
+ * `/api/billing/checkout-topup`; the response opens the payment overlay
+ * (or redirects, provider-dependent). The webhook credits
+ * `cinema_pack_topups` on success.
  */
 
 import { useState } from "react";
 import pb from "../../lib/pb";
+import { followCheckout, BILLING_NOT_CONFIGURED_MSG } from "../../lib/paddle-client";
 
-type Pack = { id: string; type: "image" | "video"; count: number; priceCents: number };
+type Pack = { id: string; clips: number; priceCents: number; note: string };
 
-const IMAGE_PACKS: Pack[] = [
-  { id: "topup-img-50",  type: "image", count: 50,  priceCents:   999 },
-  { id: "topup-img-150", type: "image", count: 150, priceCents:  2499 },
-  { id: "topup-img-350", type: "image", count: 350, priceCents:  5499 },
-];
-
-const VIDEO_PACKS: Pack[] = [
-  { id: "topup-vid-10",  type: "video", count: 10,  priceCents:  2299 },
-  { id: "topup-vid-25",  type: "video", count: 25,  priceCents:  5499 },
-  { id: "topup-vid-50",  type: "video", count: 50,  priceCents: 10999 },
+const CINEMA_PACKS: Pack[] = [
+  { id: "cinema-10", clips: 10, priceCents: 3900, note: "About one extra 30-second commercial" },
+  { id: "cinema-30", clips: 30, priceCents: 9900, note: "Nearly four extra commercials — best value" },
 ];
 
 function dollarStr(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`;
+  return `$${(cents / 100).toFixed(0)}`;
 }
 
 type Props = {
@@ -46,18 +41,20 @@ export default function TopupModal({ open, onClose }: Props) {
     setLoadingPack(pack);
     setError(null);
     try {
-      const userId = pb.authStore.record?.id ?? "";
-      const userEmail = (pb.authStore.record?.email as string | undefined) ?? "";
       const res = await fetch("/api/billing/checkout-topup", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
-        body: JSON.stringify({ userId, userEmail, pack }),
+        body: JSON.stringify({ pack }),
       });
       const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        setError(data.error === "billing_not_configured" ? "Billing isn't connected yet — check back soon." : (data.error ?? "checkout_failed"));
+      const outcome = await followCheckout(data);
+      if (outcome === "not_configured") {
+        setError(BILLING_NOT_CONFIGURED_MSG);
+        setLoadingPack(null);
+      } else if (outcome === "error") {
+        setError(data.error ?? "checkout_failed");
+        setLoadingPack(null);
+      } else if (outcome === "opened") {
         setLoadingPack(null);
       }
     } catch {
@@ -74,15 +71,15 @@ export default function TopupModal({ open, onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-2xl rounded-2xl overflow-hidden"
+        className="relative w-full max-w-xl rounded-2xl overflow-hidden"
         style={{ background: "#111118", border: "1px solid #2A2A38" }}
       >
         {/* Header */}
         <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
           <div>
-            <h2 className="text-base font-semibold" style={{ color: "#F0F0F8" }}>Top up credits</h2>
+            <h2 className="text-base font-semibold" style={{ color: "#F0F0F8" }}>Extend this month&apos;s cinematic allowance</h2>
             <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>
-              Credits never expire. Bigger packs cost less per credit.
+              Cinema packs add premium cinematic clips on top of your plan&apos;s monthly allowance.
             </p>
           </div>
           <button
@@ -94,66 +91,56 @@ export default function TopupModal({ open, onClose }: Props) {
           </button>
         </div>
 
-        {/* Packs — grouped by credit type per ARCH §12 (image / video only) */}
-        <div className="p-6 flex flex-col gap-5">
-          {[
-            { label: "Image credits", packs: IMAGE_PACKS },
-            { label: "Video credits", packs: VIDEO_PACKS },
-          ].map((group) => (
-            <div key={group.label}>
-              <p className="text-xs font-semibold mb-2" style={{ color: "#7070A0" }}>
-                {group.label}
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {group.packs.map((p) => {
-                  const isLoading = loadingPack === p.id;
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => void buyPack(p.id)}
-                      disabled={loadingPack !== null}
-                      className="text-left p-4 rounded-xl transition-all"
-                      style={{
-                        background: "#1A1A24",
-                        border: "1px solid #2A2A38",
-                        cursor: loadingPack !== null ? "wait" : "pointer",
-                        opacity: loadingPack !== null && !isLoading ? 0.4 : 1,
-                      }}
-                    >
-                      <div className="flex items-baseline justify-between mb-1">
-                        <div className="text-lg font-bold" style={{ color: "#F0F0F8" }}>
-                          {p.count.toLocaleString()}
-                        </div>
-                        <div className="text-sm font-semibold" style={{ color: "#A07BFF" }}>
-                          {dollarStr(p.priceCents)}
-                        </div>
-                      </div>
-                      <div className="text-xs" style={{ color: "#7070A0" }}>
-                        {p.count} {p.type} credits — {dollarStr(p.priceCents)}
-                      </div>
-                      {isLoading && (
-                        <div className="text-xs mt-2" style={{ color: "#A07BFF" }}>
-                          Opening checkout…
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        {/* Cinema packs */}
+        <div className="p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {CINEMA_PACKS.map((p) => {
+              const isLoading = loadingPack === p.id;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => void buyPack(p.id)}
+                  disabled={loadingPack !== null}
+                  className="text-left p-4 rounded-xl transition-all"
+                  style={{
+                    background: "#1A1A24",
+                    border: "1px solid #2A2A38",
+                    cursor: loadingPack !== null ? "wait" : "pointer",
+                    opacity: loadingPack !== null && !isLoading ? 0.4 : 1,
+                  }}
+                >
+                  <div className="flex items-baseline justify-between mb-1">
+                    <div className="text-lg font-bold" style={{ color: "#F0F0F8" }}>
+                      +{p.clips} clips
+                    </div>
+                    <div className="text-sm font-semibold" style={{ color: "#A07BFF" }}>
+                      {dollarStr(p.priceCents)}
+                    </div>
+                  </div>
+                  <div className="text-xs" style={{ color: "#7070A0" }}>
+                    {p.note}
+                  </div>
+                  {isLoading && (
+                    <div className="text-xs mt-2" style={{ color: "#A07BFF" }}>
+                      Opening checkout…
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {error && (
           <div className="px-6 pb-4">
             <p className="text-xs" style={{ color: "#EF4444" }}>
-              Couldn't open checkout: {error}
+              Couldn&apos;t open checkout: {error}
             </p>
           </div>
         )}
 
         <div className="px-6 py-3 text-xs" style={{ borderTop: "1px solid #1E1E2A", color: "#5A5A70" }}>
-          Payment processed securely. You'll be redirected.
+          Payment processed securely. Clips apply the moment payment completes.
         </div>
       </div>
     </div>

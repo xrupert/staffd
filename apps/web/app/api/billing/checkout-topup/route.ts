@@ -1,35 +1,26 @@
 /**
  * POST /api/billing/checkout-topup
- * Body: { pack } where pack is a TOPUP_PACKS key
- * Returns: { url } — checkout URL for a one-time credit pack, or a 503
- * { error: "billing_not_configured" } until a real provider is wired in.
+ * Body: { pack } where pack is a CINEMA_PACKS key
+ * Returns: { overlay } (Paddle) / { url } (redirect providers), or a 503
+ * { error: "billing_not_configured" } until a provider is wired in.
  *
- * Maps the requested pack to its price id via STRIPE_PRICES and carries the
- * credit quantity in checkout metadata so the (future) webhook can credit
- * the user without a second lookup. Mode is "payment" (one-time).
+ * SA 2026-07-29 (value-priced model): the legacy image/video credit packs
+ * are GONE — the only purchasable top-up is Cinema extension packs
+ * (+10/$39, +30/$99 cinematic clips). The webhook credits
+ * `cinema_pack_topups` from the Cinema price ids; the clip count also
+ * rides customData for observability. Mode is "payment" (one-time).
  */
 
 import { resolveAppUrl } from "../../../../lib/env";
 import { getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
-import { getBillingProvider, BillingNotConfiguredError } from "../../_lib/billing/provider";
+import { getBillingProvider, BillingNotConfiguredError, checkoutResponse } from "../../_lib/billing/provider";
+import { getPaddlePrices } from "../../_lib/billing/prices";
 
-const TOPUP_PACKS: Record<string, { type: "image" | "video"; count: number }> = {
-  "topup-img-50":  { type: "image", count: 50  },
-  "topup-img-150": { type: "image", count: 150 },
-  "topup-img-350": { type: "image", count: 350 },
-  "topup-vid-10":  { type: "video", count: 10  },
-  "topup-vid-25":  { type: "video", count: 25  },
-  "topup-vid-50":  { type: "video", count: 50  },
+export const CINEMA_PACKS: Record<string, { clips: number; priceKey: string }> = {
+  "cinema-10": { clips: 10, priceKey: "cinema-10_once" },
+  "cinema-30": { clips: 30, priceKey: "cinema-30_once" },
 };
-
-function getPrices(): Record<string, string> {
-  try {
-    return JSON.parse(process.env.STRIPE_PRICES ?? "{}") as Record<string, string>;
-  } catch {
-    return {};
-  }
-}
 
 export async function POST(req: Request) {
   const { pack } = (await req.json()) as { pack: string };
@@ -46,13 +37,13 @@ export async function POST(req: Request) {
   if (!pack) {
     return Response.json({ error: "pack required" }, { status: 400 });
   }
-  const packDef = TOPUP_PACKS[pack];
+  const packDef = CINEMA_PACKS[pack];
   if (!packDef) {
-    return Response.json({ error: "Unknown top-up pack" }, { status: 400 });
+    return Response.json({ error: "Unknown pack" }, { status: 400 });
   }
 
-  const prices = getPrices();
-  const priceId = prices[`${pack}_oneoff`];
+  const prices = getPaddlePrices();
+  const priceId = prices[packDef.priceKey];
   if (!priceId) {
     return Response.json({ error: `Top-up price not configured for ${pack}.` }, { status: 503 });
   }
@@ -65,11 +56,11 @@ export async function POST(req: Request) {
       `${pbUrl()}/api/collections/subscriptions/records?filter=(user='${pbEscape(userId)}')&perPage=1`,
       { headers: { Authorization: adminToken } },
     );
-    const subData = (await subRes.json()) as { items?: Array<{ stripe_customer?: string }> };
-    const customerId = subData.items?.[0]?.stripe_customer;
+    const subData = (await subRes.json()) as { items?: Array<{ paddle_customer?: string }> };
+    const customerId = subData.items?.[0]?.paddle_customer;
 
     const provider = getBillingProvider();
-    const session = await provider.createCheckoutSession({
+    const intent = await provider.createCheckoutSession({
       mode: "payment",
       priceId,
       customerId,
@@ -78,13 +69,12 @@ export async function POST(req: Request) {
       cancelUrl: `${origin}/dashboard?topup=cancelled`,
       metadata: {
         staffd_user_id: userId,
-        staffd_topup_pack: pack,
-        topup_type: packDef.type,
-        credit_count: String(packDef.count),
+        staffd_pack: pack,
+        staffd_pack_clips: String(packDef.clips),
       },
     });
 
-    return Response.json({ url: session.url });
+    return Response.json(checkoutResponse(intent));
   } catch (err) {
     if (err instanceof BillingNotConfiguredError) {
       return Response.json({ error: "billing_not_configured" }, { status: 503 });

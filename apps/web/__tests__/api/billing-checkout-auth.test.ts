@@ -12,8 +12,10 @@ vi.mock("../../app/api/_lib/integrations/identity", () => ({ whoAmI: async () =>
 const providerSpy = vi.hoisted(() => ({ calls: 0 }));
 vi.mock("../../app/api/_lib/billing/provider", () => ({
   BillingNotConfiguredError: class BillingNotConfiguredError extends Error {},
+  checkoutResponse: (intent: { kind: string; url?: string }) =>
+    intent.kind === "redirect" ? { url: intent.url } : { overlay: intent },
   getBillingProvider: () => ({
-    createCheckoutSession: async () => { providerSpy.calls += 1; return { url: "https://x" }; },
+    createCheckoutSession: async () => { providerSpy.calls += 1; return { kind: "redirect", url: "https://x" }; },
     createPortalSession: async () => { providerSpy.calls += 1; return { url: "https://x" }; },
     cancelSubscription: async () => { providerSpy.calls += 1; },
   }),

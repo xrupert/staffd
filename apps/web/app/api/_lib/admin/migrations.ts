@@ -70,6 +70,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "generation-models", label: "Generation models (catalog)", collection: "generation_models", note: "Muapi model catalog cache; hourly cron populates tier/credit_weight" },
   // W95.8 — system→user notification inbox.
   { route: "notifications", label: "Notifications", collection: "notifications", note: "per-customer notification inbox (USER_OWNED); producers call notifyUser" },
+  // PR-Paddle-A — Paddle webhook idempotency ledger.
+  { route: "billing-events", label: "Billing events (Paddle dedup)", collection: "billing_events", note: "one row per processed Paddle webhook event id; UNIQUE index is the idempotency mechanism" },
   {
     route: "admin-migration-log",
     label: "Migration audit log",

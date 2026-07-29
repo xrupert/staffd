@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import pb from "../../lib/pb";
+import { followCheckout, BILLING_NOT_CONFIGURED_MSG, type CheckoutRouteResponse } from "../../lib/paddle-client";
 
 const ALL_ADDABLE = [
   { id: "hr",         icon: "👥", label: "HR",         tagline: "Hiring, onboarding & performance" },
@@ -27,18 +28,17 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
     if (!selected || loading) return;
     setLoading(true);
     try {
-      const userId    = pb.authStore.record?.id ?? "";
-      const userEmail = (pb.authStore.record?.email as string) ?? "";
       const res = await fetch("/api/billing/checkout-addon", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
-        body: JSON.stringify({ userId, userEmail, department: selected }),
+        body: JSON.stringify({ department: selected }),
       });
-      const data = (await res.json()) as { url?: string; error?: string };
-      if (data.url) {
-        window.location.href = data.url;
-      } else {
-        console.error("Addon checkout error:", data.error === "billing_not_configured" ? "Billing isn't connected yet — check back soon." : data.error);
+      const data = (await res.json()) as CheckoutRouteResponse;
+      const outcome = await followCheckout(data);
+      if (outcome !== "redirected") {
+        if (outcome !== "opened") {
+          console.error("Addon checkout error:", outcome === "not_configured" ? BILLING_NOT_CONFIGURED_MSG : data.error);
+        }
         setLoading(false);
       }
     } catch {
