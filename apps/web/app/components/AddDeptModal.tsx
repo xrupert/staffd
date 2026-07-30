@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import pb from "../../lib/pb";
+import { useEscapeClose } from "../../lib/hooks/useEscapeClose";
 import { followCheckout, BILLING_NOT_CONFIGURED_MSG, type CheckoutRouteResponse } from "../../lib/paddle-client";
 
 const ALL_ADDABLE = [
@@ -19,6 +20,7 @@ interface AddDeptModalProps {
 }
 
 export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalProps) {
+  useEscapeClose(onClose);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 

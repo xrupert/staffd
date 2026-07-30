@@ -99,7 +99,7 @@ export default function NotificationBell() {
 
       {open && (
         <div
-          style={{ position: "absolute", right: 0, top: 42, width: 340, maxHeight: 420, overflowY: "auto", zIndex: 50, background: "#111118", border: "1px solid #2A2A38", borderRadius: 14, boxShadow: "0 12px 32px rgba(0,0,0,0.5)" }}
+          style={{ position: "absolute", right: 0, top: 42, width: "min(340px, calc(100vw - 32px))", maxHeight: 420, overflowY: "auto", zIndex: 50, background: "#111118", border: "1px solid #2A2A38", borderRadius: 14, boxShadow: "0 12px 32px rgba(0,0,0,0.5)" }}
         >
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #1E1E2A" }}>
             <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#7070A0" }}>Notifications</span>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import pb from "../../lib/pb";
+import { useEscapeClose } from "../../lib/hooks/useEscapeClose";
 import { followCheckout, BILLING_NOT_CONFIGURED_MSG, type CheckoutRouteResponse } from "../../lib/paddle-client";
 
 interface Plan {
@@ -109,6 +110,7 @@ interface UpgradeModalProps {
 }
 
 export default function UpgradeModal({ department, currentPlan = "starter", onClose }: UpgradeModalProps) {
+  useEscapeClose(onClose);
   const [interval, setInterval] = useState<"monthly" | "annual">("monthly");
   const [checkingOut, setCheckingOut] = useState<string | null>(null);
   const [portalLoading, setPortalLoading] = useState(false);

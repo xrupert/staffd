@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import pb from "../../lib/pb";
+import { useEscapeClose } from "../../lib/hooks/useEscapeClose";
 import { followCheckout, BILLING_NOT_CONFIGURED_MSG } from "../../lib/paddle-client";
 
 type Pack = { id: string; clips: number; priceCents: number; note: string };
@@ -32,6 +33,7 @@ type Props = {
 };
 
 export default function TopupModal({ open, onClose }: Props) {
+  useEscapeClose(onClose, open);
   const [loadingPack, setLoadingPack] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
