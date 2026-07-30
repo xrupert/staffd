@@ -24,6 +24,7 @@ const REQUIRED_FIELDS = [
   { name: "focus",           type: "text", required: false },
   { name: "situation",       type: "text", required: false },
   { name: "superpower",      type: "text", required: false },
+  { name: "staff_directives", type: "text", required: false }, // PR-Wire-Directives — owner standing orders
   { name: "bottlenecks",     type: "json", required: false },
   { name: "magic_wand",      type: "text", required: false },
 

@@ -120,7 +120,7 @@ describe("GET /api/admin/health (W95.7 route)", () => {
     // each detectField migration looks for, so nothing reads as pending.
     const detectFields: Record<string, string[]> = {
       documents: ["file", "docuseal_submission_id"],
-      businesses: ["chatwoot_inbox_id", "plausible_site_id"],
+      businesses: ["chatwoot_inbox_id", "plausible_site_id", "staff_directives"],
       workflows: ["draft_output", "suggested_next"],
       // PR-Loop-V4 (#8) — recurring staff fields on scheduled_content.
       scheduled_content: ["recurrence"],

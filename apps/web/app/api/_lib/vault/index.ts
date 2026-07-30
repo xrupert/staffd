@@ -40,6 +40,9 @@ export type Vault = {
   superpower?: string;
   bottlenecks?: string[];
   magic_wand?: string;
+  // PR-Wire-Directives — the owner's standing orders (Hermes SOUL borrow):
+  // persistent instructions every specialist obeys on every task.
+  staff_directives?: string;
   // W50 — Vault expansion (D-21 substrate)
   brand_voice?: string;
   brand_tone?: string;
@@ -254,8 +257,14 @@ export function renderVaultBlock(
   }
 
   const lines = vaultLines(vault);
-  if (!lines.length) return "";
-  return `\n\n--- BUSINESS VAULT ---\n${lines.join("\n")}\n--- END VAULT ---`;
+  // PR-Wire-Directives — the owner's standing orders ride the same single
+  // render point every specialist prompt flows through.
+  const directives = typeof vault.staff_directives === "string" ? vault.staff_directives.trim() : "";
+  const directivesBlock = directives
+    ? `\n\n--- STANDING DIRECTIVES (the owner's standing orders — follow on EVERY task, no exceptions) ---\n${directives}\n--- END STANDING DIRECTIVES ---`
+    : "";
+  if (!lines.length) return directivesBlock;
+  return `\n\n--- BUSINESS VAULT ---\n${lines.join("\n")}\n--- END VAULT ---${directivesBlock}`;
 }
 
 // Re-export retrieval surface so consumers can do `import {...} from "../_lib/vault"`

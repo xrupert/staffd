@@ -18,6 +18,14 @@ type FieldDef = { name: string; label: string; multiline?: boolean; placeholder?
 
 const CATEGORIES: Array<{ title: string; fields: FieldDef[] }> = [
   {
+    // PR-Wire-Directives — the owner's standing orders. Every specialist
+    // reads these on every task; this is the owner DIRECTING their staff.
+    title: "Standing Directives",
+    fields: [
+      { name: "staff_directives", label: "Standing orders for your staff", multiline: true, placeholder: "Rules your staff always follows — e.g. \"Sign everything 'Chris'. Never discount more than 10%. Our busy season is Q4 — plan around it. Always mention our 24/7 support line.\"" },
+    ],
+  },
+  {
     title: "Brand & Voice",
     fields: [
       { name: "brand_voice", label: "Brand voice", placeholder: "Direct and confident, no jargon" },
