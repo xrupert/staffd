@@ -564,7 +564,7 @@ export default function CommandCenter() {
   // path. Images and free-text prompts never detour.
   async function generateVideoSmart(kind: "image" | "video", tier: Tier, promptOverride?: string) {
     const prompt = promptOverride ?? lastCompleted?.output ?? "";
-    if (kind !== "video" || !/(Hook|Beat\s*\d+)/i.test(prompt)) {
+    if (kind !== "video") {
       return generateInlineMedia(kind, tier, promptOverride);
     }
     if (mediaBusyRef.current) return;
@@ -591,7 +591,12 @@ export default function CommandCenter() {
         }]);
         return;
       }
-      // Studio unavailable — release the guard and run the single-clip path.
+      // Studio unavailable — say so honestly, then run the single-clip
+      // path clearly labeled as a teaser, never impersonating the full cut.
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "The full production studio couldn't take this one right now — producing a single teaser clip instead. The complete cut of your script is worth re-running in a bit.",
+      }]);
       mediaBusyRef.current = false;
       setMediaGen(null);
       await generateInlineMedia("video", tier, promptOverride);
