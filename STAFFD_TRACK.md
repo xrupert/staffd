@@ -66,6 +66,14 @@
 ## SECTION 1 — ACTIVE STATE
 
 ### Last completed work
+- **PR-Loop-V1→V4 (2026-07-29, commits `7ba8ff0`→`ba21b71`)** — the loop layer (per STAFFD-HLG-ASSESSMENT, upgrade map #2–#9 complete):
+  - V1: evidence grader on every workflow output (`_lib/loop/grader.ts` — length/refusal/error/vendor-leak checks, corrective-retry feedback) + critic pre-morteming every L4 plan (`_lib/loop/critic.ts` — veto/amend only, can never stall)
+  - V2: parallel drain (concurrency 4) + per-workflow circuit breaker (2 terminal failures = stop spending steps)
+  - V3: verification node on CEO brief/synthesize (`_lib/loop/verify.ts` — one corrective retry, honest degrade)
+  - V4: recurring staff (`scheduled_content.kind=workflow_goal` + `recurrence` → planner→critic→review-gated workflow via shared `plan-goal.ts`/`workflow-materialize.ts`) + strategic mental models on CEO dept (`packages/agents/src/mental-models.ts`)
+  - Also: routing fix `673fe7d` (marketing default killed, packs reachable + Industry Specialists tab), `/auth/forgot` page, HLG assessment doc
+  - **OPERATOR: run the "Calendar — recurring staff" migration** from /dashboard/admin/migrations after deploy.
+  - Remaining before relaunch: Paddle LIVE switch (sandbox fully verified; see paddle-setup.md go-live checklist).
 - **PR-Paddle-A (2026-07-29)** — Paddle wired behind the BillingProvider seam (SA-ratified: new value-priced catalog, overlay checkout)
   - `PaddleBillingProvider` (`_lib/billing/paddle.ts`, lazy SDK) + `CheckoutIntent` overlay/redirect union on the seam; `getBillingProvider()` env-switched on `PADDLE_API_KEY`
   - `PADDLE_PRICES` map (`_lib/billing/prices.ts`) replaces STRIPE_PRICES; 4 checkout routes + portal + account-delete moved to `paddle_customer`/`paddle_sub_id`
