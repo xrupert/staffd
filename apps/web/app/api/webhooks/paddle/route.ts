@@ -222,8 +222,17 @@ export async function POST(req: Request) {
     });
     const unmarshaled = await paddle.webhooks.unmarshal(rawBody, secret, signature);
     event = unmarshaled as unknown as { eventId: string; eventType: string; data: unknown };
-  } catch {
-    return Response.json({ error: "invalid_signature" }, { status: 401 });
+  } catch (err) {
+    // The SDK throws for BOTH bad signatures and schema-invalid payloads
+    // (discovered during sandbox verification — a skeleton payload with a
+    // VALID signature still throws in entity mapping). Label them apart so
+    // a 401 always means "check the secret", never "check the payload".
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/signature/i.test(msg)) {
+      return Response.json({ error: "invalid_signature" }, { status: 401 });
+    }
+    console.error("[paddle.webhook] unparseable payload:", msg);
+    return Response.json({ error: "unparseable_payload" }, { status: 400 });
   }
 
   const handler = PADDLE_EVENT_HANDLERS[event.eventType];

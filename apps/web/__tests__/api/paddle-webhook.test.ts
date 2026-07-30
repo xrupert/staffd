@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 const state = vi.hoisted(() => ({
   event: null as null | { eventId: string; eventType: string; data: unknown },
   unmarshalThrows: false,
+  unmarshalError: "bad signature",
   duplicateInsert: false,
   subRow: null as null | Record<string, unknown>,
   calls: [] as Array<{ method: string; url: string; body?: unknown }>,
@@ -20,7 +21,7 @@ vi.mock("@paddle/paddle-node-sdk", () => ({
   Paddle: class {
     webhooks = {
       unmarshal: async () => {
-        if (state.unmarshalThrows) throw new Error("bad signature");
+        if (state.unmarshalThrows) throw new Error(state.unmarshalError);
         return state.event;
       },
     };
@@ -73,6 +74,7 @@ const patches = () => state.calls.filter((c) => c.method === "PATCH");
 beforeEach(() => {
   state.event = null;
   state.unmarshalThrows = false;
+  state.unmarshalError = "bad signature";
   state.duplicateInsert = false;
   state.subRow = null;
   state.calls = [];
@@ -98,6 +100,15 @@ describe("paddle webhook — transport contract", () => {
   it("401 when signature verification fails, nothing processed", async () => {
     state.unmarshalThrows = true;
     expect((await POST(req())).status).toBe(401);
+    expect(state.calls.length).toBe(0);
+  });
+
+  it("400 (not 401) when the SDK throws a non-signature parse error", async () => {
+    state.unmarshalThrows = true;
+    state.unmarshalError = "Cannot read properties of undefined (reading 'map')";
+    const res = await POST(req());
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("unparseable_payload");
     expect(state.calls.length).toBe(0);
   });
 
