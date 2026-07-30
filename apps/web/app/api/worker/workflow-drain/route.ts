@@ -154,6 +154,22 @@ export async function GET(req: Request) {
         text: agentResult.text,
         isSystemTask: !!WORKER_HANDLERS[task.specialist_id ?? ""],
       }),
+
+    // PR-Loop-V2 (#7) — persisted terminal-failure count feeding the
+    // circuit breaker (PB totalItems — never pages rows).
+    getWorkflowFailedCount: async (workflowId) => {
+      const f = encodeURIComponent(`(workflow_id = "${workflowId}" && status = "failed")`);
+      const res = await fetch(
+        `${pb}/api/collections/workflow_tasks/records?filter=${f}&perPage=1&fields=id`,
+        { headers: { Authorization: adminToken } },
+      );
+      if (!res.ok) return 0;
+      return ((await res.json()) as { totalItems?: number }).totalItems ?? 0;
+    },
+
+    // PR-Loop-V2 (#4) — ready tasks execute concurrently; the dependency
+    // gate keeps DAG order. 4 keeps a full tick well inside maxDuration.
+    concurrency: 4,
   };
 
   // W72 — reconcile each touched parent workflow to its derived status,
@@ -263,7 +279,7 @@ export async function GET(req: Request) {
     }
 
     console.log(
-      `workflow-drain: processed=${result.processed} succeeded=${result.succeeded} failed=${result.failed} skipped=${result.skipped} graderRejected=${result.graderRejected} transitions=${transitions.length}`
+      `workflow-drain: processed=${result.processed} succeeded=${result.succeeded} failed=${result.failed} skipped=${result.skipped} graderRejected=${result.graderRejected} breakerTripped=${result.breakerTripped} transitions=${transitions.length}`
     );
     return Response.json({ ok: true, ...result, transitions });
   } catch (err) {

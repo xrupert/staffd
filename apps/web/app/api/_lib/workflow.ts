@@ -180,7 +180,20 @@ export type DrainDeps = {
    *  the reasons stashed as `grader_feedback` for the next attempt.
    *  Absent → every output passes (pre-loop behavior). */
   gradeOutput?: (task: WorkflowTask, result: AgentResult) => { pass: true } | { pass: false; reasons: string[] };
+  /** PR-Loop-V2 (#7) — circuit breaker: terminal-failure count for a
+   *  workflow. At/over the threshold, remaining tasks are failed WITHOUT
+   *  running the agent — a broken plan stops burning attempts. Absent →
+   *  breaker disabled. */
+  getWorkflowFailedCount?: (workflowId: string) => Promise<number>;
+  /** PR-Loop-V2 (#4) — max tasks executed concurrently per tick.
+   *  Default 1 (serial, pre-V2 behavior); the drain route passes 4. */
+  concurrency?: number;
 };
+
+/** PR-Loop-V2 (#7) — terminal failures in one workflow before the breaker
+ *  opens. 2 failed tasks (each already 3-attempts-exhausted) = the plan is
+ *  broken; stop spending the owner's remaining steps. */
+export const WORKFLOW_BREAKER_THRESHOLD = 2;
 
 export type DrainResult = {
   processed: number;
@@ -189,6 +202,9 @@ export type DrainResult = {
   skipped: number;
   /** PR-Loop-V1 — outputs the grader rejected this tick (retried or failed). */
   graderRejected: number;
+  /** PR-Loop-V2 — tasks failed WITHOUT execution because their workflow's
+   *  circuit breaker was open. */
+  breakerTripped: number;
 };
 
 /**
@@ -201,7 +217,8 @@ export type DrainResult = {
  * (3 total attempts: original + 2 retries = exhausted at retry_count=2.)
  */
 export async function drainTasks(deps: DrainDeps): Promise<DrainResult> {
-  const { fetchPendingTasks, getTaskStatus, updateTask, runAgent, gradeOutput } = deps;
+  const { fetchPendingTasks, getTaskStatus, updateTask, runAgent, gradeOutput, getWorkflowFailedCount } = deps;
+  const concurrency = Math.max(1, deps.concurrency ?? 1);
 
   const tasks = await fetchPendingTasks();
   const result: DrainResult = {
@@ -210,28 +227,60 @@ export async function drainTasks(deps: DrainDeps): Promise<DrainResult> {
     failed: 0,
     skipped: 0,
     graderRejected: 0,
+    breakerTripped: 0,
   };
 
-  for (const task of tasks) {
+  // PR-Loop-V2 (#7) — per-tick breaker ledger. Base counts come from the
+  // dep (persisted terminal failures); tickFailures adds failures observed
+  // during THIS tick so a workflow collapsing mid-tick opens the breaker
+  // for its remaining tasks immediately.
+  const baseFailures = new Map<string, number>();
+  const tickFailures = new Map<string, number>();
+  const noteTerminalFailure = (workflowId: string) => {
+    if (workflowId) tickFailures.set(workflowId, (tickFailures.get(workflowId) ?? 0) + 1);
+  };
+
+  async function breakerOpen(workflowId: string): Promise<number | null> {
+    if (!getWorkflowFailedCount || !workflowId) return null;
+    let base = baseFailures.get(workflowId);
+    if (base === undefined) {
+      base = await getWorkflowFailedCount(workflowId).catch(() => 0);
+      baseFailures.set(workflowId, base);
+    }
+    const total = base + (tickFailures.get(workflowId) ?? 0);
+    return total >= WORKFLOW_BREAKER_THRESHOLD ? total : null;
+  }
+
+  async function processTask(task: WorkflowTask): Promise<void> {
     // Safety: idempotency belt — skip if already completed
     if (task.completed_at) {
       result.skipped++;
-      continue;
+      return;
     }
 
     // Dependency gate: all deps must be "succeeded" at tick start
-    let depsReady = true;
     for (const depId of task.depends_on) {
       const depStatus = await getTaskStatus(depId);
       if (depStatus !== "succeeded") {
-        depsReady = false;
-        break;
+        result.skipped++;
+        return;
       }
     }
 
-    if (!depsReady) {
-      result.skipped++;
-      continue;
+    // PR-Loop-V2 (#7) — circuit breaker: a workflow with enough terminal
+    // failures stops spending the owner's remaining steps. Failed WITHOUT
+    // running the agent; reconcile closes the workflow as failed/partial.
+    const tripped = await breakerOpen(task.workflow_id);
+    if (tripped !== null) {
+      await updateTask(task.id, {
+        status: "failed",
+        error: `circuit_breaker: ${tripped} prior task failures in this workflow — halting to avoid spending the remaining steps`,
+        completed_at: new Date().toISOString(),
+      });
+      result.processed++;
+      result.failed++;
+      result.breakerTripped++;
+      return;
     }
 
     // Mark running before agent call (enables concurrent drain detection)
@@ -267,8 +316,11 @@ export async function drainTasks(deps: DrainDeps): Promise<DrainResult> {
         });
         result.processed++;
         result.graderRejected++;
-        if (isFinalFailure) result.failed++;
-        continue;
+        if (isFinalFailure) {
+          result.failed++;
+          noteTerminalFailure(task.workflow_id);
+        }
+        return;
       }
 
       await updateTask(task.id, {
@@ -297,9 +349,24 @@ export async function drainTasks(deps: DrainDeps): Promise<DrainResult> {
       result.processed++;
       if (isFinalFailure) {
         result.failed++;
+        noteTerminalFailure(task.workflow_id);
       }
     }
   }
+
+  // PR-Loop-V2 (#4) — fake-edge pruning at the executor: READY tasks run
+  // concurrently up to the cap. The dependency gate above keeps DAG order —
+  // a dependent whose dep hasn't succeeded yet is skipped this tick exactly
+  // as before (serial mode = concurrency 1 preserves pre-V2 behavior).
+  const queue = [...tasks];
+  const workers = Array.from({ length: Math.min(concurrency, Math.max(1, queue.length)) }, async () => {
+    while (queue.length > 0) {
+      const task = queue.shift();
+      if (!task) break;
+      await processTask(task);
+    }
+  });
+  await Promise.all(workers);
 
   return result;
 }
