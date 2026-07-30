@@ -13,33 +13,77 @@
  * and fall back to the single-clip path.
  */
 
+/** Camera-facing scripts need the OWNER on camera — no pipeline may invent
+ *  an AI presenter for them (live incident: the single-clip fallback
+ *  generated a random spokesperson from a talking-head script). */
+export function isCameraFacing(script: string): boolean {
+  return /\[Camera:|talking head|phone-shot|direct to camera|camera-facing|🎬/i.test(script);
+}
+
 export type SpecBeat = { label: string; text: string; onScreen?: string; startS?: number; endS?: number };
 
-const LINE_RE = /^\s*(Hook|Beat\s*\d+|CTA|Mid|Close)\s*(?:\((\d+)[–\-—](\d+)s\))?\s*:?\s*(.*)$/i;
+// Format tolerance (live incident: "🪝 HOOK (0:00–0:03)" / "RETENTION HOOK #1
+// — Twist the knife (0:03–0:12)" / "PATTERN INTERRUPT #2" parsed as nothing
+// and the production silently fell back to a single AI clip). Leading
+// emoji/bullets/markdown strip first; labels cover the strategist
+// vocabulary; timings accept both "(0–3s)" and "(0:00–0:03)" forms.
+const LINE_RE = /^(Hook|Retention\s*Hook\s*#?\d*|Pattern\s*Interrupt\s*#?\d*|Beat\s*\d+|CTA|Mid|Close)[^(:\n]*(?:\((\d+(?::\d{2})?)\s*[–\-—]\s*(\d+(?::\d{2})?)s?\))?\s*:?\s*(.*)$/i;
+const STRIP_RE = /^[\s*#>•\-]*(?:[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]+\s*)*/u;
 const ONSCREEN_RE = /On-screen(?: text)?(?:\s*\([^)]*\))?\s*:\s*([^\n]+)/i;
 const SPOKEN_RE = /Spoken\s*:\s*/i;
 
+function toSeconds(t: string | undefined): number | undefined {
+  if (!t) return undefined;
+  if (t.includes(":")) {
+    const [m, sec] = t.split(":");
+    return Number.parseInt(m ?? "0", 10) * 60 + Number.parseInt(sec ?? "0", 10);
+  }
+  return Number.parseInt(t, 10);
+}
+
+function absorb(beat: SpecBeat, line: string): void {
+  const onScreen = line.match(ONSCREEN_RE)?.[1]?.trim().replace(/^["“]|["”]$/g, "");
+  if (onScreen && !beat.onScreen) beat.onScreen = onScreen;
+  const rest = line
+    .replace(ONSCREEN_RE, "")
+    .replace(/[\[\]]/g, "")
+    .replace(/["“”]/g, "")
+    .trim();
+  if (/^Camera\b/i.test(rest)) return; // stage direction, not copy
+  const isSpoken = SPOKEN_RE.test(line);
+  const cleaned = rest.replace(SPOKEN_RE, "").trim();
+  if (!cleaned) return;
+  if (isSpoken || !beat.text) beat.text = cleaned; // Spoken copy wins
+}
+
 export function parseBeats(script: string): SpecBeat[] {
   const beats: SpecBeat[] = [];
+  let cur: SpecBeat | null = null;
+  const push = () => {
+    if (cur && (cur.text || cur.onScreen)) {
+      if (!cur.text) cur.text = cur.onScreen ?? "";
+      beats.push(cur);
+    }
+  };
   for (const rawLine of script.split("\n")) {
-    const m = rawLine.match(LINE_RE);
-    if (!m || !m[4]?.trim()) continue;
-    const body = m[4].trim();
-    const onScreen = body.match(ONSCREEN_RE)?.[1]?.trim().replace(/^["“]|["”]$/g, "");
-    const spoken = body
-      .replace(ONSCREEN_RE, "")
-      .replace(SPOKEN_RE, "")
-      .replace(/[\[\]]/g, "")
-      .replace(/["“”]/g, "")
-      .trim();
-    beats.push({
-      label: m[1]!.replace(/\s+/g, " "),
-      text: spoken || onScreen || body,
-      onScreen,
-      startS: m[2] ? Number.parseInt(m[2], 10) : undefined,
-      endS: m[3] ? Number.parseInt(m[3], 10) : undefined,
-    });
+    const line = rawLine.replace(STRIP_RE, "").trim();
+    if (!line) continue;
+    const m = line.match(LINE_RE);
+    if (m) {
+      push();
+      cur = {
+        label: m[1]!.replace(/\s+/g, " "),
+        text: "",
+        startS: toSeconds(m[2]),
+        endS: toSeconds(m[3]),
+      };
+      const inline = (m[4] ?? "").trim();
+      if (inline && cur) absorb(cur, inline);
+      continue;
+    }
+    if (cur) absorb(cur, line);
   }
+  push();
   return beats;
 }
 

@@ -4,7 +4,58 @@
 
 import crypto from "node:crypto";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { parseBeats, buildEditDecisions } from "../../app/api/_lib/montage/spec";
+import { parseBeats, buildEditDecisions, isCameraFacing } from "../../app/api/_lib/montage/spec";
+
+// The LIVE INCIDENT format — emoji prefixes, RETENTION HOOK / PATTERN
+// INTERRUPT labels, m:ss timing ranges. v1's parser matched NONE of it and
+// the production silently fell back to a single AI clip.
+const INCIDENT_SCRIPT = `STAFFD TikTok Script — "5 People or 5 Minutes"
+Format: Talking head, phone-shot, direct to camera. Length: 45 seconds.
+
+🪝 HOOK (0:00–0:03)
+[Camera: tight on face, slight lean in, eyebrow raise]
+Spoken: "You were about to hire 5 people."
+On-screen text: you were about to hire 5 people
+
+📌 RETENTION HOOK #1 — Twist the knife (0:03–0:12)
+Spoken: "A marketing manager. A sales rep. Someone to handle legal."
+On-screen text: marketing manager · sales rep · legal
+
+⚡ PATTERN INTERRUPT #1 — Pause + pivot (0:12–0:15)
+Spoken: "That's $400,000 payroll. For a business doing $300k."
+On-screen text: $400k in payroll? 😳
+
+🎯 CTA (0:36–0:45)
+Spoken: "STAFFD. Staff your business — without staffing your business."
+On-screen text: STAFFD.com · Trial On Us`;
+
+describe("parseBeats — live incident format tolerance", () => {
+  it("parses emoji-prefixed HOOK/RETENTION/PATTERN/CTA labels with m:ss timings", () => {
+    const beats = parseBeats(INCIDENT_SCRIPT);
+    expect(beats.length).toBeGreaterThanOrEqual(4);
+    expect(beats[0]?.startS).toBe(0);
+    expect(beats[0]?.endS).toBe(3);
+    const cta = beats.find((b) => /cta/i.test(b.label));
+    expect(cta).toMatchObject({ startS: 36, endS: 45 });
+  });
+
+  it("builds a valid timeline from the incident script", () => {
+    const spec = buildEditDecisions(INCIDENT_SCRIPT, "5 People or 5 Minutes");
+    expect(spec).not.toBeNull();
+    const cuts = spec!.cuts as Array<Record<string, unknown>>;
+    expect(cuts.length).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe("isCameraFacing", () => {
+  it("detects talking-head / camera-cue scripts", () => {
+    expect(isCameraFacing(INCIDENT_SCRIPT)).toBe(true);
+    expect(isCameraFacing("[Camera: slow push-in]")).toBe(true);
+  });
+  it("screen-led scripts are not camera-facing", () => {
+    expect(isCameraFacing("On-screen text: Watch this. Screen recording of the dashboard.")).toBe(false);
+  });
+});
 
 const SCRIPT = `Video 3 — "What Directing Actually Looks Like" 📱🔁 | 30 seconds
 

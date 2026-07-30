@@ -36,6 +36,7 @@ WHAT TO INCLUDE (continuous prose, ~60-110 words):
 - Cinematic look: lighting direction and color, lens/film style, palette, and a one-word mood (energetic, intimate, gritty, triumphant, etc.).
 
 WHAT YOU MUST NEVER DO:
+- NEVER invent an on-camera presenter, spokesperson, or "person talking to camera" — video models will fabricate a random human face (with strong demographic biases) that has no connection to the business. If the source is a talking-head script, distill its SUBJECT MATTER into a non-presenter shot instead: the product in use, hands at work, the environment, screens, kinetic objects. A human may appear ONLY when the brief itself explicitly describes a specific person or clearly people-centric footage (e.g. "customers in a busy salon") — and then describe them by role and context, never invent an identity.
 - Never describe multiple scenes, cuts, montage, or a beat-by-beat script — pick ONE moment and stay in it.
 - Never dump overlay text, captions, on-screen quotes, hashtags, CTAs, or section headers — those belong to the edit, not the generation.
 - Never mention any external platform or model name.

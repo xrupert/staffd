@@ -581,6 +581,16 @@ export default function CommandCenter() {
         setMessages((prev) => [...prev, { role: "assistant", content: error ?? "Couldn't produce the video — try again." }]);
         return;
       }
+      // Camera-facing scripts NEVER fall back to AI-clip generation — that
+      // path invents a spokesperson (live incident). The honest answer is
+      // that this script is the owner's to film.
+      if (/\[Camera:|talking head|phone-shot|direct to camera|camera-facing/i.test(prompt)) {
+        setMessages((prev) => [...prev, {
+          role: "assistant",
+          content: "This script is written for YOU on camera — it's ready to film as-is (hooks, beats, and on-screen text are all timed). If you'd like, ask me for a text-on-screen version instead and I'll produce that.",
+        }]);
+        return;
+      }
       // Studio unavailable — release the guard and run the single-clip path.
       mediaBusyRef.current = false;
       setMediaGen(null);
