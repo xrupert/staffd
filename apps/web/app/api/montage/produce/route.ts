@@ -14,7 +14,7 @@
 
 import { whoAmI } from "../../_lib/integrations/identity";
 import { getAdminToken, pbUrl } from "../../_lib/pb";
-import { montageConfigured, createProject, startRender } from "../../_lib/integrations/montage/client";
+import { montageConfigured, createProject, startRenderProps } from "../../_lib/integrations/montage/client";
 import { buildEditDecisions } from "../../_lib/montage/spec";
 import { createJob, fingerprintFor } from "../../_lib/generation/jobs";
 
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
   try {
     const projectId = await createProject(title);
-    const jobId = await startRender(projectId, spec);
+    const jobId = await startRenderProps(projectId, spec);
 
     const pb = pbUrl();
     const token = await getAdminToken();

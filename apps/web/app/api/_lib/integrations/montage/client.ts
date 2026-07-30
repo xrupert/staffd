@@ -54,6 +54,16 @@ export async function startRender(projectId: string, editDecisions: Record<strin
   return data.job_id;
 }
 
+/** Props-driven Remotion render (typed scenes) — the schema-free path used
+ *  by the v1 spec generator (hero_title/text_card/callout timelines). */
+export async function startRenderProps(projectId: string, compositionData: Record<string, unknown>): Promise<string> {
+  const data = await post<{ job_id: string }>(
+    `/projects/${encodeURIComponent(projectId)}/render_props`,
+    { composition_data: compositionData },
+  );
+  return data.job_id;
+}
+
 export async function getRenderJob(jobId: string): Promise<{ status: string; error?: string; output_ready: boolean }> {
   const res = await fetch(`${base()}/jobs/${encodeURIComponent(jobId)}`, { headers: headers() });
   if (!res.ok) throw new Error(`montage job lookup failed (${res.status})`);
