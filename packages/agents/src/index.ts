@@ -43,6 +43,7 @@ import { ceoAgents } from "./departments/ceo";
 import { allPackAgents, PACK_IDS } from "./packs";
 import { STAFFD_BRAND_LAWS, applyBrandLawsToPrompt } from "./brand-laws";
 import { applyMentalModels } from "./mental-models";
+import { applyProductionRules } from "./production-rules";
 import type { AgentDef, Department, IndustryPack } from "./types";
 
 /**
@@ -60,7 +61,11 @@ function applyBrandLaws(agents: AgentDef[]): AgentDef[] {
     ...a,
     // PR-Loop-V4 (#9) — strategic departments additionally get the
     // anonymous mental-model discipline block (see mental-models.ts).
-    systemPrompt: applyMentalModels(applyBrandLawsToPrompt(a.systemPrompt ?? ""), a.department),
+    systemPrompt: applyProductionRules(
+      applyMentalModels(applyBrandLawsToPrompt(a.systemPrompt ?? ""), a.department),
+      a.tags,
+      a.department,
+    ),
   }));
 }
 
