@@ -50,10 +50,17 @@ export default function EditAffordances({
               type="button"
               aria-label={`Option ${idx + 1}`}
               onClick={() => setPicked(idx)}
+              className="media-reveal"
               style={{
                 padding: 0, border: picked === idx ? "2px solid #A07BFF" : "1px solid #2A2A38",
-                borderRadius: 8, overflow: "hidden", background: "#0D0D16", cursor: "pointer",
+                borderRadius: 8, overflow: "hidden", background: "#0D0D16",
+                cursor: "pointer",
+                // PR-UX-2 — options stagger in 120ms apart (generation reveal)
+                animationDelay: `${idx * 120}ms`,
+                transition: "transform 0.15s ease",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.03)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={u} alt={`Option ${idx + 1}`} style={{ display: "block", width: "100%", height: "auto", maxHeight: 220, objectFit: "contain" }} />

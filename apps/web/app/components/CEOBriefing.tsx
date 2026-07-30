@@ -190,25 +190,50 @@ export default function CEOBriefing() {
           </div>
         )}
 
-        {/* Output */}
+        {/* Output — PR-UX-2: the briefing renders as a document ceremony
+            (letterhead, sections revealing as they stream, a signed close),
+            not a chat reply. */}
         {(output || loading) && (
           <div
             ref={outputRef}
             style={{
               borderTop: "1px solid rgba(91,33,232,0.12)",
               padding: "20px 24px",
+              background: "linear-gradient(180deg, rgba(91,33,232,0.04) 0%, rgba(13,13,22,0) 120px)",
             }}
           >
+            {/* Letterhead */}
+            <div className="anim-rise" style={{ marginBottom: 16, paddingBottom: 12, borderBottom: "2px solid rgba(91,33,232,0.35)" }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.18em", textTransform: "uppercase", color: "#A07BFF" }}>
+                  Memorandum — The CEO
+                </span>
+                <span style={{ fontSize: 11, color: "#7A7A95", whiteSpace: "nowrap" }}>{today}</span>
+              </div>
+            </div>
+
             {loading && !output ? (
-              <p style={{ fontSize: "13px", color: "#7A7A95", margin: 0 }}>
-                Preparing your briefing…
-              </p>
+              <div className="flex flex-col gap-2.5" aria-label="Preparing your briefing">
+                <p className="anim-pulse-soft" style={{ fontSize: "12px", color: "#A07BFF", margin: 0 }}>
+                  Reviewing your staff&apos;s work across every department…
+                </p>
+                <div className="skeleton" style={{ height: 12, width: "55%" }} />
+                <div className="skeleton" style={{ height: 10, width: "100%" }} />
+                <div className="skeleton" style={{ height: 10, width: "92%" }} />
+                <div className="skeleton" style={{ height: 10, width: "70%" }} />
+              </div>
             ) : (
               <div
                 className="agent-output"
                 style={{ fontSize: "13px", lineHeight: "1.75" }}
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{output}</ReactMarkdown>
+                {/* Sections reveal one at a time as the stream crosses each
+                    heading boundary (keyed by index — stable across updates). */}
+                {output.split(/\n(?=## )/).map((section, i) => (
+                  <div key={i} className="anim-rise" style={{ animationDelay: `${Math.min(i, 4) * 90}ms` }}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{section}</ReactMarkdown>
+                  </div>
+                ))}
                 {loading && (
                   <span
                     style={{
@@ -221,6 +246,11 @@ export default function CEOBriefing() {
                       marginLeft: "2px",
                     }}
                   />
+                )}
+                {!loading && output && (
+                  <p className="anim-rise" style={{ marginTop: 20, paddingTop: 12, borderTop: "1px solid rgba(91,33,232,0.18)", fontSize: 12, fontStyle: "italic", color: "#A07BFF" }}>
+                    — The CEO · on behalf of your staff
+                  </p>
                 )}
               </div>
             )}

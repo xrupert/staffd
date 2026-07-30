@@ -50,6 +50,13 @@ const DEPT_LABELS: Record<string, string> = {
   "paid-media": "Paid Media", reputation: "Reputation", ceo: "The CEO",
 };
 
+// PR-UX-2 — routing theater icons (mirror the dashboard grid identity)
+const DEPT_ICONS: Record<string, string> = {
+  marketing: "📣", sales: "🤝", legal: "⚖️", hr: "👥",
+  finance: "💰", operations: "⚙️", design: "🎨",
+  "paid-media": "📈", reputation: "🛡️", ceo: "🧭",
+};
+
 const DEPT_HREFS: Record<string, string> = {
   marketing: "/dashboard/marketing", sales: "/dashboard/sales",
   legal: "/dashboard/legal", hr: "/dashboard/hr",
@@ -192,6 +199,9 @@ export default function CommandCenter() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
+  // PR-UX-2 — routing theater: null = hidden; {} = searching wave;
+  // {chosen} = the picked specialist lighting up (auto-clears).
+  const [theater, setTheater] = useState<{ chosen?: { dept: string; agent: string } } | null>(null);
   const [outputBuffer, setOutputBuffer] = useState("");
   const [lastLockedAlt, setLastLockedAlt] = useState<string | null>(null);
   // Phase 9 — persistent conversation thread. Survives reloads via localStorage
@@ -631,6 +641,7 @@ export default function CommandCenter() {
     setMessages(newMessages);
     setInput("");
     setPhase("routing");
+    setTheater({});
 
     // W95.1 — detect a confirm-to-commit intent in parallel (non-blocking).
     void detectIntent(content);
@@ -702,7 +713,7 @@ export default function CommandCenter() {
           // plan is invalid, fall through to the normal single-dept path.
           if (action.multiDept === true) {
             const proposed = await proposePlan(content, action, pbToken);
-            if (proposed) { setPhase("idle"); return; }
+            if (proposed) { setPhase("idle"); setTheater(null); return; }
           }
           const deptLabel = DEPT_LABELS[action.department] ?? action.department;
           const agentLabel = (() => {
@@ -712,15 +723,19 @@ export default function CommandCenter() {
               ? parts.map((p) => p.charAt(0).toUpperCase() + p.slice(1)).join(" ")
               : deptLabel;
           })();
+          setTheater({ chosen: { dept: action.department, agent: agentLabel } });
+          window.setTimeout(() => setTheater(null), 1900);
           setMessages((prev) => [...prev, { role: "assistant", content: `${deptLabel} \u2192 ${agentLabel} is on it\u2026` }]);
           setLastLockedAlt(action.lockedAlternative?.trim() ? action.lockedAlternative : null);
           setPhase("generating");
           await runAgent(action.department, action.task, userId, pbToken, action.agentId);
         } catch {
           setPhase("idle");
+          setTheater(null);
         }
       } else {
         setPhase("idle");
+        setTheater(null);
       }
     } catch {
       setMessages((prev) => [
@@ -728,6 +743,7 @@ export default function CommandCenter() {
         { role: "assistant", content: "Something went wrong. Try again." },
       ]);
       setPhase("idle");
+      setTheater(null);
     }
   }
 
@@ -1166,7 +1182,7 @@ export default function CommandCenter() {
               const { kind, urls } = msg.media;
               const multi = kind === "image" && urls.length > 1;
               return (
-                <div key={i} className="rounded-xl overflow-hidden" style={{ background: "#0D0D16", border: "1px solid #2A2A38" }}>
+                <div key={i} className="rounded-xl overflow-hidden bloom-once" style={{ background: "#0D0D16", border: "1px solid #2A2A38" }}>
                   <div className="px-4 py-2" style={{ borderBottom: "1px solid #1E1E2A" }}>
                     <span className="text-xs font-semibold" style={{ color: "#7070A0" }}>
                       {kind === "video" ? "Your video" : multi ? `Your visuals — ${urls.length} to choose from` : "Your visual"}
@@ -1177,7 +1193,7 @@ export default function CommandCenter() {
                   {kind === "image" && !multi && (
                     <div className="relative group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={urls[0]} alt="Your visual" style={{ display: "block", width: "100%", height: "auto", maxHeight: "560px", objectFit: "contain", background: "#0D0D16" }} />
+                      <img src={urls[0]} alt="Your visual" className="media-reveal" style={{ display: "block", width: "100%", height: "auto", maxHeight: "560px", objectFit: "contain", background: "#0D0D16" }} />
                       <a href={urls[0]} download target="_blank" rel="noopener noreferrer" className="absolute bottom-1 right-1 px-2 py-0.5 rounded text-xs font-semibold transition-opacity" style={{ background: "rgba(13,13,22,0.85)", color: "#A07BFF", border: "1px solid #2A2A38" }}>
                         Download
                       </a>
@@ -1185,7 +1201,13 @@ export default function CommandCenter() {
                   )}
                   {kind === "video" && (
                     <>
-                      <video src={urls[0]} controls autoPlay loop muted style={{ display: "block", width: "100%", maxHeight: "560px", background: "#0D0D16" }} />
+                      <div className="relative">
+                        <video src={urls[0]} controls autoPlay loop muted className="media-reveal" style={{ display: "block", width: "100%", maxHeight: "560px", background: "#0D0D16" }} />
+                        {/* PR-UX-2 — slate beat before the video reads as on */}
+                        <div className="absolute inset-0 flex items-center justify-center slate-overlay" style={{ background: "#0D0D16" }}>
+                          <span className="text-xs font-semibold tracking-widest" style={{ color: "#A07BFF" }}>🎬 ROLLING…</span>
+                        </div>
+                      </div>
                       <div className="px-4 py-2 text-right" style={{ borderTop: "1px solid #1E1E2A" }}>
                         <a href={urls[0]} download target="_blank" rel="noopener noreferrer" className="text-xs transition-colors hover:text-white" style={{ color: "#A07BFF" }}>Download</a>
                       </div>
@@ -1283,6 +1305,48 @@ export default function CommandCenter() {
               </div>
             );
           })}
+          {/* PR-UX-2 — routing theater: the switchboard. While the
+              coordinator matches, all departments pulse in a wave; when the
+              specialist is chosen, their department ignites and the rest dim. */}
+          {theater && (
+            <div className="rounded-xl px-4 py-3 anim-rise" style={{ background: "#0D0D16", border: "1px solid rgba(91,33,232,0.35)" }}>
+              <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                {Object.entries(DEPT_LABELS).map(([id, label], idx) => {
+                  const isChosen = theater.chosen?.dept === id;
+                  const dimmed = !!theater.chosen && !isChosen;
+                  return (
+                    <span
+                      key={id}
+                      title={label}
+                      className={!theater.chosen ? "anim-switch" : isChosen ? "bloom-once" : ""}
+                      style={{
+                        fontSize: 17,
+                        lineHeight: 1,
+                        padding: 7,
+                        borderRadius: 10,
+                        display: "inline-block",
+                        background: isChosen ? "rgba(91,33,232,0.25)" : "transparent",
+                        border: isChosen ? "1px solid #5B21E8" : "1px solid transparent",
+                        opacity: dimmed ? 0.22 : 1,
+                        transform: isChosen ? "scale(1.22)" : "scale(1)",
+                        transition: "all 0.25s cubic-bezier(0.22,1,0.36,1)",
+                        animationDelay: !theater.chosen ? `${idx * 0.11}s` : undefined,
+                      }}
+                    >
+                      {DEPT_ICONS[id] ?? "•"}
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="text-center text-xs mt-2" style={{ color: "#A07BFF" }}>
+                {theater.chosen ? (
+                  <>Connecting you with <span style={{ color: "#F0F0F8", fontWeight: 600 }}>{theater.chosen.agent}</span> in {DEPT_LABELS[theater.chosen.dept] ?? theater.chosen.dept}</>
+                ) : (
+                  "Finding the right specialist on your staff…"
+                )}
+              </p>
+            </div>
+          )}
           {/* Wire-the-loop — proposed multi-department plan. Propose-then-
               ratify: renders after the coordinator's message; Approve queues
               the workflow onto the drain, decline runs the routed single
