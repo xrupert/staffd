@@ -27,6 +27,7 @@ import { logWorkflowTransition } from "../../_lib/auth/super-admin-logging";
 import { WORKER_HANDLERS } from "../../_lib/worker/handlers";
 import { notifyUser } from "../../_lib/notifications/notify";
 import { generateFollowOnSuggestions } from "../../_lib/orchestrator/follow-on";
+import { gradeTaskOutput, graderRetryInstruction } from "../../_lib/loop/grader";
 
 const TASKS_PER_TICK = 10;
 
@@ -124,11 +125,16 @@ export async function GET(req: Request) {
         return handler(task, { pb, adminToken, authHeaders });
       }
 
+      // PR-Loop-V1 (#2) — retrying tasks carry the grader's rejection
+      // reasons; feed them into the prompt so the retry is a corrective
+      // attempt, not a coin re-flip.
+      const feedback = String(task.input_payload.grader_feedback ?? "");
+      const baseTask = String(task.input_payload.task ?? JSON.stringify(task.input_payload));
       const res = await fetch(`${baseUrl}/api/agent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          task:       String(task.input_payload.task ?? JSON.stringify(task.input_payload)),
+          task:       feedback ? baseTask + graderRetryInstruction(feedback) : baseTask,
           department: task.department_id,
           agentId:    task.specialist_id ?? undefined,
           userId:     task.user,
@@ -140,6 +146,14 @@ export async function GET(req: Request) {
       const text = await consumeStream(res.body);
       return { text, tokensActual: 0 };
     },
+
+    // PR-Loop-V1 (#2) — the evidence gate. Bus tasks (WORKER_HANDLERS)
+    // are API calls with their own throw semantics, never graded.
+    gradeOutput: (task, agentResult) =>
+      gradeTaskOutput({
+        text: agentResult.text,
+        isSystemTask: !!WORKER_HANDLERS[task.specialist_id ?? ""],
+      }),
   };
 
   // W72 — reconcile each touched parent workflow to its derived status,
@@ -249,7 +263,7 @@ export async function GET(req: Request) {
     }
 
     console.log(
-      `workflow-drain: processed=${result.processed} succeeded=${result.succeeded} failed=${result.failed} skipped=${result.skipped} transitions=${transitions.length}`
+      `workflow-drain: processed=${result.processed} succeeded=${result.succeeded} failed=${result.failed} skipped=${result.skipped} graderRejected=${result.graderRejected} transitions=${transitions.length}`
     );
     return Response.json({ ok: true, ...result, transitions });
   } catch (err) {

@@ -175,6 +175,11 @@ export type DrainDeps = {
   updateTask: (taskId: string, patch: Partial<WorkflowTask>) => Promise<void>;
   /** Runs the agent for the given task and returns its output. */
   runAgent: (task: WorkflowTask) => Promise<AgentResult>;
+  /** PR-Loop-V1 (#2) — evidence check on the agent's output. A failed
+   *  grade rides the same retry machinery as a thrown agent error, with
+   *  the reasons stashed as `grader_feedback` for the next attempt.
+   *  Absent → every output passes (pre-loop behavior). */
+  gradeOutput?: (task: WorkflowTask, result: AgentResult) => { pass: true } | { pass: false; reasons: string[] };
 };
 
 export type DrainResult = {
@@ -182,6 +187,8 @@ export type DrainResult = {
   succeeded: number;
   failed: number;
   skipped: number;
+  /** PR-Loop-V1 — outputs the grader rejected this tick (retried or failed). */
+  graderRejected: number;
 };
 
 /**
@@ -194,7 +201,7 @@ export type DrainResult = {
  * (3 total attempts: original + 2 retries = exhausted at retry_count=2.)
  */
 export async function drainTasks(deps: DrainDeps): Promise<DrainResult> {
-  const { fetchPendingTasks, getTaskStatus, updateTask, runAgent } = deps;
+  const { fetchPendingTasks, getTaskStatus, updateTask, runAgent, gradeOutput } = deps;
 
   const tasks = await fetchPendingTasks();
   const result: DrainResult = {
@@ -202,6 +209,7 @@ export async function drainTasks(deps: DrainDeps): Promise<DrainResult> {
     succeeded: 0,
     failed: 0,
     skipped: 0,
+    graderRejected: 0,
   };
 
   for (const task of tasks) {
@@ -234,6 +242,34 @@ export async function drainTasks(deps: DrainDeps): Promise<DrainResult> {
 
     try {
       const agentResult = await runAgent(task);
+
+      // PR-Loop-V1 (#2) — evidence gate. Stop on evidence, never on
+      // confidence: a rejected output re-enters the retry machinery with
+      // the grader's reasons as actionable feedback for the next attempt.
+      const verdict = gradeOutput ? gradeOutput(task, agentResult) : { pass: true as const };
+      if (!verdict.pass) {
+        const reasons = verdict.reasons.join("; ");
+        const nextRetryCount = task.retry_count + 1;
+        const isFinalFailure = nextRetryCount >= 3;
+        await updateTask(task.id, {
+          status: isFinalFailure ? "failed" : "retrying",
+          retry_count: nextRetryCount,
+          error: `grader_rejected: ${reasons}`,
+          input_payload: { ...task.input_payload, grader_feedback: reasons },
+          ...(isFinalFailure
+            ? {
+                completed_at: new Date().toISOString(),
+                // Keep the rejected draft for the audit trail — marked so
+                // no consumer mistakes it for an approved deliverable.
+                output_payload: { text: agentResult.text, rejected: true },
+              }
+            : {}),
+        });
+        result.processed++;
+        result.graderRejected++;
+        if (isFinalFailure) result.failed++;
+        continue;
+      }
 
       await updateTask(task.id, {
         status: "succeeded",
