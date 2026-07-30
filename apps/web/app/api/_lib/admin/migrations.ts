@@ -70,6 +70,8 @@ export const MIGRATION_REGISTRY: MigrationEntry[] = [
   { route: "generation-models", label: "Generation models (catalog)", collection: "generation_models", note: "Muapi model catalog cache; hourly cron populates tier/credit_weight" },
   // W95.8 — system→user notification inbox.
   { route: "notifications", label: "Notifications", collection: "notifications", note: "per-customer notification inbox (USER_OWNED); producers call notifyUser" },
+  // PR-Loop-V4 (#8) — recurring staff: kind + recurrence on scheduled_content.
+  { route: "calendar", label: "Calendar — recurring staff", collection: "scheduled_content", detectField: "recurrence", note: "adds kind (content|workflow_goal) + recurrence (weekly|monthly) to scheduled_content" },
   // PR-Paddle-A — Paddle webhook idempotency ledger.
   { route: "billing-events", label: "Billing events (Paddle dedup)", collection: "billing_events", note: "one row per processed Paddle webhook event id; UNIQUE index is the idempotency mechanism" },
   {

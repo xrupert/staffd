@@ -1,9 +1,28 @@
 /**
- * One-time setup: creates the `scheduled_content` PocketBase collection
- * if it doesn't already exist. Called by the calendar page on first load.
+ * Idempotent setup: creates/migrates the `scheduled_content` PocketBase
+ * collection. Called by the calendar page on first load.
+ *
+ * PR-Loop-V4 (#8) adds:
+ *   kind       (text) — "content" (default) | "workflow_goal" (recurring
+ *                        staff: planner → critic → review-gated workflow)
+ *   recurrence (text) — "" | "weekly" | "monthly"
  */
 
 import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
+
+const DESIRED_FIELDS = [
+  { name: "user",           type: "text",   required: true },
+  { name: "department",     type: "text",   required: true },
+  { name: "agent_id",       type: "text",   required: false },
+  { name: "agent_name",     type: "text",   required: false },
+  { name: "task",           type: "text",   required: true },
+  { name: "scheduled_date", type: "text",   required: true },
+  { name: "status",         type: "text",   required: false },
+  { name: "document_id",    type: "text",   required: false },
+  // PR-Loop-V4 (#8)
+  { name: "kind",           type: "text",   required: false },
+  { name: "recurrence",     type: "text",   required: false },
+];
 
 export async function POST() {
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL;
@@ -30,15 +49,29 @@ export async function POST() {
     const { token } = (await authRes.json()) as { token: string };
     const headers = { Authorization: token, "Content-Type": "application/json" };
 
-    // Check if collection already exists
+    // Check if collection already exists — if so, patch any missing fields
+    // (PR-Loop-V4 added kind + recurrence to a collection that predates them).
     const checkRes = await fetch(
       `${pbUrl}/api/collections/scheduled_content`,
       { headers: { Authorization: token } }
     );
     if (checkRes.ok) {
+      const col = (await checkRes.json()) as { id: string; fields?: Array<{ name: string }> };
+      const existing = new Set((col.fields ?? []).map((f) => f.name));
+      const missing = DESIRED_FIELDS.filter((f) => !existing.has(f.name));
+      if (missing.length > 0) {
+        const patchRes = await fetch(`${pbUrl}/api/collections/${col.id}`, {
+          method: "PATCH",
+          headers,
+          body: JSON.stringify({ fields: [...(col.fields ?? []), ...missing] }),
+        });
+        if (!patchRes.ok) {
+          return Response.json({ error: "Failed to add fields", detail: await patchRes.text() }, { status: 500 });
+        }
+      }
       // Decision 69 — enforce row rules from the canonical registry.
       const rules = await ensureCollectionRulesWithFreshToken("scheduled_content");
-      return Response.json({ ok: true, created: false, rules: rules.status });
+      return Response.json({ ok: true, created: false, added: missing.map((f) => f.name), rules: rules.status });
     }
 
     // Create the collection
@@ -48,16 +81,7 @@ export async function POST() {
       body: JSON.stringify({
         name: "scheduled_content",
         type: "base",
-        fields: [
-          { name: "user",           type: "text",   required: true },
-          { name: "department",     type: "text",   required: true },
-          { name: "agent_id",       type: "text",   required: false },
-          { name: "agent_name",     type: "text",   required: false },
-          { name: "task",           type: "text",   required: true },
-          { name: "scheduled_date", type: "text",   required: true },
-          { name: "status",         type: "text",   required: false },
-          { name: "document_id",    type: "text",   required: false },
-        ],
+        fields: DESIRED_FIELDS,
       }),
     });
 

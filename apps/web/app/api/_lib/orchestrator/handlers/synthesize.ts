@@ -24,6 +24,7 @@ import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../pb";
 import { callLLM } from "../llm";
 import { policyFor } from "../policies";
 import { degradedFor } from "../fallbacks";
+import { verifyOrCorrect } from "../../loop/verify";
 import { getVoiceBlock } from "../../vault/voice";
 import type { OrchestratorRequest, OrchestratorResponse } from "../types";
 
@@ -217,10 +218,43 @@ export async function handleSynthesize(req: OrchestratorRequest): Promise<Orches
     };
   }
 
+  // PR-Loop-V3 (#5) — the diamond's verification node: the merged
+  // synthesis is graded against objective evidence (vendor leak, refusal,
+  // emptiness); one corrective retry with the grader's feedback; still
+  // failing → degrade honestly rather than ship a bad flagship output.
+  const check = await verifyOrCorrect({
+    text: result.text,
+    regenerate: async (retryInstruction) => {
+      const r = await callLLM({
+        intent: "synthesize",
+        system: system + retryInstruction,
+        messages: [{ role: "user", content: ctx.query }],
+      });
+      return { ok: r.ok, text: r.ok ? r.text : undefined };
+    },
+  });
+  if (!check.verified) {
+    console.warn(`[synthesize] quality gate rejected output: ${check.reasons.join("; ")}`);
+    const activitySamples = workload.map((d) => ({
+      department: d.department,
+      count: d.tasks.length,
+      samples: d.tasks.map((t) => t.prompt),
+    }));
+    return {
+      ok: false,
+      intent: "synthesize",
+      fallback: "upstream_error",
+      degraded: degradedFor("synthesize", { activitySamples }),
+      vaultCostFlag: retrieval.costFlag,
+      latencyMs: result.latencyMs,
+      attempts: result.attempts,
+    };
+  }
+
   return {
     ok: true,
     intent: "synthesize",
-    decision: { task: result.text, rationale: "Cross-department synthesis." },
+    decision: { task: check.text, rationale: "Cross-department synthesis." },
     vaultCostFlag: retrieval.costFlag,
     latencyMs: result.latencyMs,
     attempts: result.attempts,

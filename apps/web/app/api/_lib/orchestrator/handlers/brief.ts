@@ -18,6 +18,7 @@ import { fetchVault, renderVaultBlock, retrieve } from "../../vault";
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../pb";
 import { callLLM } from "../llm";
 import { policyFor } from "../policies";
+import { verifyOrCorrect } from "../../loop/verify";
 import { degradedFor } from "../fallbacks";
 import { getVoiceBlock } from "../../vault/voice";
 import { fetchRecentDecisions } from "../../vault/outcomes";
@@ -235,10 +236,36 @@ Be direct. Be specific. Cut everything that doesn't move the needle.`;
     };
   }
 
+  // PR-Loop-V3 (#5) — verification node: grade the brief, one corrective
+  // retry, degrade honestly if still failing (see synthesize.ts).
+  const check = await verifyOrCorrect({
+    text: result.text,
+    regenerate: async (retryInstruction) => {
+      const r = await callLLM({
+        intent: "brief",
+        system,
+        messages: [{ role: "user", content: userPrompt + retryInstruction }],
+      });
+      return { ok: r.ok, text: r.ok ? r.text : undefined };
+    },
+  });
+  if (!check.verified) {
+    console.warn(`[brief] quality gate rejected output: ${check.reasons.join("; ")}`);
+    return {
+      ok: false,
+      intent: "brief",
+      fallback: "upstream_error",
+      degraded: degradedFor("brief", { activitySamples: activity.samples }),
+      vaultCostFlag: retrieval.costFlag,
+      latencyMs: result.latencyMs,
+      attempts: result.attempts,
+    };
+  }
+
   return {
     ok: true,
     intent: "brief",
-    decision: { task: result.text, rationale: "Weekly briefing." },
+    decision: { task: check.text, rationale: "Weekly briefing." },
     vaultCostFlag: retrieval.costFlag,
     latencyMs: result.latencyMs,
     attempts: result.attempts,

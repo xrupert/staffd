@@ -16,6 +16,9 @@ import { computeRetrievalP95 } from "../../_lib/vault";
 import { enqueue } from "../../_lib/vault/queue";
 import { recomputeActiveUserVoiceProfiles } from "../../_lib/vault/voice";
 import { pickModel, callGroq, computeCostUsd } from "../../_lib/llm-router";
+import { planGoal } from "../../_lib/orchestrator/plan-goal";
+import { materializePlan } from "../../_lib/workflow-materialize";
+import { isRecurrence, nextRecurrenceDate } from "../../_lib/recurrence";
 
 const anthropic = new Anthropic();
 
@@ -123,6 +126,10 @@ export async function GET(req: Request) {
         agent_name: string;
         task: string;
         scheduled_date: string;
+        // PR-Loop-V4 (#8) — "content" (default) | "workflow_goal"
+        kind?: string;
+        // PR-Loop-V4 (#8) — "" | "weekly" | "monthly"
+        recurrence?: string;
       }>;
     };
 
@@ -133,7 +140,66 @@ export async function GET(req: Request) {
 
     const results: Array<{ id: string; status: "completed" | "failed"; error?: string }> = [];
 
+    // PR-Loop-V4 (#8) — after an item lands (either outcome), a recurring
+    // item schedules its next occurrence. Cloned on failure too, so one
+    // transient outage never kills a recurring schedule.
+    const scheduleNext = async (item: { id: string; user: string; department: string; agent_name: string; task: string; scheduled_date: string; kind?: string; recurrence?: string }) => {
+      if (!isRecurrence(item.recurrence)) return;
+      try {
+        await fetch(`${pbUrl}/api/collections/scheduled_content/records`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            user: item.user,
+            department: item.department,
+            agent_name: item.agent_name ?? "",
+            task: item.task,
+            scheduled_date: nextRecurrenceDate(item.scheduled_date, item.recurrence),
+            status: "planned",
+            kind: item.kind ?? "content",
+            recurrence: item.recurrence,
+          }),
+        });
+      } catch (err) {
+        console.warn(`Worker: failed to schedule next recurrence for ${item.id}:`, err);
+      }
+    };
+
     for (const item of items) {
+      // PR-Loop-V4 (#8) — recurring staff: a "workflow_goal" item runs the
+      // SAME planner → critic → materialize pipeline as an interactive L4
+      // ask, but always review-gated (HITL on anything outbound). The
+      // per-minute drain then executes it; StaffWorkQueue holds the gate.
+      if (item.kind === "workflow_goal") {
+        try {
+          const { plan } = await planGoal(item.task);
+          const { workflowId } = await materializePlan({
+            pb: pbUrl,
+            token,
+            userId: item.user,
+            goal: item.task,
+            plan,
+            reviewRequired: true,
+          });
+          await fetch(`${pbUrl}/api/collections/scheduled_content/records/${item.id}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ status: "completed" }),
+          });
+          console.log(`Worker: recurring workflow started wf=${workflowId} goal="${item.task.slice(0, 60)}"`);
+          results.push({ id: item.id, status: "completed" });
+        } catch (err) {
+          await fetch(`${pbUrl}/api/collections/scheduled_content/records/${item.id}`, {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ status: "failed" }),
+          }).catch(() => null);
+          results.push({ id: item.id, status: "failed", error: String(err) });
+        }
+        await scheduleNext(item);
+        continue;
+      }
+
       try {
         // Fetch vault for this user
         let vault: Record<string, unknown> | null = null;
@@ -206,6 +272,8 @@ export async function GET(req: Request) {
 
         results.push({ id: item.id, status: "failed", error: String(err) });
       }
+      // PR-Loop-V4 (#8) — recurring content reschedules regardless of outcome.
+      await scheduleNext(item);
     }
 
     const completed = results.filter((r) => r.status === "completed").length;

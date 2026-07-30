@@ -15,7 +15,8 @@
 
 import { getAdminToken, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
-import { parsePlan, planToTaskSeeds, ALL_DEPTS } from "../../_lib/orchestrator/planner";
+import { parsePlan, ALL_DEPTS } from "../../_lib/orchestrator/planner";
+import { materializePlan } from "../../_lib/workflow-materialize";
 
 export async function POST(req: Request) {
   const me = await whoAmI(req);
@@ -40,43 +41,22 @@ export async function POST(req: Request) {
   const pb = pbUrl();
   let token: string;
   try { token = await getAdminToken(); } catch { return Response.json({ error: "pb_unconfigured" }, { status: 503 }); }
-  const headers = { Authorization: token, "Content-Type": "application/json" };
 
-  // Wire-the-loop — `goal` is stored on the workflow so the drain can generate
-  // follow-on suggestions ("what's next") when the workflow completes.
-  const wfRes = await fetch(`${pb}/api/collections/workflows/records`, {
-    method: "POST", headers,
-    body: JSON.stringify({ user: me.id, status: "pending", review_required: false, goal }),
-  });
-  if (!wfRes.ok) return Response.json({ error: "workflow_create_failed" }, { status: 500 });
-  const workflowId = ((await wfRes.json()) as { id: string }).id;
-
-  // Steps are topologically ordered (parsePlan guarantees deps reference earlier
-  // steps), so create in order and resolve step index → created task id.
-  const idByStep: string[] = [];
-  for (const seed of planToTaskSeeds(plan)) {
-    const taskRes = await fetch(`${pb}/api/collections/workflow_tasks/records`, {
-      method: "POST", headers,
-      body: JSON.stringify({
-        workflow_id: workflowId,
-        user: me.id,
-        specialist_id: "",
-        department_id: seed.department_id,
-        input_payload: seed.input_payload,
-        output_payload: null,
-        status: "pending",
-        depends_on: seed.dependsOnSteps.map((i) => idByStep[i]).filter(Boolean),
-        retry_count: 0,
-        error: "",
-        started_at: "",
-        completed_at: "",
-        cost_estimate_tokens: 0,
-        cost_actual_tokens: 0,
-      }),
+  // PR-Loop-V4 (#8) — materialization shared with the recurring worker.
+  // Wire-the-loop — `goal` is stored on the workflow so the drain can
+  // generate follow-on suggestions when the workflow completes.
+  try {
+    const { workflowId, taskCount } = await materializePlan({
+      pb,
+      token,
+      userId: me.id,
+      goal,
+      plan,
+      reviewRequired: false,
     });
-    if (!taskRes.ok) return Response.json({ error: "task_create_failed", workflowId, createdStep: seed.stepIndex }, { status: 500 });
-    idByStep.push(((await taskRes.json()) as { id: string }).id);
+    return Response.json({ ok: true, workflowId, taskCount });
+  } catch (err) {
+    console.error("[workflow.commit] materialize failed:", err);
+    return Response.json({ error: "workflow_create_failed" }, { status: 500 });
   }
-
-  return Response.json({ ok: true, workflowId, taskCount: plan.steps.length });
 }

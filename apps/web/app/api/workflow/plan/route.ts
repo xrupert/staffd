@@ -9,28 +9,16 @@
  * the customer's agent calls / tokens until they've seen and approved the plan
  * (consistent with STAFFD's tier-picker + confirm-to-commit patterns).
  *
- * Tranche-2 debt (surfaced, reprioritized): the LLM call piggybacks the
- * orchestrator "synthesize" intent/policy (no new SDK site, no
- * Record<OrchestratorIntent> ripple, and crucially no friction in the orchestrator
- * handler-dispatch switch where a planner does not belong). A dedicated `plan`
- * telemetry label for cost attribution (#33) is deferred until the planner has
- * real traffic to attribute. Live decomposition quality is operator-verified
- * (OPERATOR_TEST_QUEUE).
+ * PR-Loop-V1 (#3): every plan is pre-mortemed by the critic before the owner
+ * sees it. PR-Loop-V4 (#8): the planner+critic pipeline lives in
+ * _lib/orchestrator/plan-goal.ts, shared with the recurring scheduled worker.
  */
 
 import { whoAmI } from "../../_lib/integrations/identity";
-import { callLLM } from "../../_lib/orchestrator/llm";
-import { buildPlannerPrompt, parsePlan, ALL_DEPTS, type Plan } from "../../_lib/orchestrator/planner";
-import { buildCriticPrompt, parseCritique, type Critique } from "../../_lib/loop/critic";
+import { planGoal, PlannerUnavailableError, extractPlanJson as extractPlanJsonShared } from "../../_lib/orchestrator/plan-goal";
 
-/** Pull the JSON object/array out of an LLM response (tolerates code fences / prose). */
-export function extractPlanJson(text: string): unknown {
-  const t = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
-  const starts = ["{", "["].map((c) => t.indexOf(c)).filter((i) => i >= 0);
-  const start = starts.length ? Math.min(...starts) : 0;
-  const end = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
-  return JSON.parse(end >= start ? t.slice(start, end + 1) : t);
-}
+/** Re-export (tests + historical imports). */
+export const extractPlanJson = extractPlanJsonShared;
 
 export async function POST(req: Request) {
   const me = await whoAmI(req);
@@ -44,54 +32,19 @@ export async function POST(req: Request) {
   }
   if (goal.length < 3) return Response.json({ error: "goal_required" }, { status: 400 });
 
-  const llm = await callLLM({
-    intent: "synthesize",
-    system: buildPlannerPrompt(goal, ALL_DEPTS),
-    messages: [{ role: "user", content: `Plan this goal: ${goal}` }],
-  });
-  if (!llm.ok) return Response.json({ error: "planner_unavailable" }, { status: 502 });
-
-  let plan: Plan;
   try {
-    plan = parsePlan(extractPlanJson(llm.text), goal, ALL_DEPTS);
-  } catch (err) {
-    return Response.json({ error: "plan_invalid", detail: err instanceof Error ? err.message : String(err) }, { status: 422 });
-  }
-
-  // PR-Loop-V1 (#3) — the critic pre-mortems the plan before the owner
-  // sees it. Exactly one pass; every failure mode passes the ORIGINAL
-  // plan through (the critic can improve, never stall). Amended steps
-  // are re-validated through parsePlan — the same trust boundary as the
-  // planner's own output.
-  const critique = await critiquePlan(plan);
-  if (critique.verdict === "amend" && critique.amendedStepsRaw !== undefined) {
-    try {
-      plan = parsePlan(critique.amendedStepsRaw, goal, ALL_DEPTS);
-    } catch {
-      critique.verdict = "approve"; // invalid amendment → original plan stands
-      delete critique.amendedStepsRaw;
-    }
-  }
-
-  return Response.json({
-    ok: true,
-    goal,
-    plan,
-    steps: plan.steps,
-    critique: { verdict: critique.verdict, concerns: critique.concerns },
-  });
-}
-
-async function critiquePlan(plan: Plan): Promise<Critique> {
-  try {
-    const llm = await callLLM({
-      intent: "synthesize",
-      system: buildCriticPrompt(plan, ALL_DEPTS),
-      messages: [{ role: "user", content: "Audit this plan." }],
+    const { plan, critique } = await planGoal(goal);
+    return Response.json({
+      ok: true,
+      goal,
+      plan,
+      steps: plan.steps,
+      critique: { verdict: critique.verdict, concerns: critique.concerns },
     });
-    if (!llm.ok) return { verdict: "unavailable", concerns: [] };
-    return parseCritique(extractPlanJson(llm.text));
-  } catch {
-    return { verdict: "unavailable", concerns: [] };
+  } catch (err) {
+    if (err instanceof PlannerUnavailableError) {
+      return Response.json({ error: "planner_unavailable" }, { status: 502 });
+    }
+    return Response.json({ error: "plan_invalid", detail: err instanceof Error ? err.message : String(err) }, { status: 422 });
   }
 }
