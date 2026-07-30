@@ -14,6 +14,7 @@ import { runGeneration, runEdit } from "../../lib/generation-client";
 import EditAffordances from "./EditAffordances";
 import { classifyEditKeyword } from "../api/_lib/generation/edit-ops";
 import GenerationTierInline, { type GenerationRequest } from "./GenerationTierInline";
+import { extractVideoScripts } from "../lib/video-scripts";
 import GenerationProgress from "./GenerationProgress";
 import { type Tier } from "../api/_lib/generation/pricing";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
@@ -440,7 +441,13 @@ export default function CommandCenter() {
   // VIDEO opens the tier picker (it's the metered one). IMAGES skip the picker
   // entirely (W95.9.3 — unmetered) and generate 3 options to choose from.
   function openGenTier(kind: "image" | "video") {
-    const prompt = lastCompleted?.output ?? "";
+    let prompt = lastCompleted?.output ?? "";
+    // PR-Wire-P1 -- when the deliverable contains exactly one scripted
+    // video, produce THAT script, not the surrounding document.
+    if (kind === "video") {
+      const scripts = extractVideoScripts(prompt);
+      if (scripts.length === 1 && scripts[0]) prompt = scripts[0].script;
+    }
     if (!prompt.trim()) { console.warn(`[W64] generate_${kind} with no completed output — noop`); return; }
     if (mediaBusyRef.current) return;
     if (kind === "image") { void generateImageOptions(); return; }
@@ -520,8 +527,9 @@ export default function CommandCenter() {
     return runEditToThread(kind, sourceUrl, instruction);
   }
 
-  async function generateInlineMedia(kind: "image" | "video", tier: Tier) {
-    const prompt = lastCompleted?.output ?? "";
+  async function generateInlineMedia(kind: "image" | "video", tier: Tier, promptOverride?: string) {
+    // PR-Wire-P1 -- a chosen per-video script beats the whole document.
+    const prompt = promptOverride ?? lastCompleted?.output ?? "";
     if (!prompt.trim()) {
       console.warn(`[W64] generate_${kind} with no completed output — noop`);
       return;
@@ -1437,6 +1445,48 @@ export default function CommandCenter() {
                 })}
               </div>
 
+              {/* PR-Wire-P1 — script→production linkage: when the deliverable
+                  contains multiple scripted videos, each becomes its own
+                  produce chip carrying ONLY that script. Camera-facing
+                  scripts are honestly labeled — no pipeline can film the
+                  owner; those are theirs to shoot (their participation). */}
+              {(() => {
+                const scripts = extractVideoScripts(lastCompleted.output);
+                if (scripts.length < 2) return null;
+                return (
+                  <div className="anim-rise">
+                    <p className="text-xs font-semibold mb-1.5" style={{ color: "#7A7A95", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+                      Produce from this plan
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {scripts.map((sc, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            if (!sc.producible) return;
+                            if (mediaBusyRef.current) return;
+                            setPendingGen({ kind: "video", department: "", prompt: sc.script });
+                          }}
+                          title={sc.producible ? `Produce ${sc.title}` : "Camera-facing — this one needs you on camera; the script is ready for your shoot"}
+                          className="text-xs px-3 py-1.5 rounded-lg transition-colors"
+                          style={{
+                            background: sc.producible ? "rgba(91,33,232,0.12)" : "rgba(255,255,255,0.03)",
+                            border: `1px solid ${sc.producible ? "rgba(91,33,232,0.30)" : "#2A2A38"}`,
+                            color: sc.producible ? "#A07BFF" : "#7A7A95",
+                            cursor: sc.producible ? "pointer" : "default",
+                          }}
+                        >
+                          {sc.producible ? "🎬 " : "👤 "}
+                          {sc.title.length > 44 ? sc.title.slice(0, 44) + "…" : sc.title}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs mt-1.5" style={{ color: "#4A4A65" }}>
+                      👤 = needs you on camera — script ready for your shoot
+                    </p>
+                  </div>
+                );
+              })()}
               {/* W63 — the platform-action axis (W62 candidates), rendered
                   beneath the cross-department chips. D10' coexistence: the
                   static affordances elsewhere stay untouched until W64. */}
@@ -1455,7 +1505,7 @@ export default function CommandCenter() {
                   onConfirm={(tier) => {
                     const g = pendingGen; setPendingGen(null); if (!g) return;
                     if (g.mode === "edit" && g.sourceUrl && g.instruction) void runEditToThread(g.kind, g.sourceUrl, g.instruction, tier);
-                    else void generateInlineMedia(g.kind, tier);
+                    else void generateInlineMedia(g.kind, tier, g.prompt);
                   }}
                   onClose={() => setPendingGen(null)}
                 />
