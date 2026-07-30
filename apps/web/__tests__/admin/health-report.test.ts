@@ -122,6 +122,8 @@ describe("GET /api/admin/health (W95.7 route)", () => {
       documents: ["file", "docuseal_submission_id"],
       businesses: ["chatwoot_inbox_id", "plausible_site_id"],
       workflows: ["draft_output", "suggested_next"],
+      // PR-Loop-V4 (#8) — recurring staff fields on scheduled_content.
+      scheduled_content: ["recurrence"],
     };
     vi.stubGlobal("fetch", vi.fn(async (url: string) => {
       if (url.includes("/api/collections?")) {
