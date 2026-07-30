@@ -86,6 +86,33 @@ async function pollJob(jobId: string, shouldCancel?: () => boolean): Promise<Gen
 }
 
 /**
+ * runStudioProduction (S3) — submit a scripted video to the Studio
+ * (/api/montage/produce) and reuse the SAME status poll: Studio renders are
+ * ordinary generation_jobs rows completed by the montage webhook. Returns
+ * {error: "studio_unavailable"} specifically when the caller should fall
+ * back to the single-clip path (service unconfigured/down/unparseable).
+ */
+export async function runStudioProduction(
+  input: { script: string; title: string; tier: string },
+  shouldCancel?: () => boolean,
+): Promise<GenOutcome> {
+  let res: Response;
+  try {
+    res = await fetch("/api/montage/produce", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    return { error: "studio_unavailable" };
+  }
+  if (!res.ok) return { error: "studio_unavailable" };
+  const data = (await res.json().catch(() => ({}))) as { jobId?: string };
+  if (!data.jobId) return { error: "studio_unavailable" };
+  return pollJob(data.jobId, shouldCancel);
+}
+
+/**
  * runEdit — submit an edit-as-intent op against an existing artifact, then reuse
  * the shared status poll (edit jobs are ordinary generation_jobs rows). The
  * server classifies the instruction → op → model; the client only declares the

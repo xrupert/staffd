@@ -10,7 +10,7 @@ import ActionAffordances from "./ActionAffordances";
 import { anchorTopIfBelowViewport } from "../../lib/scroll";
 import { useActionDispatcher } from "../../lib/hooks/useActionDispatcher";
 import { runExportDocument } from "../../lib/action-handlers/export-document";
-import { runGeneration, runEdit } from "../../lib/generation-client";
+import { runGeneration, runStudioProduction, runEdit } from "../../lib/generation-client";
 import EditAffordances from "./EditAffordances";
 import { classifyEditKeyword } from "../api/_lib/generation/edit-ops";
 import GenerationTierInline, { type GenerationRequest } from "./GenerationTierInline";
@@ -552,6 +552,40 @@ export default function CommandCenter() {
       } else {
         setMessages((prev) => [...prev, { role: "assistant", content: error ?? `Couldn't generate the ${label} — try again.` }]);
       }
+    } finally {
+      mediaBusyRef.current = false;
+      setMediaGen(null);
+    }
+  }
+
+  // S3 — Studio-first video production: a structured script becomes a
+  // COMPLETE assembled video via the Montage Service; any Studio failure
+  // (unconfigured, down, unparseable script) falls back to the single-clip
+  // path. Images and free-text prompts never detour.
+  async function generateVideoSmart(kind: "image" | "video", tier: Tier, promptOverride?: string) {
+    const prompt = promptOverride ?? lastCompleted?.output ?? "";
+    if (kind !== "video" || !/(Hook|Beat\s*\d+)/i.test(prompt)) {
+      return generateInlineMedia(kind, tier, promptOverride);
+    }
+    if (mediaBusyRef.current) return;
+    mediaBusyRef.current = true;
+    setMediaGen({ kind: "video" });
+    try {
+      const title = prompt.split("\n")[0]?.replace(/[#*]/g, "").trim().slice(0, 100) || "Your video";
+      const { url, error } = await runStudioProduction({ script: prompt, title, tier });
+      if (url) {
+        setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind: "video", urls: [url] } }]);
+        return;
+      }
+      if (error !== "studio_unavailable") {
+        setMessages((prev) => [...prev, { role: "assistant", content: error ?? "Couldn't produce the video — try again." }]);
+        return;
+      }
+      // Studio unavailable — release the guard and run the single-clip path.
+      mediaBusyRef.current = false;
+      setMediaGen(null);
+      await generateInlineMedia("video", tier, promptOverride);
+      return;
     } finally {
       mediaBusyRef.current = false;
       setMediaGen(null);
@@ -1505,7 +1539,7 @@ export default function CommandCenter() {
                   onConfirm={(tier) => {
                     const g = pendingGen; setPendingGen(null); if (!g) return;
                     if (g.mode === "edit" && g.sourceUrl && g.instruction) void runEditToThread(g.kind, g.sourceUrl, g.instruction, tier);
-                    else void generateInlineMedia(g.kind, tier, g.prompt);
+                    else void generateVideoSmart(g.kind, tier, g.prompt);
                   }}
                   onClose={() => setPendingGen(null)}
                 />
