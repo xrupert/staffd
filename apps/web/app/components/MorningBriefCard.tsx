@@ -198,7 +198,7 @@ export default function MorningBriefCard() {
             <p className="text-sm font-bold" style={{ color: "#F0F0F8" }}>
               {humanDate(brief.date)}
               {brief.sections.length > 0 && (
-                <span className="ml-2 font-normal text-xs" style={{ color: "#5A5A70" }}>
+                <span className="ml-2 font-normal text-xs" style={{ color: "#7A7A95" }}>
                   · {brief.sections.length} section{brief.sections.length === 1 ? "" : "s"} from your staff
                 </span>
               )}
@@ -210,7 +210,7 @@ export default function MorningBriefCard() {
             All reviewed
           </span>
         ) : (
-          <span className="text-xs" style={{ color: "#5A5A70" }}>
+          <span className="text-xs" style={{ color: "#7A7A95" }}>
             {pendingCount} pending
           </span>
         )}
@@ -250,14 +250,14 @@ export default function MorningBriefCard() {
                       <span className="text-xs" style={{ color: "#22C55E" }}>✓ approved</span>
                     )}
                     {isDismissed && (
-                      <span className="text-xs" style={{ color: "#5A5A70" }}>dismissed</span>
+                      <span className="text-xs" style={{ color: "#7A7A95" }}>dismissed</span>
                     )}
                   </div>
                   <p className="text-sm font-medium mt-0.5" style={{ color: "#F0F0F8" }}>
                     {s.title}
                   </p>
                 </div>
-                <span className="text-xs" style={{ color: "#5A5A70" }}>
+                <span className="text-xs" style={{ color: "#7A7A95" }}>
                   {isExpanded ? "▾" : "▸"}
                 </span>
               </button>
@@ -292,7 +292,7 @@ export default function MorningBriefCard() {
                         onClick={() => void updateSection(s.id, "dismissed")}
                         disabled={isUpdating}
                         className="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ml-auto"
-                        style={{ background: "transparent", color: "#5A5A70" }}
+                        style={{ background: "transparent", color: "#7A7A95" }}
                       >
                         Dismiss
                       </button>
@@ -303,7 +303,7 @@ export default function MorningBriefCard() {
                       onClick={() => void updateSection(s.id, "pending")}
                       disabled={isUpdating}
                       className="text-xs transition-colors hover:text-white"
-                      style={{ color: "#5A5A70" }}
+                      style={{ color: "#7A7A95" }}
                     >
                       Undo
                     </button>

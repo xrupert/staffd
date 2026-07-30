@@ -147,7 +147,7 @@ export default function SchedulingSettings() {
   if (loading) {
     return (
       <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Loading scheduling…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Loading scheduling…</p>
       </section>
     );
   }
@@ -157,7 +157,7 @@ export default function SchedulingSettings() {
       <div className="flex items-start justify-between mb-5">
         <div>
           <h2 className="text-sm font-semibold mb-1" style={{ color: "#F0F0F8" }}>Scheduling</h2>
-          <p className="text-xs" style={{ color: "#5A5A70" }}>Let people book calls with you — built in, no extra service needed.</p>
+          <p className="text-xs" style={{ color: "#7A7A95" }}>Let people book calls with you — built in, no extra service needed.</p>
         </div>
         <label className="flex items-center gap-2 cursor-pointer" style={{ marginTop: "2px" }}>
           <span className="text-xs" style={{ color: "#9090A8" }}>{enabled ? "On" : "Off"}</span>
@@ -185,7 +185,7 @@ export default function SchedulingSettings() {
           <div className="mb-4">
             <label style={labelStyle}>Your booking URL</label>
             <div className="flex items-center gap-2">
-              <span className="text-xs" style={{ color: "#5A5A70", whiteSpace: "nowrap" }}>{origin}/book/</span>
+              <span className="text-xs" style={{ color: "#7A7A95", whiteSpace: "nowrap" }}>{origin}/book/</span>
               <input
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
@@ -194,7 +194,7 @@ export default function SchedulingSettings() {
               />
             </div>
             {bookingUrl && (
-              <p className="text-xs mt-2" style={{ color: "#5A5A70" }}>
+              <p className="text-xs mt-2" style={{ color: "#7A7A95" }}>
                 Public link: <a href={bookingUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#A07BFF" }}>{bookingUrl}</a>
               </p>
             )}
@@ -257,7 +257,7 @@ export default function SchedulingSettings() {
                     >
                       {active ? "✓" : ""}
                     </button>
-                    <span className="text-xs w-20" style={{ color: active ? "#D0D0E8" : "#5A5A70" }}>{DAY_LABELS[day]}</span>
+                    <span className="text-xs w-20" style={{ color: active ? "#D0D0E8" : "#7A7A95" }}>{DAY_LABELS[day]}</span>
                     {active && windows && windows.map((w, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <input
@@ -266,7 +266,7 @@ export default function SchedulingSettings() {
                           onChange={(e) => updateWindow(day, i, 0, e.target.value)}
                           style={{ ...inputStyle, padding: "6px 10px", fontSize: "12px", width: "auto" }}
                         />
-                        <span className="text-xs" style={{ color: "#5A5A70" }}>→</span>
+                        <span className="text-xs" style={{ color: "#7A7A95" }}>→</span>
                         <input
                           type="time"
                           value={w[1]}

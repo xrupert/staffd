@@ -147,7 +147,7 @@ export default function VaultPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>← Dashboard</a>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>← Dashboard</a>
         </header>
 
         <div className="flex items-start justify-between mb-10">
@@ -167,7 +167,7 @@ export default function VaultPage() {
               </svg>
               <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color: "#F0F0F8" }}>{pct}%</span>
             </div>
-            <span className="text-xs" style={{ color: "#5A5A70" }}>complete</span>
+            <span className="text-xs" style={{ color: "#7A7A95" }}>complete</span>
           </div>
         </div>
 
@@ -178,7 +178,7 @@ export default function VaultPage() {
 
           {/* Business info */}
           <div className="rounded-2xl p-7 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-6" style={{ color: "#5A5A70" }}>About Your Business</p>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-6" style={{ color: "#7A7A95" }}>About Your Business</p>
             <div className="flex flex-col gap-5">
               <VaultField label="Business name" placeholder="e.g., Acme Marketing, Blue Ridge Plumbing" value={field("business_name")} onChange={(v) => set("business_name", v)} />
               <VaultField label="Industry / What you do" placeholder="e.g., Digital marketing agency, Plumbing contractor" value={field("industry")} onChange={(v) => set("industry", v)} />
@@ -190,7 +190,7 @@ export default function VaultPage() {
 
           {/* Contact details */}
           <div className="rounded-2xl p-7 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-6" style={{ color: "#5A5A70" }}>Contact Details</p>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-6" style={{ color: "#7A7A95" }}>Contact Details</p>
             <p className="text-xs mb-5" style={{ color: "#3A3A50" }}>Used on invoices, contracts, and any document your staff produces.</p>
             <div className="flex flex-col gap-5">
               <VaultField label="Phone number" placeholder="+1 (555) 000-0000" value={field("phone")} onChange={(v) => set("phone", v)} type="tel" />
@@ -203,7 +203,7 @@ export default function VaultPage() {
 
           {/* Logo */}
           <div className="rounded-2xl p-7 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#5A5A70" }}>Business Logo</p>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-2" style={{ color: "#7A7A95" }}>Business Logo</p>
             <p className="text-xs mb-5" style={{ color: "#3A3A50" }}>Appears in the header of all PDF exports. PNG or JPG, max 2 MB.</p>
 
             <div className="flex items-center gap-5">
@@ -264,7 +264,7 @@ export default function VaultPage() {
         {(vault.focus || vault.situation || vault.superpower) && (
           <div className="rounded-2xl p-7" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
             <div className="flex items-center justify-between mb-6">
-              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#5A5A70" }}>Strategy Snapshot</p>
+              <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#7A7A95" }}>Strategy Snapshot</p>
               <a href="/onboarding" className="text-xs font-medium transition-colors hover:text-white" style={{ color: "#5B21E8" }}>Retake →</a>
             </div>
             <div className="flex flex-col gap-4">
@@ -303,7 +303,7 @@ function VaultField({ label, placeholder, value, onChange, multiline, type }: {
 function SnapshotRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex gap-4 text-sm">
-      <span className="flex-shrink-0 text-xs pt-0.5" style={{ color: "#5A5A70", width: "120px" }}>{label}</span>
+      <span className="flex-shrink-0 text-xs pt-0.5" style={{ color: "#7A7A95", width: "120px" }}>{label}</span>
       <span style={{ color: "#C0C0D8" }}>{value}</span>
     </div>
   );

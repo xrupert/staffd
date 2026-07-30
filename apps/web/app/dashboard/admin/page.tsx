@@ -146,7 +146,7 @@ function ViewAsPlanCard() {
             {v === "off" ? "Off (use actual plan)" : PLAN_LABELS[v]}
           </label>
         ))}
-        <p className="text-xs w-full mt-2" style={{ color: "#5A5A70" }}>
+        <p className="text-xs w-full mt-2" style={{ color: "#7A7A95" }}>
           Presentation-only — does not affect server-side credits or billing.
         </p>
       </div>
@@ -179,7 +179,7 @@ export default function AdminIndexPage() {
           <h1 className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.75rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
             Admin
           </h1>
-          <p className="text-xs mt-2" style={{ color: "#5A5A70" }}>
+          <p className="text-xs mt-2" style={{ color: "#7A7A95" }}>
             Super-admin tools. All actions logged to <code style={{ color: "#A07BFF" }}>super_admin_audit_log</code>.
           </p>
         </div>
@@ -212,7 +212,7 @@ export default function AdminIndexPage() {
           <h2 className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#7070A0" }}>
             Deferred — view in PocketBase admin UI
           </h2>
-          <p className="text-xs mb-3" style={{ color: "#5A5A70" }}>
+          <p className="text-xs mb-3" style={{ color: "#7A7A95" }}>
             Per Decision 74 simplification, dedicated viewer pages are deferred until needed. Open PB admin and browse the collection directly.
           </p>
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>

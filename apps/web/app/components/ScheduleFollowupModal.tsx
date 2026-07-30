@@ -91,9 +91,9 @@ export default function ScheduleFollowupModal({ open, onClose, department, agent
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>Schedule a follow-up</p>
             <h2 className="text-lg font-bold" style={{ color: "#F0F0F8" }}>Your team runs this on the date you pick</h2>
-            <p className="text-xs mt-1" style={{ color: "#5A5A70" }}>Edit the task below — it&apos;s exactly what gets executed.</p>
+            <p className="text-xs mt-1" style={{ color: "#7A7A95" }}>Edit the task below — it&apos;s exactly what gets executed.</p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px" }}>×</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "22px" }}>×</button>
         </div>
         <div className="p-7">
           <textarea

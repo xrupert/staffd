@@ -64,7 +64,7 @@ export default function DepartmentPicker({ plan, onComplete }: DepartmentPickerP
       style={{ background: "rgba(0,0,0,0.9)", backdropFilter: "blur(8px)" }}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl overflow-hidden"
+        className="w-full max-w-2xl rounded-2xl overflow-hidden anim-modal"
         style={{ background: "#0D0D14", border: "1px solid #2A2A38" }}
       >
         {/* Header */}
@@ -75,7 +75,7 @@ export default function DepartmentPicker({ plan, onComplete }: DepartmentPickerP
           <h2 className="text-xl font-bold mb-2" style={{ color: "#F0F0F8", letterSpacing: "-0.02em" }}>
             Which department do you want to unlock{limit > 1 ? ` first` : ""}?
           </h2>
-          <p className="text-sm" style={{ color: "#5A5A70" }}>
+          <p className="text-sm" style={{ color: "#7A7A95" }}>
             {autoLabel}{" "}
             {limit > 1
               ? `Pick ${limit} more departments to complete your team.`
@@ -115,7 +115,7 @@ export default function DepartmentPicker({ plan, onComplete }: DepartmentPickerP
                 </div>
                 <div>
                   <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>{dept.label}</p>
-                  <p className="text-xs mt-0.5 leading-snug" style={{ color: "#5A5A70" }}>{dept.tagline}</p>
+                  <p className="text-xs mt-0.5 leading-snug" style={{ color: "#7A7A95" }}>{dept.tagline}</p>
                 </div>
               </button>
             );

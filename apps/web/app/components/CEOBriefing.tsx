@@ -125,7 +125,7 @@ export default function CEOBriefing() {
                   border: "none",
                   cursor: "pointer",
                   fontSize: "11px",
-                  color: copied ? "#22C55E" : "#5A5A70",
+                  color: copied ? "#22C55E" : "#7A7A95",
                   padding: 0,
                   transition: "color 0.2s",
                 }}
@@ -162,7 +162,7 @@ export default function CEOBriefing() {
                       height: "6px",
                       borderRadius: "50%",
                       background: "#5B21E8",
-                      animation: "pulse 1s infinite",
+                      animation: "pulse-soft 1.4s ease-in-out infinite",
                     }}
                   />
                   Drafting…
@@ -200,7 +200,7 @@ export default function CEOBriefing() {
             }}
           >
             {loading && !output ? (
-              <p style={{ fontSize: "13px", color: "#5A5A70", margin: 0 }}>
+              <p style={{ fontSize: "13px", color: "#7A7A95", margin: 0 }}>
                 Preparing your briefing…
               </p>
             ) : (
@@ -216,7 +216,7 @@ export default function CEOBriefing() {
                       width: "2px",
                       height: "13px",
                       background: "#5B21E8",
-                      animation: "pulse 1s infinite",
+                      animation: "pulse-soft 1.4s ease-in-out infinite",
                       verticalAlign: "middle",
                       marginLeft: "2px",
                     }}

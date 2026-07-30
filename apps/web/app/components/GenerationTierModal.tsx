@@ -68,7 +68,7 @@ export default function GenerationTierModal({
               <button key={r.tier} onClick={() => setTier(r.tier)} disabled={busy}
                 className="text-left px-4 py-3 rounded-xl transition-colors flex items-start gap-3"
                 style={{ background: on ? "rgba(91,33,232,0.12)" : "#1A1A24", border: `1px solid ${on ? "rgba(91,33,232,0.5)" : "#2A2A38"}` }}>
-                <span aria-hidden className="mt-0.5" style={{ color: on ? "#A07BFF" : "#5A5A70" }}>{on ? "◉" : "○"}</span>
+                <span aria-hidden className="mt-0.5" style={{ color: on ? "#A07BFF" : "#7A7A95" }}>{on ? "◉" : "○"}</span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-sm font-semibold" style={{ color: on ? "#A07BFF" : "#F0F0F8" }}>
@@ -83,7 +83,7 @@ export default function GenerationTierModal({
           })}
         </div>
 
-        <p className="text-xs mb-4" style={{ color: balance != null && balance < weight ? "#F59E0B" : "#5A5A70" }}>
+        <p className="text-xs mb-4" style={{ color: balance != null && balance < weight ? "#F59E0B" : "#7A7A95" }}>
           {balance == null ? "" : `You have ${balance} ${kind} credit${balance === 1 ? "" : "s"} available.`}
         </p>
 

@@ -28,10 +28,16 @@ type RouteContext = {
 // lightweight routes can import them without this heavy handler's deps).
 const ALL_DEPTS = [...PLANNER_ALL_DEPTS];
 
-function parseDecision(text: string): { decision: OrchestratorDecision; lockedAlternative?: string } | null {
+export function parseDecision(text: string): { decision: OrchestratorDecision; lockedAlternative?: string } | null {
   // Handler accepts either a clean JSON object on a `ROUTE:` line, or a bare
   // JSON object on the last non-empty line. Defensive against minor format drift.
+  // PR-UX-1 — pretty-printed (multiline) JSON previously failed the per-line
+  // scan entirely and silently degraded the route to the fallback pick (the
+  // live "fall promotion" incident). A brace-spanning candidate joins the scan.
   const lines = text.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start >= 0 && end > start) lines.push(text.slice(start, end + 1).replace(/\n\s*/g, " "));
   for (let i = lines.length - 1; i >= 0; i--) {
     const ln = lines[i]!;
     const m = ln.match(/^(?:ROUTE:)?(\{.*\})\s*$/);
@@ -285,6 +291,7 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
   const result = await callLLM({ intent: "route", system, messages });
 
   if (!result.ok) {
+    console.warn(`[route.degraded] llm_${result.fallback} msg="${message.slice(0, 80)}"`);
     return {
       ok: false,
       intent: "route",
@@ -298,6 +305,9 @@ Reminder (already enforced by brand laws downstream, but informing your choice):
 
   const parsed = parseDecision(result.text);
   if (!parsed || !unlockedDepts.includes(parsed.decision.department ?? "")) {
+    // PR-UX-1 — the silent-degradation observability gap: without this,
+    // parse misses were invisible (200 + fallback copy, no log).
+    console.warn(`[route.degraded] ${parsed ? "locked_dept:" + parsed.decision.department : "parse_miss"} msg="${message.slice(0, 80)}" raw="${result.text.slice(0, 120).replace(/\n/g, " ")}"`);
     // Model returned something we can't act on (or routed to a locked dept).
     // Treat as upstream_error → degraded fallback.
     return {

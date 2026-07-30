@@ -194,7 +194,7 @@ export default function PushNotificationsToggle() {
           onClick={() => void disable()}
           disabled={working}
           className="px-4 py-2 rounded-xl text-xs font-medium transition-colors"
-          style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: working ? "#5A5A70" : "#D0D0E8", opacity: working ? 0.6 : 1 }}
+          style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: working ? "#7A7A95" : "#D0D0E8", opacity: working ? 0.6 : 1 }}
         >
           {working ? "Disabling…" : "Disable notifications"}
         </button>

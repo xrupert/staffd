@@ -79,7 +79,7 @@ export default function DocViewPage() {
   if (loading) {
     return (
       <main style={{ background: "#09090F", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#5A5A70" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", color: "#7A7A95" }}>
           <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#5B21E8", animation: "pulse 1.5s infinite" }} />
           <span style={{ fontSize: "14px" }}>Loading document…</span>
         </div>
@@ -91,7 +91,7 @@ export default function DocViewPage() {
     return (
       <main style={{ background: "#09090F", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
-          <p style={{ color: "#5A5A70", fontSize: "14px", marginBottom: "8px" }}>This document could not be found.</p>
+          <p style={{ color: "#7A7A95", fontSize: "14px", marginBottom: "8px" }}>This document could not be found.</p>
           <p style={{ color: "#3A3A50", fontSize: "12px" }}>The link may have expired or the document may have been deleted.</p>
         </div>
       </main>
@@ -151,7 +151,7 @@ export default function DocViewPage() {
               >
                 <span style={{ fontSize: "12px" }}>✦</span>
               </div>
-              <span style={{ fontSize: "11px", fontWeight: 700, color: "#5A5A70", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#7A7A95", letterSpacing: "0.12em", textTransform: "uppercase" }}>
                 STAFFD
               </span>
             </div>
@@ -165,7 +165,7 @@ export default function DocViewPage() {
                   border: "none",
                   cursor: "pointer",
                   fontSize: "12px",
-                  color: copied ? "#22C55E" : "#5A5A70",
+                  color: copied ? "#22C55E" : "#7A7A95",
                   transition: "color 0.2s",
                   padding: 0,
                 }}
@@ -179,7 +179,7 @@ export default function DocViewPage() {
                   border: "none",
                   cursor: "pointer",
                   fontSize: "12px",
-                  color: "#5A5A70",
+                  color: "#7A7A95",
                   transition: "color 0.2s",
                   padding: 0,
                 }}
@@ -193,7 +193,7 @@ export default function DocViewPage() {
                   border: "none",
                   cursor: "pointer",
                   fontSize: "12px",
-                  color: "#5A5A70",
+                  color: "#7A7A95",
                   transition: "color 0.2s",
                   padding: 0,
                 }}

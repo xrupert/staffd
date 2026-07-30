@@ -121,7 +121,7 @@ export default function PatternBadgeList({ limit = 3 }: { limit?: number }): Rea
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs" style={{ color: "#5A5A70" }}>
+      <span className="text-xs" style={{ color: "#7A7A95" }}>
         STAFFD is leaning on:
       </span>
       {patterns.map((p) => (

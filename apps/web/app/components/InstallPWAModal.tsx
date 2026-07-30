@@ -90,7 +90,7 @@ export default function InstallPWAModal() {
             <button
               onClick={dismiss}
               className="text-xs transition-colors hover:text-white"
-              style={{ color: "#5A5A70" }}
+              style={{ color: "#7A7A95" }}
             >
               Not now
             </button>

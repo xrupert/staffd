@@ -392,7 +392,7 @@ export default function SecurityAuditPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>
             ← Dashboard
           </a>
         </header>
@@ -405,7 +405,7 @@ export default function SecurityAuditPage() {
             <h1 className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.75rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
               Multi-Tenant Security
             </h1>
-            <p className="text-xs mt-2" style={{ color: "#5A5A70" }}>
+            <p className="text-xs mt-2" style={{ color: "#7A7A95" }}>
               Live PocketBase row-rule verification across the 19-collection baseline + templates. Read-only — fixes happen in PB admin UI per runbook.
             </p>
           </div>
@@ -471,7 +471,7 @@ export default function SecurityAuditPage() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-xs" style={{ color: "#5A5A70" }}>Snapshot at</p>
+                <p className="text-xs" style={{ color: "#7A7A95" }}>Snapshot at</p>
                 <p className="text-xs font-mono" style={{ color: "#9090A8" }}>
                   {new Date(report.timestamp).toLocaleString()}
                 </p>
@@ -493,7 +493,7 @@ export default function SecurityAuditPage() {
             )}
 
             {/* Operator runbook link */}
-            <div className="text-xs" style={{ color: "#5A5A70" }}>
+            <div className="text-xs" style={{ color: "#7A7A95" }}>
               Fix gaps via{" "}
               <a
                 href="https://github.com/xrupert/staffd/blob/main/docs/operator-runbooks/pb-row-rules.md"
@@ -535,7 +535,7 @@ export default function SecurityAuditPage() {
                           </td>
                           <td style={tableCell}>
                             {c.gaps.length === 0 ? (
-                              <span style={{ color: "#5A5A70" }}>—</span>
+                              <span style={{ color: "#7A7A95" }}>—</span>
                             ) : (
                               <span style={{ color: statusColor(c.status) }}>
                                 {c.gaps.length} {c.gaps.length === 1 ? "gap" : "gaps"} · click to expand

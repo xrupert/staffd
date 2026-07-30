@@ -61,7 +61,7 @@ export default function InboxPage() {
       <div className="w-full max-w-2xl mx-auto px-6 py-8">
         <header className="mb-8 flex items-center justify-between">
           <a href="/dashboard"><Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} /></a>
-          <a href="/dashboard/front-desk" className="text-xs hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Front Desk</a>
+          <a href="/dashboard/front-desk" className="text-xs hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>← Front Desk</a>
         </header>
 
         <h1 className="font-bold mb-5" style={{ color: "#F0F0F8", fontSize: "1.5rem" }}>Support inbox</h1>
@@ -76,7 +76,7 @@ export default function InboxPage() {
                   <button onClick={() => void open(c)} className="w-full text-left rounded-xl px-4 py-3 transition-colors" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-medium truncate" style={{ color: "#E8E8F4" }}>{c.sender}</span>
-                      <span className="text-xs shrink-0" style={{ color: "#5A5A70" }}>{new Date(c.lastAt).toLocaleDateString()}</span>
+                      <span className="text-xs shrink-0" style={{ color: "#7A7A95" }}>{new Date(c.lastAt).toLocaleDateString()}</span>
                     </div>
                     {c.snippet && <p className="text-xs mt-0.5 truncate" style={{ color: "#9090A8" }}>{c.snippet}</p>}
                   </button>
@@ -96,7 +96,7 @@ export default function InboxPage() {
                   {messages.map((m) => (
                     <div key={m.id} className="rounded-lg px-3 py-2 text-sm" style={{ background: m.outgoing ? "rgba(91,33,232,0.12)" : "#15151E", border: "1px solid #23232E", marginLeft: m.outgoing ? "24px" : 0, marginRight: m.outgoing ? 0 : "24px" }}>
                       <p style={{ color: "#D0D0E0" }}>{m.content}</p>
-                      <p className="text-xs mt-1" style={{ color: "#5A5A70" }}>{m.outgoing ? "You" : active.sender} · {new Date(m.createdAt).toLocaleString()}</p>
+                      <p className="text-xs mt-1" style={{ color: "#7A7A95" }}>{m.outgoing ? "You" : active.sender} · {new Date(m.createdAt).toLocaleString()}</p>
                     </div>
                   ))}
                 </div>

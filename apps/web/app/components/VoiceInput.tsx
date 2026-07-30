@@ -120,7 +120,7 @@ export default function VoiceInput({ value, onChange, disabled }: Props) {
       style={{
         background: listening ? "rgba(239,68,68,0.12)" : "transparent",
         border: `1px solid ${listening ? "rgba(239,68,68,0.4)" : "#2A2A38"}`,
-        color: listening ? "#EF4444" : "#5A5A70",
+        color: listening ? "#EF4444" : "#7A7A95",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.4 : 1,
       }}

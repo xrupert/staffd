@@ -146,9 +146,9 @@ export default function VersionHistory({ documentId, onRestored }: Props) {
 
       {open && (
         <div className="mt-2 rounded-xl p-4" style={cardBg}>
-          {loading && <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>}
+          {loading && <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>}
           {!loading && versions && versions.length === 0 && (
-            <p className="text-xs" style={{ color: "#5A5A70" }}>
+            <p className="text-xs" style={{ color: "#7A7A95" }}>
               No earlier versions. Edits made from now on will appear here.
             </p>
           )}
@@ -167,7 +167,7 @@ export default function VersionHistory({ documentId, onRestored }: Props) {
                     <p className="text-xs font-semibold" style={{ color: "#D0D0E8" }}>
                       v{v.version_number} · {sourceLabel(v)}
                     </p>
-                    <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>
+                    <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>
                       {formatRelative(v.created)} · {v.char_count.toLocaleString()} chars
                     </p>
                   </div>
@@ -209,7 +209,7 @@ export default function VersionHistory({ documentId, onRestored }: Props) {
                 <button
                   onClick={() => setSelected(null)}
                   className="text-xs"
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95" }}
                 >
                   Close
                 </button>

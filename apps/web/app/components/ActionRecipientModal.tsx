@@ -60,7 +60,7 @@ export default function ActionRecipientModal({ open, kind, busy, onClose, onSubm
       onClick={() => { if (!busy) onClose(); }}
     >
       <div
-        className="w-full max-w-md rounded-2xl p-6"
+        className="w-full max-w-md rounded-2xl p-6 anim-modal"
         style={{ background: "#111118", border: "1px solid rgba(91,33,232,0.35)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -98,7 +98,7 @@ export default function ActionRecipientModal({ open, kind, busy, onClose, onSubm
           <button
             onClick={() => { if (!busy) onClose(); }}
             className="text-xs transition-colors hover:text-white"
-            style={{ color: "#5A5A70", background: "none", border: "none", cursor: busy ? "not-allowed" : "pointer" }}
+            style={{ color: "#7A7A95", background: "none", border: "none", cursor: busy ? "not-allowed" : "pointer" }}
           >
             Cancel
           </button>

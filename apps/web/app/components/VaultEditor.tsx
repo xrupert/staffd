@@ -146,7 +146,7 @@ export default function VaultEditor() {
     return (
       <section className="rounded-2xl p-6 mb-5" style={cardStyle}>
         <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Your business</h2>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>
       </section>
     );
   }

@@ -25,7 +25,7 @@ export default function BusinessPulseWidget() {
         </h2>
       </div>
       <div style={cardStyle}>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>
           No billing provider connected. Revenue metrics will appear here once one is.
         </p>
       </div>

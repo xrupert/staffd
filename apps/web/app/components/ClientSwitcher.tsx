@@ -137,13 +137,13 @@ export default function ClientSwitcher({ onChange }: ClientSwitcherProps) {
               <p className="text-xs font-semibold" style={{ color: !activeId ? "#A07BFF" : "#F0F0F8" }}>
                 Agency view {!activeId && "✓"}
               </p>
-              <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>Cross-client overview</p>
+              <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>Cross-client overview</p>
             </button>
 
             <div style={{ maxHeight: "280px", overflowY: "auto" }}>
               {clients.length === 0 ? (
                 <div style={{ padding: "16px 14px", textAlign: "center" }}>
-                  <p className="text-xs" style={{ color: "#5A5A70" }}>No clients yet.</p>
+                  <p className="text-xs" style={{ color: "#7A7A95" }}>No clients yet.</p>
                 </div>
               ) : (
                 clients.map((c) => (
@@ -164,7 +164,7 @@ export default function ClientSwitcher({ onChange }: ClientSwitcherProps) {
                       {c.name} {activeId === c.id && "✓"}
                     </p>
                     {c.industry && (
-                      <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>{c.industry}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>{c.industry}</p>
                     )}
                   </button>
                 ))

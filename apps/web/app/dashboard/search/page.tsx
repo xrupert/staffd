@@ -78,7 +78,7 @@ export default function SmartSearchPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>
+          <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>
             Library →
           </a>
         </header>
@@ -133,7 +133,7 @@ export default function SmartSearchPage() {
         {results !== null && !loading && (
           results.length === 0 && !degraded ? (
             <div className="text-center py-12">
-              <p className="text-sm" style={{ color: "#5A5A70" }}>
+              <p className="text-sm" style={{ color: "#7A7A95" }}>
                 No matches found. Try different words — Smart Search looks for meaning, so describe what the work was about.
               </p>
             </div>
@@ -153,7 +153,7 @@ export default function SmartSearchPage() {
                           {deptLabel}
                         </span>
                       )}
-                      <span className="text-xs" style={{ color: "#5A5A70" }}>
+                      <span className="text-xs" style={{ color: "#7A7A95" }}>
                         {isDoc ? "Document" : "Conversation"}
                       </span>
                       <span className="ml-auto text-xs" style={{ color: "#3A3A55" }}>

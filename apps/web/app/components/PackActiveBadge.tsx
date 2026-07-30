@@ -65,7 +65,7 @@ export default function PackActiveBadge({ department }: Props) {
           </span>
         ))}
       </div>
-      <span className="text-xs ml-auto" style={{ color: "#5A5A70" }}>
+      <span className="text-xs ml-auto" style={{ color: "#7A7A95" }}>
         Your specialists below include pack-only experts.
       </span>
     </div>

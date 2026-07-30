@@ -102,7 +102,7 @@ export default function MigrationsPage() {
                       {statusLabel[m.status]}
                     </span>
                   </div>
-                  <p className="text-xs mt-1" style={{ color: "#5A5A70" }}>
+                  <p className="text-xs mt-1" style={{ color: "#7A7A95" }}>
                     <code>{m.collection}</code>
                     {m.lastRun ? ` · last run ${new Date(m.lastRun.ran_at).toLocaleString()} (${m.lastRun.result})` : " · never run via app"}
                   </p>

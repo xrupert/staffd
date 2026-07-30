@@ -24,7 +24,7 @@ const STATUS_META: Record<Status, { color: string; bg: string; border: string; t
   auth_failed:    { color: "#EF4444", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.3)",  text: "Auth failed" },
   error:          { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)", text: "Misconfigured" },
   unreachable:    { color: "#F59E0B", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)", text: "Unreachable" },
-  not_configured: { color: "#5A5A70", bg: "rgba(90,90,112,0.1)",  border: "#2A2A38",              text: "Not configured" },
+  not_configured: { color: "#7A7A95", bg: "rgba(90,90,112,0.1)",  border: "#2A2A38",              text: "Not configured" },
   loading:        { color: "#7070A0", bg: "transparent",          border: "#2A2A38",              text: "Checking…" },
 };
 
@@ -98,12 +98,12 @@ export default function IntegrationsHealthPanel() {
                   {meta.text}
                 </span>
               </div>
-              <p className="text-xs" style={{ color: "#5A5A70" }}>{svc.note}</p>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>{svc.note}</p>
             </div>
           );
         })}
       </div>
-      <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>
+      <p className="text-xs mt-3" style={{ color: "#7A7A95" }}>
         Read-only auth probes — no records are created. &quot;Not configured&quot; means the service&apos;s env vars are unset.
       </p>
     </section>

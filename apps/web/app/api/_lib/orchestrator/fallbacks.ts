@@ -65,29 +65,16 @@ function routeFallback(ctx: FallbackContext): OrchestratorDecision {
   };
 }
 
-function handoffFallback(ctx: FallbackContext): OrchestratorDecision & { followUps: FollowUp[]; notes: string } {
-  const src = ctx.sourceDoc?.department;
-  const map: Record<string, FollowUp[]> = {
-    marketing: [
-      { department: "sales",   task: "Use this to draft a sales follow-up.",      rationale: "Marketing output is often the first half of a sales sequence." },
-      { department: "design",  task: "Generate a visual to pair with this copy.", rationale: "Strong copy lands harder with a strong visual." },
-    ],
-    sales: [
-      { department: "legal",   task: "Draft an NDA / agreement for this lead.",   rationale: "Closed-won leads need paperwork." },
-      { department: "marketing", task: "Spin a case study from this win.",        rationale: "Sales wins are the best raw material for marketing." },
-    ],
-    design: [
-      { department: "marketing", task: "Write the caption / copy for this asset.", rationale: "Visuals need words to publish." },
-    ],
-    legal: [
-      { department: "operations", task: "Add a workflow step to capture this signed doc.", rationale: "Signed docs benefit from a process record." },
-    ],
-  };
-  const followUps: FollowUp[] = src ? (map[src] ?? []) : [];
+function handoffFallback(_ctx: FallbackContext): OrchestratorDecision & { followUps: FollowUp[]; notes: string } {
+  // PR-UX-1 — degraded handoff now surfaces NOTHING instead of the old
+  // static per-department suggestion map. Live incident: a harassment-claim
+  // intake got "add a workflow step to capture this signed doc" (the legal
+  // static entry) — a contextually wrong suggestion damages trust more than
+  // an absent one (peak-end). The handoff intent has a transport retry now;
+  // when it still fails, the section simply doesn't render.
   return {
-    // PR-Tranche-2.6.2 — brand-voiced + accurate-regardless-of-cause
-    rationale: "Surfacing default cross-functional next steps — your staff has the work covered while the coordinator catches up.",
-    followUps,
+    rationale: "Your staff has the work covered — next steps will appear with the next deliverable.",
+    followUps: [],
     notes: "degraded",
   };
 }

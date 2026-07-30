@@ -164,7 +164,7 @@ export default function DraftEditor({
               onClick={cancel}
               disabled={saving}
               className="text-xs transition-colors hover:text-white"
-              style={{ color: "#5A5A70", opacity: saving ? 0.5 : 1 }}
+              style={{ color: "#7A7A95", opacity: saving ? 0.5 : 1 }}
             >
               Cancel
             </button>

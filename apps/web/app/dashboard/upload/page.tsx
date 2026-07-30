@@ -16,7 +16,7 @@ import pb from "../../../lib/pb";
 const card: React.CSSProperties = { background: "#111118", border: "1px solid #2A2A38", borderRadius: "16px", padding: "28px" };
 const label = { color: "#F0F0F8" };
 const muted = { color: "#9090A8" };
-const faint = { color: "#5A5A70" };
+const faint = { color: "#7A7A95" };
 
 type DocItem = { document_id: string; name: string; status: "extracted" | "extraction_pending" };
 type UploadResult =

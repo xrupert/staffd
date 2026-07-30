@@ -871,7 +871,7 @@ export default function DepartmentRoom({
             </div>
             <button
               onClick={() => setShowTeamDrawer(false)}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px", padding: "0 0 0 12px" }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "22px", padding: "0 0 0 12px" }}
             >
               ×
             </button>
@@ -936,7 +936,7 @@ export default function DepartmentRoom({
             <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55" }}>
               Library
             </a>
-            <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+            <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>
               ← Dashboard
             </a>
           </div>
@@ -977,7 +977,7 @@ export default function DepartmentRoom({
               <button
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setResumeBanner(null); }}
                 className="text-xs"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70" }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95" }}
                 title="Dismiss"
               >
                 ×
@@ -1092,7 +1092,7 @@ export default function DepartmentRoom({
                             style={{
                               background: isActive ? "rgba(91,33,232,0.2)" : "rgba(255,255,255,0.03)",
                               border: isActive ? "1px solid rgba(91,33,232,0.4)" : "1px solid #2A2A38",
-                              color: isActive ? "#A07BFF" : "#5A5A70",
+                              color: isActive ? "#A07BFF" : "#7A7A95",
                               cursor: "pointer",
                             }}
                           >
@@ -1171,7 +1171,7 @@ export default function DepartmentRoom({
         {trialRemaining !== null && (
           <div className="flex items-center gap-2 mb-3 no-print">
             {trialRemaining > 0 ? (
-              <p className="text-xs" style={{ color: "#5A5A70" }}>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>
                 <span style={{ color: "#A07BFF" }}>{trialRemaining}</span> trial {trialRemaining === 1 ? "run" : "runs"} remaining in this department —{" "}
                 <button
                   onClick={() => setShowUpgrade(true)}
@@ -1182,7 +1182,7 @@ export default function DepartmentRoom({
                 </button>
               </p>
             ) : (
-              <p className="text-xs" style={{ color: "#5A5A70" }}>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>
                 Trial runs used —{" "}
                 <button
                   onClick={() => setShowUpgrade(true)}
@@ -1275,7 +1275,7 @@ export default function DepartmentRoom({
                 <button
                   onClick={startFresh}
                   className="text-xs transition-colors hover:text-white"
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70" }}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95" }}
                 >
                   Start fresh
                 </button>
@@ -1321,7 +1321,7 @@ export default function DepartmentRoom({
                   {activeAgent?.name ?? title}
                 </span>
                 {loading && (
-                  <span className="flex items-center gap-1.5 text-xs" style={{ color: "#5A5A70" }}>
+                  <span className="flex items-center gap-1.5 text-xs" style={{ color: "#7A7A95" }}>
                     <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
                     writing
                   </span>
@@ -1456,7 +1456,7 @@ export default function DepartmentRoom({
                       onClick={() => void sendCampaign()}
                       disabled={integrationStatus === "sending"}
                       className="text-xs transition-colors hover:text-white"
-                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#7A7A95" }}
                     >
                       {integrationStatus === "sending" ? "Sending…" : integrationStatus === "sent" ? "Campaign saved ✓" : "Send as Campaign"}
                     </button>
@@ -1527,7 +1527,7 @@ export default function DepartmentRoom({
                       onClick={() => void sendForSignature()}
                       disabled={integrationStatus === "sending"}
                       className="text-xs transition-colors hover:text-white"
-                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#7A7A95" }}
                     >
                       {integrationStatus === "sending" ? "Sending…" : integrationStatus === "sent" ? "Sent ✓" : "Send for Signature"}
                     </button>
@@ -1537,7 +1537,7 @@ export default function DepartmentRoom({
                       onClick={() => void scheduleCall()}
                       disabled={integrationStatus === "sending"}
                       className="text-xs transition-colors hover:text-white"
-                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#7A7A95" }}
                     >
                       {integrationStatus === "sending" ? "Sending…" : "Schedule Call"}
                     </button>
@@ -1547,7 +1547,7 @@ export default function DepartmentRoom({
                       onClick={() => void addToCRM()}
                       disabled={integrationStatus === "sending"}
                       className="text-xs transition-colors hover:text-white"
-                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#5A5A70" }}
+                      style={{ color: integrationStatus === "sent" ? "#22C55E" : integrationStatus === "error" ? "#F59E0B" : "#7A7A95" }}
                     >
                       {integrationStatus === "sending" ? "Saving…" : "Add to CRM"}
                     </button>
@@ -1629,7 +1629,7 @@ export default function DepartmentRoom({
                         <button
                           onClick={() => void generateImage()}
                           className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                          style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
                         >
                           Regenerate
                         </button>
@@ -1722,7 +1722,7 @@ export default function DepartmentRoom({
                         <button
                           onClick={() => void generateVideo()}
                           className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                          style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
                         >
                           Regenerate
                         </button>
@@ -1821,11 +1821,11 @@ export default function DepartmentRoom({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>Cross-functional handoff</p>
                 <h2 className="text-lg font-bold" style={{ color: "#F0F0F8" }}>Send to which department?</h2>
-                <p className="text-xs mt-1" style={{ color: "#5A5A70" }}>
+                <p className="text-xs mt-1" style={{ color: "#7A7A95" }}>
                   This work goes to the next team. They&apos;ll see what was made and produce the matching piece.
                 </p>
               </div>
-              <button onClick={() => setShowHandoff(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px" }}>×</button>
+              <button onClick={() => setShowHandoff(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "22px" }}>×</button>
             </div>
             {/* Phase 9 — AI-suggested handoffs via /api/handoff/suggest, above
                 the manual grid. Silently hides if the orchestrator has nothing
@@ -1917,9 +1917,9 @@ export default function DepartmentRoom({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>Schedule for review</p>
                 <h2 className="text-lg font-bold" style={{ color: "#F0F0F8" }}>Pick a date</h2>
-                <p className="text-xs mt-1" style={{ color: "#5A5A70" }}>This appears on your calendar so it&apos;s easy to come back to.</p>
+                <p className="text-xs mt-1" style={{ color: "#7A7A95" }}>This appears on your calendar so it&apos;s easy to come back to.</p>
               </div>
-              <button onClick={() => setShowSchedule(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "22px" }}>×</button>
+              <button onClick={() => setShowSchedule(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "22px" }}>×</button>
             </div>
             <div className="p-7">
               <input

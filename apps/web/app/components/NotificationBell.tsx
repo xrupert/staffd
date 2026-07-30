@@ -104,12 +104,12 @@ export default function NotificationBell() {
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid #1E1E2A" }}>
             <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#7070A0" }}>Notifications</span>
             {unread > 0 && (
-              <button onClick={() => void markAll()} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Mark all read</button>
+              <button onClick={() => void markAll()} className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95" }}>Mark all read</button>
             )}
           </div>
 
           {items.length === 0 ? (
-            <p className="text-xs text-center px-4 py-8" style={{ color: "#5A5A70" }}>You're all caught up.</p>
+            <p className="text-xs text-center px-4 py-8" style={{ color: "#7A7A95" }}>You're all caught up.</p>
           ) : (
             <div className="flex flex-col">
               {items.map((n) => (

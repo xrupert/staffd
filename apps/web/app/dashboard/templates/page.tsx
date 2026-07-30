@@ -176,7 +176,7 @@ export default function TemplatesPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>← Dashboard</a>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>← Dashboard</a>
         </header>
 
         <div className="flex items-start justify-between mb-8">
@@ -185,7 +185,7 @@ export default function TemplatesPage() {
             <h1 className="font-bold mb-2" style={{ color: "#F0F0F8", fontSize: "1.75rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
               Your Document Templates
             </h1>
-            <p className="text-sm" style={{ color: "#5A5A70" }}>
+            <p className="text-sm" style={{ color: "#7A7A95" }}>
               Save your invoice formats, contract structures, or any document layout.<br />
               Your agents will use them as the base for new documents.
             </p>
@@ -216,7 +216,7 @@ export default function TemplatesPage() {
         {/* Create form */}
         {creating && (
           <div className="rounded-2xl p-6 mb-6" style={{ background: "#111118", border: "1px solid rgba(91,33,232,0.3)" }}>
-            <p className="text-xs font-semibold uppercase tracking-widest mb-5" style={{ color: "#5A5A70" }}>New Template</p>
+            <p className="text-xs font-semibold uppercase tracking-widest mb-5" style={{ color: "#7A7A95" }}>New Template</p>
 
             <div className="flex flex-col gap-4">
               <div className="flex gap-3">
@@ -281,7 +281,7 @@ export default function TemplatesPage() {
                 <button
                   onClick={() => { setCreating(false); setError(""); setNewName(""); setNewDept(""); setNewContent(""); }}
                   className="px-5 py-2.5 rounded-xl text-sm font-medium transition-colors hover:text-white"
-                  style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#5A5A70" }}
+                  style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#7A7A95" }}
                 >
                   Cancel
                 </button>
@@ -292,7 +292,7 @@ export default function TemplatesPage() {
 
         {/* Template list */}
         {loading ? (
-          <div className="flex items-center gap-2 py-8" style={{ color: "#5A5A70" }}>
+          <div className="flex items-center gap-2 py-8" style={{ color: "#7A7A95" }}>
             <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
             <span className="text-sm">Loading…</span>
           </div>
@@ -301,7 +301,7 @@ export default function TemplatesPage() {
             className="rounded-2xl p-8 text-center"
             style={{ background: "#111118", border: "1px solid #2A2A38" }}
           >
-            <p className="text-sm mb-2" style={{ color: "#5A5A70" }}>No templates yet.</p>
+            <p className="text-sm mb-2" style={{ color: "#7A7A95" }}>No templates yet.</p>
             <p className="text-xs mb-5" style={{ color: "#3A3A50" }}>
               Save your invoice format, SOP structure, or any document layout.<br />
               Your agents will use it as the base for new documents.

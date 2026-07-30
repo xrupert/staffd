@@ -178,7 +178,7 @@ export default function StaffWorkQueue() {
         </div>
         <div>
           <p className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>Staff work queue</p>
-          <p className="text-xs" style={{ color: "#5A5A70" }}>Drafts waiting on you, and what your staff suggests next</p>
+          <p className="text-xs" style={{ color: "#7A7A95" }}>Drafts waiting on you, and what your staff suggests next</p>
         </div>
       </div>
 
@@ -187,7 +187,7 @@ export default function StaffWorkQueue() {
         <div key={wf.id} className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs font-semibold" style={{ color: "#F59E0B" }}>Awaiting your review</span>
-            <span className="text-xs" style={{ color: "#5A5A70" }}>{RECIPE_LABELS[wf.recipe_id ?? ""] ?? "Draft"}</span>
+            <span className="text-xs" style={{ color: "#7A7A95" }}>{RECIPE_LABELS[wf.recipe_id ?? ""] ?? "Draft"}</span>
           </div>
           <textarea
             value={drafts[wf.id] ?? ""}
@@ -209,7 +209,7 @@ export default function StaffWorkQueue() {
               onClick={() => void act(wf.id, "cancel")}
               disabled={busy !== null}
               className="text-xs transition-colors hover:text-red-400"
-              style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+              style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
             >
               Cancel — don't send
             </button>
@@ -224,7 +224,7 @@ export default function StaffWorkQueue() {
             What's next
           </p>
           {completed?.goal && (
-            <p className="text-xs mb-2.5" style={{ color: "#5A5A70" }}>
+            <p className="text-xs mb-2.5" style={{ color: "#7A7A95" }}>
               After finishing “{completed.goal.length > 80 ? completed.goal.slice(0, 80) + "…" : completed.goal}”, your staff suggests:
             </p>
           )}
@@ -275,7 +275,7 @@ export default function StaffWorkQueue() {
               onClick={() => setProposal(null)}
               disabled={busy !== null}
               className="text-xs transition-colors hover:text-white"
-              style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+              style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
             >
               Not now
             </button>

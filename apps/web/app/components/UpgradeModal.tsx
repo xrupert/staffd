@@ -159,7 +159,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
       onClick={onClose}
     >
       <div
-        className="w-full max-w-4xl rounded-2xl overflow-hidden"
+        className="w-full max-w-4xl rounded-2xl overflow-hidden anim-modal"
         style={{ background: "#0D0D14", border: "1px solid #2A2A38", maxHeight: "92vh", overflowY: "auto" }}
         onClick={e => e.stopPropagation()}
       >
@@ -173,13 +173,13 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
             <h2 className="font-bold text-xl" style={{ color: "#F0F0F8", letterSpacing: "-0.02em" }}>
               Unlock the {deptLabel} Department
             </h2>
-            <p className="text-sm mt-1" style={{ color: "#5A5A70" }}>
+            <p className="text-sm mt-1" style={{ color: "#7A7A95" }}>
               You&apos;ve used your 3 free trial runs. Choose a plan to keep going.
             </p>
           </div>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "20px", marginLeft: "16px", marginTop: "-4px" }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "20px", marginLeft: "16px", marginTop: "-4px" }}
           >
             ×
           </button>
@@ -196,7 +196,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
               className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{
                 background: interval === "monthly" ? "#1E1E2E" : "transparent",
-                color: interval === "monthly" ? "#F0F0F8" : "#5A5A70",
+                color: interval === "monthly" ? "#F0F0F8" : "#7A7A95",
                 border: interval === "monthly" ? "1px solid #2A2A38" : "1px solid transparent",
               }}
             >
@@ -207,7 +207,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{
                 background: interval === "annual" ? "#1E1E2E" : "transparent",
-                color: interval === "annual" ? "#F0F0F8" : "#5A5A70",
+                color: interval === "annual" ? "#F0F0F8" : "#7A7A95",
                 border: interval === "annual" ? "1px solid #2A2A38" : "1px solid transparent",
               }}
             >
@@ -262,13 +262,13 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
                   {interval === "monthly" ? (
                     <div className="flex items-baseline gap-0.5 mb-1">
                       <span className="text-2xl font-bold" style={{ color: "#F0F0F8" }}>{plan.monthlyPrice}</span>
-                      <span className="text-xs" style={{ color: "#5A5A70" }}>/mo</span>
+                      <span className="text-xs" style={{ color: "#7A7A95" }}>/mo</span>
                     </div>
                   ) : (
                     <div className="mb-1">
                       <div className="flex items-baseline gap-0.5">
                         <span className="text-2xl font-bold" style={{ color: "#F0F0F8" }}>{plan.annualPrice}</span>
-                        <span className="text-xs" style={{ color: "#5A5A70" }}>/yr</span>
+                        <span className="text-xs" style={{ color: "#7A7A95" }}>/yr</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs" style={{ color: "#6060A0" }}>{plan.annualMonthly}/mo</span>
@@ -334,7 +334,7 @@ export default function UpgradeModal({ department, currentPlan = "starter", onCl
               onClick={() => void handleManageSubscription()}
               disabled={portalLoading}
               className="text-xs transition-colors hover:text-white"
-              style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+              style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
             >
               {portalLoading ? "Loading…" : "Manage existing subscription →"}
             </button>

@@ -212,10 +212,10 @@ export default function OnboardingPage() {
         {/* Progress bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium" style={{ color: "#5A5A70" }}>
+            <span className="text-xs font-medium" style={{ color: "#7A7A95" }}>
               Step {step} of {TOTAL_STEPS}
             </span>
-            <span className="text-xs" style={{ color: "#5A5A70" }}>
+            <span className="text-xs" style={{ color: "#7A7A95" }}>
               {Math.round((step / TOTAL_STEPS) * 100)}%
             </span>
           </div>
@@ -418,7 +418,7 @@ export default function OnboardingPage() {
             <button
               onClick={() => setStep((s) => s - 1)}
               className="text-sm"
-              style={{ color: "#5A5A70" }}
+              style={{ color: "#7A7A95" }}
             >
               ← Back
             </button>
@@ -493,7 +493,7 @@ function OptionCard({ icon, label, desc, selected, onClick }: {
       <span className="text-2xl mt-0.5">{icon}</span>
       <div>
         <p className="font-semibold text-sm" style={{ color: "#F0F0F8" }}>{label}</p>
-        <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>{desc}</p>
+        <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>{desc}</p>
       </div>
     </button>
   );
@@ -583,7 +583,7 @@ function ResultsScreen({ recommended, onContinue }: { recommended: string[]; onC
               />
               <div>
                 <p className="font-semibold text-sm mb-0.5" style={{ color: "#F0F0F8" }}>{dept}</p>
-                <p className="text-xs" style={{ color: "#5A5A70" }}>{DEPT_DESC[dept]}</p>
+                <p className="text-xs" style={{ color: "#7A7A95" }}>{DEPT_DESC[dept]}</p>
               </div>
             </div>
           ))}

@@ -112,13 +112,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#5B21E8" }}>
               Operator
             </span>
-            <span className="text-xs" style={{ color: "#5A5A70" }}>›</span>
+            <span className="text-xs" style={{ color: "#7A7A95" }}>›</span>
             <a href="/dashboard/admin" className="text-xs font-medium" style={{ color: "#D0D0E8" }}>
               Admin
             </a>
             {pathname && pathname !== "/dashboard/admin" && (
               <>
-                <span className="text-xs" style={{ color: "#5A5A70" }}>›</span>
+                <span className="text-xs" style={{ color: "#7A7A95" }}>›</span>
                 <span className="text-xs" style={{ color: "#7070A0" }}>
                   {pathname.replace("/dashboard/admin/", "")}
                 </span>
@@ -132,7 +132,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <a href="/dashboard/admin/vault-metrics" style={{ color: pathname === "/dashboard/admin/vault-metrics" ? "#A07BFF" : "#7070A0" }}>
               Vault Metrics
             </a>
-            <a href="/dashboard" style={{ color: "#5A5A70" }}>← Back</a>
+            <a href="/dashboard" style={{ color: "#7A7A95" }}>← Back</a>
           </div>
         </div>
       </nav>

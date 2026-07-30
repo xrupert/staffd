@@ -220,7 +220,7 @@ export default function AgentPage({
             <a href="/dashboard/library" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55" }}>
               Library
             </a>
-            <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+            <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>
               ← Dashboard
             </a>
           </div>
@@ -360,7 +360,7 @@ export default function AgentPage({
                 </div>
                 <span className="text-xs font-semibold" style={{ color: "#9090A8" }}>{agentName}</span>
                 {loading && (
-                  <span className="flex items-center gap-1.5 text-xs" style={{ color: "#5A5A70" }}>
+                  <span className="flex items-center gap-1.5 text-xs" style={{ color: "#7A7A95" }}>
                     <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
                     {generatingWord.toLowerCase()}
                   </span>
@@ -368,9 +368,9 @@ export default function AgentPage({
               </div>
               {output && !loading && (
                 <div className="flex items-center gap-4">
-                  <button onClick={() => navigator.clipboard.writeText(output)} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Copy</button>
-                  <button onClick={handlePrint} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Save PDF</button>
-                  <button onClick={() => void handleWord()} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Download .docx</button>
+                  <button onClick={() => navigator.clipboard.writeText(output)} className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95" }}>Copy</button>
+                  <button onClick={handlePrint} className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95" }}>Save PDF</button>
+                  <button onClick={() => void handleWord()} className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95" }}>Download .docx</button>
                 </div>
               )}
             </div>

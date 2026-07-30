@@ -66,7 +66,9 @@ export const POLICIES: Record<OrchestratorIntent, IntentPolicy> = {
     intent: "handoff",
     maxTokens: 1_024,
     deadlineMs: 6_000,
-    retries: 0,
+    // PR-UX-1 — one transport retry: a degraded handoff surfaces static
+    // (often contextually wrong) NEXT STEPS; a retry is cheaper than that.
+    retries: 1,
     vaultTopK: 5,
     vaultMaxTokens: 2_500,
     messageCap: 20,

@@ -235,7 +235,7 @@ export default function CalendarPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>
             ← Dashboard
           </a>
         </header>
@@ -245,13 +245,13 @@ export default function CalendarPage() {
           <h1 className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.75rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
             Plan &amp; Track
           </h1>
-          <p className="text-sm mt-2" style={{ color: "#5A5A70" }}>
+          <p className="text-sm mt-2" style={{ color: "#7A7A95" }}>
             See what your staff has produced and plan upcoming work.
           </p>
         </div>
 
         {loading ? (
-          <div className="flex items-center gap-2 py-16" style={{ color: "#5A5A70" }}>
+          <div className="flex items-center gap-2 py-16" style={{ color: "#7A7A95" }}>
             <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
             <span className="text-sm">Loading…</span>
           </div>
@@ -263,9 +263,9 @@ export default function CalendarPage() {
 
               {/* Month nav */}
               <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
-                <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "16px", padding: "4px 8px" }}>‹</button>
+                <button onClick={prevMonth} style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "16px", padding: "4px 8px" }}>‹</button>
                 <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>{MONTHS[month]} {year}</p>
-                <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "16px", padding: "4px 8px" }}>›</button>
+                <button onClick={nextMonth} style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "16px", padding: "4px 8px" }}>›</button>
               </div>
 
               {/* Day headers */}
@@ -497,7 +497,7 @@ export default function CalendarPage() {
               {planned.filter(p => p.scheduled_date >= todayKey).length > 0 && (
                 <div className="rounded-2xl overflow-hidden" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
                   <div className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
-                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#5A5A70" }}>Upcoming</p>
+                    <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#7A7A95" }}>Upcoming</p>
                   </div>
                   <div className="px-5 py-2">
                     {planned
@@ -582,7 +582,7 @@ export default function CalendarPage() {
                 Plan Content —{" "}
                 {new Date(modalDate + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
               </p>
-              <button onClick={() => setShowModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "18px" }}>×</button>
+              <button onClick={() => setShowModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "18px" }}>×</button>
             </div>
 
             <div className="flex flex-col gap-4">
@@ -613,7 +613,7 @@ export default function CalendarPage() {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowModal(false)}
-                style={{ background: "none", border: "1px solid #2A2A38", borderRadius: "10px", padding: "9px 18px", fontSize: "13px", color: "#5A5A70", cursor: "pointer" }}
+                style={{ background: "none", border: "1px solid #2A2A38", borderRadius: "10px", padding: "9px 18px", fontSize: "13px", color: "#7A7A95", cursor: "pointer" }}
               >
                 Cancel
               </button>

@@ -15,7 +15,7 @@
 
   --color-text-primary: #F0F0F8;
   --color-text-secondary: #9090A8;
-  --color-text-muted: #5A5A70;
+  --color-text-muted: #7A7A95; /* PR-UX-1 — was #5A5A70 (2.9:1, failed AA) */
 
   --color-success: #22C55E;
   --color-warning: #F59E0B;
@@ -48,6 +48,54 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* ─── Motion vocabulary (PR-UX-1) ───
+   Four core keyframes + utility classes. Durations: 150 (UI feedback),
+   250 (content entrance), 400 (reveals). One ease everywhere. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.98) translateY(4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to   { background-position: -200% 0; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+.anim-rise { animation: rise-in 250ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-modal { animation: modal-in 150ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.anim-pulse-soft { animation: pulse-soft 1.4s ease-in-out infinite; }
+.skeleton {
+  background: linear-gradient(100deg, #14141C 40%, #1E1E2A 50%, #14141C 60%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 8px;
+}
+/* Hover-lift for interactive cards — CSS instead of JS style mutation,
+   so touch devices don't get stuck hover state. */
+.card-hover { transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+.card-hover:hover { border-color: #5B21E8 !important; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(91, 33, 232, 0.12); }
+
+/* Keyboard visibility (PR-UX-1) — the app previously had ZERO focus
+   styles on buttons/links. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid #7C4FF0;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-rise, .anim-modal, .anim-pulse-soft, .skeleton { animation: none; }
+  .card-hover:hover { transform: none; }
 }
 
 /* Scrollbar */

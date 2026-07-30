@@ -115,7 +115,7 @@ export default function VaultInsightsPanel() {
         style={{ background: "#111118", border: "1px solid #2A2A38" }}
       >
         <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Insights</h2>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>
       </section>
     );
   }
@@ -144,11 +144,11 @@ export default function VaultInsightsPanel() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>Insights</h2>
-          <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>
+          <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>
             Real-world outcomes — last 30 days
           </p>
         </div>
-        <span className="text-xs" style={{ color: "#5A5A70" }}>{rows.length} event{rows.length === 1 ? "" : "s"}</span>
+        <span className="text-xs" style={{ color: "#7A7A95" }}>{rows.length} event{rows.length === 1 ? "" : "s"}</span>
       </div>
 
       <ul className="flex flex-col gap-2">
@@ -175,7 +175,7 @@ export default function VaultInsightsPanel() {
                   <span className="text-xs font-semibold" style={{ color: "#A07BFF" }}>
                     {kindLabel}
                   </span>
-                  <span className="text-xs flex-shrink-0" style={{ color: "#5A5A70" }}>
+                  <span className="text-xs flex-shrink-0" style={{ color: "#7A7A95" }}>
                     {relativeDate(r.created)}
                   </span>
                 </div>

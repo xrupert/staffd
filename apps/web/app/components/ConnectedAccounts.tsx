@@ -44,7 +44,7 @@ export default function ConnectedAccounts() {
     <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
       <div className="mb-5">
         <h2 className="text-sm font-semibold mb-1" style={{ color: "#F0F0F8" }}>Connected Accounts</h2>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>
           Link your social accounts so your staff can publish work in one click.
         </p>
       </div>

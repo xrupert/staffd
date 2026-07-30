@@ -366,7 +366,7 @@ export default function DashboardPage() {
             <button
               onClick={() => signOut()}
               className="text-sm transition-colors hover:text-white"
-              style={{ color: "#5A5A70" }}
+              style={{ color: "#7A7A95" }}
             >
               Sign out
             </button>
@@ -397,7 +397,7 @@ export default function DashboardPage() {
           <h1 className="font-bold mb-2" style={{ color: "#F0F0F8", fontSize: "2rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
             {userName ? `Welcome back, ${userName}.` : "Welcome back."}
           </h1>
-          <p className="text-sm" style={{ color: "#5A5A70" }}>
+          <p className="text-sm" style={{ color: "#7A7A95" }}>
             Your staff is on duty.
           </p>
         </div>
@@ -493,7 +493,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>Business Vault</p>
-              <p className="text-xs" style={{ color: "#5A5A70" }}>Your business profile for all agents</p>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>Your business profile for all agents</p>
             </div>
             <span className="text-xs font-semibold" style={{ color: "#5B21E8" }}>Edit →</span>
           </a>
@@ -513,7 +513,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>The CEO</p>
-              <p className="text-xs" style={{ color: "#5A5A70" }}>Strategic advisor & business planning</p>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>Strategic advisor & business planning</p>
             </div>
             <span className="text-xs font-semibold" style={{ color: "#5B21E8" }}>Ask →</span>
           </a>
@@ -526,7 +526,7 @@ export default function DashboardPage() {
               <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#22C55E" }}>
                 Upcoming calls
               </p>
-              <a href="/dashboard/calendar" className="text-xs" style={{ color: "#5A5A70", textDecoration: "none" }}>
+              <a href="/dashboard/calendar" className="text-xs" style={{ color: "#7A7A95", textDecoration: "none" }}>
                 See all →
               </a>
             </div>
@@ -542,7 +542,7 @@ export default function DashboardPage() {
                       <p className="text-sm font-medium" style={{ color: "#F0F0F8" }}>
                         {b.attendee_name}
                       </p>
-                      <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>
+                      <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>
                         {dateStr} · {timeStr} · {b.duration}m
                       </p>
                     </div>
@@ -574,19 +574,11 @@ export default function DashboardPage() {
             <a
               key={dept.name}
               href={dept.href}
-              className="rounded-xl p-4 flex flex-col gap-2.5 transition-all group"
+              className="rounded-xl p-4 flex flex-col gap-2.5 group card-hover"
               style={{
                 background: "#111118",
                 border: "1px solid #2A2A38",
                 textDecoration: "none",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor = "rgba(91,33,232,0.5)";
-                (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(-2px)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLAnchorElement).style.borderColor = "#2A2A38";
-                (e.currentTarget as HTMLAnchorElement).style.transform = "translateY(0)";
               }}
             >
               <div className="text-xl">{dept.icon}</div>

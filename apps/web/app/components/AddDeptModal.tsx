@@ -53,7 +53,7 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl overflow-hidden"
+        className="w-full max-w-2xl rounded-2xl overflow-hidden anim-modal"
         style={{ background: "#0D0D14", border: "1px solid #2A2A38" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -66,13 +66,13 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
             <h2 className="text-xl font-bold mb-1" style={{ color: "#F0F0F8", letterSpacing: "-0.02em" }}>
               Bring another team online — $29/mo
             </h2>
-            <p className="text-sm" style={{ color: "#5A5A70" }}>
+            <p className="text-sm" style={{ color: "#7A7A95" }}>
               Adds an extra full department of specialists to your plan. Cancel any time.
             </p>
           </div>
           <button
             onClick={onClose}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "#5A5A70", fontSize: "20px", marginLeft: "16px" }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#7A7A95", fontSize: "20px", marginLeft: "16px" }}
           >
             ×
           </button>
@@ -82,7 +82,7 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
         {available.length === 0 && (
           <div className="px-8 py-10 text-center">
             <p className="text-sm mb-1" style={{ color: "#F0F0F8", fontWeight: 600 }}>You already have every department unlocked. 🎉</p>
-            <p className="text-xs" style={{ color: "#5A5A70" }}>Looks like you&apos;re fully staffed.</p>
+            <p className="text-xs" style={{ color: "#7A7A95" }}>Looks like you&apos;re fully staffed.</p>
           </div>
         )}
 
@@ -116,7 +116,7 @@ export default function AddDeptModal({ alreadyUnlocked, onClose }: AddDeptModalP
                   </div>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>{dept.label}</p>
-                    <p className="text-xs mt-0.5 leading-snug" style={{ color: "#5A5A70" }}>{dept.tagline}</p>
+                    <p className="text-xs mt-0.5 leading-snug" style={{ color: "#7A7A95" }}>{dept.tagline}</p>
                   </div>
                 </button>
               );

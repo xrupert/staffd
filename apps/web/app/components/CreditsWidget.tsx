@@ -69,7 +69,11 @@ export default function CreditsWidget() {
         className="rounded-2xl p-5"
         style={{ background: "#111118", border: "1px solid #2A2A38" }}
       >
-        <div className="text-xs" style={{ color: "#5A5A70" }}>Loading credits…</div>
+        <div className="flex flex-col gap-2" aria-label="Loading credits">
+          <div className="skeleton" style={{ height: 14, width: "40%" }} />
+          <div className="skeleton" style={{ height: 10, width: "100%" }} />
+          <div className="skeleton" style={{ height: 10, width: "75%" }} />
+        </div>
       </section>
     );
   }
@@ -97,7 +101,7 @@ export default function CreditsWidget() {
             <h3 className="text-sm font-semibold mb-0.5" style={{ color: "#F0F0F8" }}>
               Credits
             </h3>
-            <p className="text-xs" style={{ color: "#5A5A70" }}>
+            <p className="text-xs" style={{ color: "#7A7A95" }}>
               {effectivePlan ? `${effectivePlan.charAt(0).toUpperCase()}${effectivePlan.slice(1)} plan` : "Plan"}
               {state.ceoAddonActive ? " · CEO add-on" : ""}
             </p>

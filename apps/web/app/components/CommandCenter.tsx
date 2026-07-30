@@ -1094,7 +1094,7 @@ export default function CommandCenter() {
           </div>
           <div>
             <p className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>Command Center</p>
-            <p className="text-xs" style={{ color: "#5A5A70" }}>Tell me what you need — I'll route it to the right specialist</p>
+            <p className="text-xs" style={{ color: "#7A7A95" }}>Tell me what you need — I'll route it to the right specialist</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -1144,9 +1144,9 @@ export default function CommandCenter() {
           {messages.map((msg, i) => {
             if (msg.role === "user") {
               return (
-                <div key={i} className="flex justify-end">
+                <div key={i} className="flex justify-end anim-rise">
                   <div
-                    className="max-w-xs px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm"
+                    className="max-w-[78%] px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm"
                     style={{ background: "rgba(91,33,232,0.18)", color: "#F0F0F8", border: "1px solid rgba(91,33,232,0.25)" }}
                   >
                     {msg.content}
@@ -1237,7 +1237,7 @@ export default function CommandCenter() {
                           <button
                             onClick={() => navigator.clipboard.writeText(display)}
                             className="ml-auto text-xs transition-colors hover:text-white"
-                            style={{ color: "#5A5A70" }}
+                            style={{ color: "#7A7A95" }}
                           >
                             Copy
                           </button>
@@ -1268,7 +1268,14 @@ export default function CommandCenter() {
                         </p>
                       )}
                       {!display && isWorking && (
-                        <span className="inline-block w-0.5 h-3.5 animate-pulse" style={{ background: "#5B21E8", verticalAlign: "middle" }} />
+                        <span className="inline-flex items-center gap-2 text-xs anim-rise" style={{ color: "#A07BFF" }}>
+                          <span className="inline-flex gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full anim-pulse-soft" style={{ background: "#5B21E8" }} />
+                            <span className="w-1.5 h-1.5 rounded-full anim-pulse-soft" style={{ background: "#5B21E8", animationDelay: "0.2s" }} />
+                            <span className="w-1.5 h-1.5 rounded-full anim-pulse-soft" style={{ background: "#5B21E8", animationDelay: "0.4s" }} />
+                          </span>
+                          {phase === "routing" ? "Reading your request — matching the right specialist…" : "Your specialist is working…"}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -1285,7 +1292,7 @@ export default function CommandCenter() {
               <div className="px-4 py-2.5 flex items-center gap-2" style={{ borderBottom: "1px solid #1E1E2A" }}>
                 <span className="text-sm">🗺️</span>
                 <span className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>Proposed plan</span>
-                <span className="text-xs ml-auto" style={{ color: "#5A5A70" }}>
+                <span className="text-xs ml-auto" style={{ color: "#7A7A95" }}>
                   {planProposal.steps.length} steps · runs in order
                 </span>
               </div>
@@ -1315,7 +1322,7 @@ export default function CommandCenter() {
                   onClick={declinePlan}
                   disabled={planBusy}
                   className="text-xs transition-colors hover:text-white"
-                  style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                  style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
                 >
                   Just ask {DEPT_LABELS[planProposal.fallback.department] ?? planProposal.fallback.department}
                 </button>
@@ -1355,7 +1362,7 @@ export default function CommandCenter() {
                       style={{
                         background: dimmed ? "rgba(91,33,232,0.05)" : "rgba(91,33,232,0.12)",
                         border: `1px solid ${dimmed ? "rgba(91,33,232,0.15)" : "rgba(91,33,232,0.30)"}`,
-                        color: dimmed ? "#5A5A70" : "#A07BFF",
+                        color: dimmed ? "#7A7A95" : "#A07BFF",
                         cursor: "pointer",
                       }}
                     >
@@ -1446,7 +1453,7 @@ export default function CommandCenter() {
         <div className="flex items-center justify-between px-5 pb-3">
           <span className="text-xs" style={{ color: "#2E2E45" }}>
             {isWorking ? (
-              <span className="flex items-center gap-1.5" style={{ color: "#5A5A70" }}>
+              <span className="flex items-center gap-1.5" style={{ color: "#7A7A95" }}>
                 <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
                 {phase === "generating" ? (
                   <>
@@ -1462,7 +1469,7 @@ export default function CommandCenter() {
                 ) : "thinking…"}
               </span>
             ) : phase === "done" ? (
-              <span style={{ color: "#5A5A70" }}>
+              <span style={{ color: "#7A7A95" }}>
                 Enter to continue · or{" "}
                 <button
                   onClick={reset}

@@ -33,7 +33,9 @@ describe("route intent policy (W37 budget bump)", () => {
   it("other intent policies untouched by route bump (regression guard)", () => {
     const handoff = policyFor("handoff");
     expect(handoff.deadlineMs).toBe(6000);
-    expect(handoff.retries).toBe(0);
+    // PR-UX-1 — handoff gained one transport retry (degraded handoff now
+    // surfaces nothing, so a retry beats an empty NEXT STEPS section).
+    expect(handoff.retries).toBe(1);
     const brief = policyFor("brief");
     expect(brief.deadlineMs).toBe(25000);
     expect(brief.retries).toBe(1);

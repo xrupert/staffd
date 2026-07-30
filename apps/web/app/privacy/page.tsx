@@ -22,10 +22,10 @@ export default function PrivacyPage() {
           <Link href="/">
             <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} />
           </Link>
-          <div className="flex gap-6 text-xs" style={{ color: "#5A5A70" }}>
+          <div className="flex gap-6 text-xs" style={{ color: "#7A7A95" }}>
             <Link href="/privacy" style={{ color: "#A07BFF", textDecoration: "none" }}>Privacy</Link>
-            <Link href="/terms" style={{ color: "#5A5A70", textDecoration: "none" }}>Terms</Link>
-            <Link href="/" style={{ color: "#5A5A70", textDecoration: "none" }}>← Home</Link>
+            <Link href="/terms" style={{ color: "#7A7A95", textDecoration: "none" }}>Terms</Link>
+            <Link href="/" style={{ color: "#7A7A95", textDecoration: "none" }}>← Home</Link>
           </div>
         </header>
 
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
           <h1 className="text-3xl font-bold mb-3" style={{ color: "#F0F0F8", letterSpacing: "-0.02em" }}>
             Your data, protected.
           </h1>
-          <p className="text-sm mb-8" style={{ color: "#5A5A70" }}>
+          <p className="text-sm mb-8" style={{ color: "#7A7A95" }}>
             Last updated: November 1, 2025 · STAFFD, operated by Cybrid Agency.
           </p>
 

@@ -146,7 +146,7 @@ export default function AdminPage() {
                   style={{ background: "#111118", border: "1px solid #2A2A38" }}
                 >
                   <p className="text-2xl font-bold mb-1" style={{ color: "#F0F0F8" }}>{stat.value}</p>
-                  <p className="text-xs" style={{ color: "#5A5A70" }}>{stat.label}</p>
+                  <p className="text-xs" style={{ color: "#7A7A95" }}>{stat.label}</p>
                 </div>
               ))}
             </div>
@@ -161,7 +161,7 @@ export default function AdminPage() {
                     className="px-4 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all"
                     style={{
                       background: tab === t ? "rgba(91,33,232,0.2)" : "transparent",
-                      color: tab === t ? "#A07BFF" : "#5A5A70",
+                      color: tab === t ? "#A07BFF" : "#7A7A95",
                     }}
                   >
                     {t}
@@ -184,7 +184,7 @@ export default function AdminPage() {
                   <thead>
                     <tr style={{ borderBottom: "1px solid #2A2A38" }}>
                       {["Business", "Industry", "Email", "Focus", "Joined", "Last active", "Status"].map((h) => (
-                        <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: "#5A5A70" }}>{h}</th>
+                        <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: "#7A7A95" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -218,10 +218,10 @@ export default function AdminPage() {
                           <td className="px-4 py-3" style={{ color: "#9090A8" }}>
                             {b.focus || "—"}
                           </td>
-                          <td className="px-4 py-3" style={{ color: "#5A5A70" }}>
+                          <td className="px-4 py-3" style={{ color: "#7A7A95" }}>
                             {new Date(b.created).toLocaleDateString()}
                           </td>
-                          <td className="px-4 py-3" style={{ color: cold ? "#F59E0B" : "#5A5A70" }}>
+                          <td className="px-4 py-3" style={{ color: cold ? "#F59E0B" : "#7A7A95" }}>
                             {days === 0 ? "Today" : days === 1 ? "Yesterday" : `${days}d ago`}
                           </td>
                           <td className="px-4 py-3">
@@ -250,7 +250,7 @@ export default function AdminPage() {
                   <thead>
                     <tr style={{ borderBottom: "1px solid #2A2A38" }}>
                       {["Business", "Documents", "Departments used", "Last active"].map((h) => (
-                        <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: "#5A5A70" }}>{h}</th>
+                        <th key={h} className="text-left px-4 py-3 font-semibold" style={{ color: "#7A7A95" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -283,7 +283,7 @@ export default function AdminPage() {
                                 ? stats.departments.slice(0, 4).join(", ") + (stats.departments.length > 4 ? ` +${stats.departments.length - 4}` : "")
                                 : <span style={{ color: "#3A3A55" }}>None yet</span>}
                             </td>
-                            <td className="px-4 py-3" style={{ color: "#5A5A70" }}>
+                            <td className="px-4 py-3" style={{ color: "#7A7A95" }}>
                               {stats?.lastActive
                                 ? new Date(stats.lastActive).toLocaleDateString()
                                 : "—"}

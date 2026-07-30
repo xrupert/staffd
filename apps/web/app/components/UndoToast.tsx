@@ -56,7 +56,7 @@ export default function UndoToast({ auditRowId, message, onClose }: { auditRowId
           </button>
         )}
         {state === "undoing" && <span style={{ color: "#7070A0" }}>Undoing…</span>}
-        <button onClick={onClose} aria-label="Dismiss" style={{ color: "#5A5A70", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
+        <button onClick={onClose} aria-label="Dismiss" style={{ color: "#7A7A95", background: "transparent", border: "none", cursor: "pointer" }}>✕</button>
       </div>
     </div>
   );

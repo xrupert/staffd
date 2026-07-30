@@ -51,7 +51,7 @@ export default function AnalyticsPage() {
       <div className="w-full max-w-3xl mx-auto px-6 py-8">
         <header className="mb-8 flex items-center justify-between">
           <a href="/dashboard"><Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} /></a>
-          <a href="/dashboard/front-desk" className="text-xs hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Front Desk</a>
+          <a href="/dashboard/front-desk" className="text-xs hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>← Front Desk</a>
         </header>
 
         <div className="flex items-center justify-between mb-5">

@@ -25,7 +25,7 @@ function Row({ label, ok, detail }: { label: string; ok: boolean; detail?: strin
         <Dot ok={ok} />
         <span className="text-sm truncate" style={{ color: "#D0D0E8" }}>{label}</span>
       </span>
-      <span className="text-xs flex-shrink-0 text-right" style={{ color: ok ? "#5A5A70" : "#EF8A8A" }}>{detail}</span>
+      <span className="text-xs flex-shrink-0 text-right" style={{ color: ok ? "#7A7A95" : "#EF8A8A" }}>{detail}</span>
     </div>
   );
 }
@@ -49,14 +49,14 @@ export default function HealthPage() {
       <div className="relative z-10 w-full max-w-3xl mx-auto px-6 py-8">
         <header className="mb-8 flex items-center justify-between">
           <a href="/dashboard/admin"><Image src="/logo-light.png" alt="STAFFD" width={86} height={38} style={{ objectFit: "contain" }} /></a>
-          <a href="/dashboard/admin" className="text-xs hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Admin</a>
+          <a href="/dashboard/admin" className="text-xs hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>← Admin</a>
         </header>
 
         <h1 className="font-bold mb-1" style={{ color: "#F0F0F8", fontSize: "1.6rem" }}>Substrate Health</h1>
         <p className="text-sm mb-6" style={{ color: "#7070A0" }}>V1 substrate self-check. Green everywhere = shippable.</p>
 
         {error && <div style={{ ...card, color: "#F59E0B" }}>{error}</div>}
-        {!error && !data && <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>}
+        {!error && !data && <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>}
 
         {data && (
           <>
@@ -65,7 +65,7 @@ export default function HealthPage() {
                 <span style={{ fontSize: "22px" }}>{data.ok ? "✅" : "🚨"}</span>
                 <div>
                   <p className="font-bold" style={{ color: data.ok ? "#22C55E" : "#EF4444", fontSize: "1.1rem" }}>{data.ok ? "V1 substrate healthy" : "Substrate needs attention"}</p>
-                  <p className="text-xs" style={{ color: "#5A5A70" }}>Checked {new Date(data.generatedAt).toLocaleString()}</p>
+                  <p className="text-xs" style={{ color: "#7A7A95" }}>Checked {new Date(data.generatedAt).toLocaleString()}</p>
                 </div>
               </div>
             </div>
@@ -74,7 +74,7 @@ export default function HealthPage() {
               <section style={card}>
                 <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#6060A0" }}>Collections</p>
                 <Row label={`${data.collections.found_count} present / ${data.collections.expected_count} expected`} ok={data.collections.missing.length === 0} detail={data.collections.missing.length ? `missing: ${data.collections.missing.join(", ")}` : "all present"} />
-                {data.collections.extra.length > 0 && <p className="text-xs mt-2" style={{ color: "#5A5A70" }}>Extra (unexpected): {data.collections.extra.join(", ")}</p>}
+                {data.collections.extra.length > 0 && <p className="text-xs mt-2" style={{ color: "#7A7A95" }}>Extra (unexpected): {data.collections.extra.join(", ")}</p>}
               </section>
 
               <section style={card}>
@@ -104,11 +104,11 @@ export default function HealthPage() {
                     <div key={name} className="rounded-lg p-2.5 flex items-center gap-2" style={{ background: "#1A1A24", border: "1px solid #2A2A38" }}>
                       <Dot ok={v.env_configured} />
                       <span className="text-xs capitalize" style={{ color: "#D0D0E8" }}>{name}</span>
-                      <span className="text-xs ml-auto" style={{ color: "#5A5A70" }}>{v.env_configured ? "configured" : "off"}</span>
+                      <span className="text-xs ml-auto" style={{ color: "#7A7A95" }}>{v.env_configured ? "configured" : "off"}</span>
                     </div>
                   ))}
                 </div>
-                <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>Vendor backends are operator-shared infrastructure; &quot;off&quot; just means that env isn&apos;t set in this environment.</p>
+                <p className="text-xs mt-3" style={{ color: "#7A7A95" }}>Vendor backends are operator-shared infrastructure; &quot;off&quot; just means that env isn&apos;t set in this environment.</p>
               </section>
             </div>
           </>

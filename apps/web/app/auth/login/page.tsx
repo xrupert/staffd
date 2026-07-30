@@ -137,7 +137,7 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p className="text-center text-sm mt-6" style={{ color: "#5A5A70" }}>
+        <p className="text-center text-sm mt-6" style={{ color: "#7A7A95" }}>
           No account?{" "}
           <a href="/auth/signup" className="font-medium transition-colors hover:text-white" style={{ color: "#7C4FF0" }}>
             Get STAFFD free →

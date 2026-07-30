@@ -52,7 +52,7 @@ const statValue: React.CSSProperties = {
 
 const statSub: React.CSSProperties = {
   fontSize: "11px",
-  color: "#5A5A70",
+  color: "#7A7A95",
   marginTop: "4px",
 };
 
@@ -115,7 +115,7 @@ export default function VaultMetricsPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>
             ← Dashboard
           </a>
         </header>
@@ -126,7 +126,7 @@ export default function VaultMetricsPage() {
             <h1 className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.75rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
               Vault Metrics
             </h1>
-            <p className="text-xs mt-2" style={{ color: "#5A5A70" }}>
+            <p className="text-xs mt-2" style={{ color: "#7A7A95" }}>
               Cross-tenant system health. Counts include all users.
             </p>
           </div>

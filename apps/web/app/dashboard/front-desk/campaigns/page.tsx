@@ -121,8 +121,8 @@ export default function CampaignsPage() {
             <button onClick={() => void openCompose()} className="btn-primary px-4 py-2 rounded-xl text-xs font-semibold text-white">+ New campaign</button>
           </div>
           {error && <div className="px-4 py-3 rounded-xl text-xs mb-4" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "#F59E0B" }}>{error}</div>}
-          {campaigns === null ? <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
-            : campaigns.length === 0 && !error ? <div style={{ ...card, textAlign: "center" }}><p className="text-sm" style={{ color: "#5A5A70" }}>No campaigns yet. Create your first one →</p></div>
+          {campaigns === null ? <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>
+            : campaigns.length === 0 && !error ? <div style={{ ...card, textAlign: "center" }}><p className="text-sm" style={{ color: "#7A7A95" }}>No campaigns yet. Create your first one →</p></div>
             : (
             <div className="flex flex-col gap-2">
               {campaigns.map((c) => (
@@ -130,7 +130,7 @@ export default function CampaignsPage() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: "#F0F0F8" }}>{c.name || "Untitled"}</p>
-                      <p className="text-xs" style={{ color: "#5A5A70" }}>{c.toSend ? `${c.toSend.toLocaleString()} recipients` : "—"}{c.sent ? ` · ${c.openRate}% opens` : ""}</p>
+                      <p className="text-xs" style={{ color: "#7A7A95" }}>{c.toSend ? `${c.toSend.toLocaleString()} recipients` : "—"}{c.sent ? ` · ${c.openRate}% opens` : ""}</p>
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={statusStyle(c.status)}>{campaignStatusLabel(c.status)}</span>
                   </div>
@@ -144,7 +144,7 @@ export default function CampaignsPage() {
       {view === "detail" && (
         <>
           <button onClick={() => setView("list")} className="text-xs mb-4" style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer" }}>← All campaigns</button>
-          {!detail ? <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p> : (
+          {!detail ? <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p> : (
             <div style={card}>
               <span className="text-xs px-2 py-0.5 rounded-full" style={statusStyle(detail.status)}>{campaignStatusLabel(detail.status)}</span>
               <h2 className="font-bold mt-2 mb-1" style={{ color: "#F0F0F8", fontSize: "1.25rem" }}>{detail.name || "Untitled"}</h2>
@@ -206,7 +206,7 @@ function statusStyle(status: string): React.CSSProperties {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl p-3" style={{ background: "#1A1A24", border: "1px solid #2A2A38" }}><p className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.25rem" }}>{value}</p><p className="text-xs" style={{ color: "#5A5A70" }}>{label}</p></div>;
+  return <div className="rounded-xl p-3" style={{ background: "#1A1A24", border: "1px solid #2A2A38" }}><p className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.25rem" }}>{value}</p><p className="text-xs" style={{ color: "#7A7A95" }}>{label}</p></div>;
 }
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
@@ -220,7 +220,7 @@ function Shell({ children }: { children: React.ReactNode }) {
       <div className="relative z-10 w-full max-w-3xl mx-auto px-6 py-8">
         <header className="mb-8 flex items-center justify-between">
           <a href="/dashboard"><Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} /></a>
-          <a href="/dashboard/front-desk" className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Front Desk</a>
+          <a href="/dashboard/front-desk" className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>← Front Desk</a>
         </header>
         {children}
       </div>

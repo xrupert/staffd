@@ -163,7 +163,7 @@ export default function VoiceProfilePanel() {
     return (
       <section style={cardStyle}>
         <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Voice Profile</h2>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>
       </section>
     );
   }
@@ -203,7 +203,7 @@ export default function VoiceProfilePanel() {
       <div className="flex items-start justify-between mb-3">
         <div>
           <h2 className="text-sm font-semibold mb-1" style={{ color: "#F0F0F8" }}>Voice Profile</h2>
-          <p className="text-xs" style={{ color: "#5A5A70" }}>
+          <p className="text-xs" style={{ color: "#7A7A95" }}>
             Trained on {profile.documentCount ?? 0} document{profile.documentCount === 1 ? "" : "s"} · Updated {updated}
           </p>
         </div>
@@ -275,7 +275,7 @@ export default function VoiceProfilePanel() {
               </span>
             ))}
             {profile.bannedWords.length > 10 && (
-              <span className="text-xs px-2 py-1" style={{ color: "#5A5A70" }}>
+              <span className="text-xs px-2 py-1" style={{ color: "#7A7A95" }}>
                 +{profile.bannedWords.length - 10} more
               </span>
             )}
@@ -308,7 +308,7 @@ export default function VoiceProfilePanel() {
       )}
 
       <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid #1E1E2A" }}>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>
           Auto-updates nightly + after every share or publish.
         </p>
         <button
@@ -318,7 +318,7 @@ export default function VoiceProfilePanel() {
           style={{
             background: "#1A1A24",
             border: "1px solid #2A2A38",
-            color: recomputing ? "#5A5A70" : "#D0D0E8",
+            color: recomputing ? "#7A7A95" : "#D0D0E8",
             opacity: recomputing ? 0.6 : 1,
           }}
         >

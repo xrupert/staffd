@@ -147,7 +147,7 @@ export default function AutopilotControlsPanel() {
     return (
       <section className="rounded-2xl p-6 mb-5" style={cardStyle}>
         <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Autopilot</h2>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>
       </section>
     );
   }
@@ -171,7 +171,7 @@ export default function AutopilotControlsPanel() {
       </div>
 
       {isActive && briefSummary && (
-        <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>
+        <p className="text-xs mb-4" style={{ color: "#7A7A95" }}>
           {briefSummary}
         </p>
       )}
@@ -221,7 +221,7 @@ function btnSecondary(disabled: boolean): React.CSSProperties {
   return {
     background: "#1A1A24",
     border: "1px solid #2A2A38",
-    color: disabled ? "#5A5A70" : "#D0D0E8",
+    color: disabled ? "#7A7A95" : "#D0D0E8",
     opacity: disabled ? 0.6 : 1,
   };
 }

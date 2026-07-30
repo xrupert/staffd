@@ -175,7 +175,7 @@ export default function PricingPage() {
             <Link href="/pricing" className="text-xs" style={{ color: "#A07BFF", textDecoration: "none" }}>
               Pricing
             </Link>
-            <Link href="/auth/login" className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>
+            <Link href="/auth/login" className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>
               Sign in
             </Link>
             <Link
@@ -216,7 +216,7 @@ export default function PricingPage() {
               className="px-5 py-2 rounded-lg text-xs font-semibold transition-all"
               style={{
                 background: interval === "monthly" ? "#1E1E2E" : "transparent",
-                color: interval === "monthly" ? "#F0F0F8" : "#5A5A70",
+                color: interval === "monthly" ? "#F0F0F8" : "#7A7A95",
                 border: interval === "monthly" ? "1px solid #2A2A38" : "1px solid transparent",
               }}
             >
@@ -227,7 +227,7 @@ export default function PricingPage() {
               className="flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-semibold transition-all"
               style={{
                 background: interval === "annual" ? "#1E1E2E" : "transparent",
-                color: interval === "annual" ? "#F0F0F8" : "#5A5A70",
+                color: interval === "annual" ? "#F0F0F8" : "#7A7A95",
                 border: interval === "annual" ? "1px solid #2A2A38" : "1px solid transparent",
               }}
             >
@@ -288,7 +288,7 @@ export default function PricingPage() {
                     <span className="font-bold" style={{ color: "#F0F0F8", fontSize: "2rem", lineHeight: 1, letterSpacing: "-0.02em" }}>
                       ${plan.monthly}
                     </span>
-                    <span className="text-xs" style={{ color: "#5A5A70" }}>/mo</span>
+                    <span className="text-xs" style={{ color: "#7A7A95" }}>/mo</span>
                   </div>
                   {interval === "annual" ? (
                     <>
@@ -375,7 +375,7 @@ export default function PricingPage() {
               >
                 <div style={{ fontSize: "20px", marginBottom: "6px" }}>{d.icon}</div>
                 <p className="text-sm font-semibold" style={{ color: "#F0F0F8" }}>{d.name}</p>
-                <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>{d.count} specialists</p>
+                <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>{d.count} specialists</p>
               </div>
             ))}
           </div>
@@ -424,7 +424,7 @@ export default function PricingPage() {
           >
             Hire your staff →
           </Link>
-          <p className="text-xs mt-4" style={{ color: "#5A5A70" }}>
+          <p className="text-xs mt-4" style={{ color: "#7A7A95" }}>
             7-day money-back guarantee · Cancel any time · No contracts
           </p>
         </div>

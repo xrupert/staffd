@@ -72,7 +72,7 @@ export default function IndustryPacksPanel() {
     return (
       <section className="rounded-2xl p-6 mb-5" style={cardStyle}>
         <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Your industry support</h2>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>
       </section>
     );
   }
@@ -147,7 +147,7 @@ export default function IndustryPacksPanel() {
             <button
               onClick={() => { setEditing(false); setEditError(null); }}
               className="text-xs transition-colors hover:text-white"
-              style={{ color: "#5A5A70" }}
+              style={{ color: "#7A7A95" }}
             >
               Cancel
             </button>
@@ -198,7 +198,7 @@ export default function IndustryPacksPanel() {
                   </p>
                 </div>
               </div>
-              <p className="text-xs mt-auto" style={{ color: "#5A5A70" }}>
+              <p className="text-xs mt-auto" style={{ color: "#7A7A95" }}>
                 {p.agentCount} specialists · {p.departments.map((d) => DEPT_SHORT[d] ?? d).join(", ")}
               </p>
             </div>

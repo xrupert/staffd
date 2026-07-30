@@ -46,7 +46,7 @@ export default function DraftsPage() {
       <div className="w-full max-w-2xl mx-auto px-6 py-8">
         <header className="mb-8 flex items-center justify-between">
           <a href="/dashboard"><Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} /></a>
-          <a href="/dashboard/front-desk" className="text-xs hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Front Desk</a>
+          <a href="/dashboard/front-desk" className="text-xs hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>← Front Desk</a>
         </header>
 
         <h1 className="font-bold mb-1" style={{ color: "#F0F0F8", fontSize: "1.5rem" }}>Drafts awaiting your review</h1>
@@ -61,7 +61,7 @@ export default function DraftsPage() {
                   <button onClick={() => { setActive(d); setEdited(d.draft); }} className="w-full text-left rounded-xl px-4 py-3" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-medium" style={{ color: "#A07BFF" }}>{d.kind}</span>
-                      <span className="text-xs" style={{ color: "#5A5A70" }}>{new Date(d.created).toLocaleDateString()}</span>
+                      <span className="text-xs" style={{ color: "#7A7A95" }}>{new Date(d.created).toLocaleDateString()}</span>
                     </div>
                     <p className="text-xs mt-1 truncate" style={{ color: "#9090A8" }}>{d.preview || d.goal}</p>
                   </button>

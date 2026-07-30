@@ -233,7 +233,7 @@ export default function ThreadPickerDrawer({
             </div>
             <div>
               <p className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>Threads</p>
-              <p className="text-xs" style={{ color: "#5A5A70" }}>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>
                 {threads.length} {showArchived ? "total" : "active"}
               </p>
             </div>
@@ -241,7 +241,7 @@ export default function ThreadPickerDrawer({
           <button
             onClick={onClose}
             className="text-xs transition-colors hover:text-white"
-            style={{ color: "#5A5A70" }}
+            style={{ color: "#7A7A95" }}
           >
             Close
           </button>
@@ -269,10 +269,10 @@ export default function ThreadPickerDrawer({
         {/* List */}
         <div className="flex-1 overflow-y-auto px-3 py-3">
           {loading && (
-            <p className="text-xs px-2 py-4 text-center" style={{ color: "#5A5A70" }}>Loading…</p>
+            <p className="text-xs px-2 py-4 text-center" style={{ color: "#7A7A95" }}>Loading…</p>
           )}
           {!loading && threads.length === 0 && (
-            <p className="text-xs px-2 py-6 text-center" style={{ color: "#5A5A70" }}>
+            <p className="text-xs px-2 py-6 text-center" style={{ color: "#7A7A95" }}>
               No threads yet. Start a conversation in the Command Center to see it here.
             </p>
           )}
@@ -315,7 +315,7 @@ export default function ThreadPickerDrawer({
                         type="button"
                         onClick={() => setRenamingId(null)}
                         className="text-xs"
-                        style={{ color: "#5A5A70" }}
+                        style={{ color: "#7A7A95" }}
                       >
                         Cancel
                       </button>
@@ -336,7 +336,7 @@ export default function ThreadPickerDrawer({
                           >
                             {displayName}
                           </p>
-                          <span className="text-xs flex-shrink-0" style={{ color: "#5A5A70" }}>
+                          <span className="text-xs flex-shrink-0" style={{ color: "#7A7A95" }}>
                             {relativeTime(t.lastAt)}
                           </span>
                         </div>
@@ -346,19 +346,19 @@ export default function ThreadPickerDrawer({
                               {DEPT_LABELS[t.department] ?? t.department}
                             </span>
                           )}
-                          <span className="text-xs" style={{ color: "#5A5A70" }}>·</span>
-                          <span className="text-xs" style={{ color: "#5A5A70" }}>
+                          <span className="text-xs" style={{ color: "#7A7A95" }}>·</span>
+                          <span className="text-xs" style={{ color: "#7A7A95" }}>
                             {t.turnCount} turn{t.turnCount === 1 ? "" : "s"}
                           </span>
                           {t.archived && (
                             <>
-                              <span className="text-xs" style={{ color: "#5A5A70" }}>·</span>
+                              <span className="text-xs" style={{ color: "#7A7A95" }}>·</span>
                               <span className="text-xs" style={{ color: "#F59E0B" }}>archived</span>
                             </>
                           )}
                           {isCurrent && (
                             <>
-                              <span className="text-xs" style={{ color: "#5A5A70" }}>·</span>
+                              <span className="text-xs" style={{ color: "#7A7A95" }}>·</span>
                               <span className="text-xs font-semibold" style={{ color: "#A07BFF" }}>current</span>
                             </>
                           )}
@@ -369,7 +369,7 @@ export default function ThreadPickerDrawer({
                           onClick={() => { setRenamingId(t.threadId); setRenameValue(displayName); }}
                           disabled={isBusy}
                           className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#5A5A70", opacity: isBusy ? 0.5 : 1 }}
+                          style={{ color: "#7A7A95", opacity: isBusy ? 0.5 : 1 }}
                         >
                           Rename
                         </button>
@@ -377,7 +377,7 @@ export default function ThreadPickerDrawer({
                           onClick={() => void toggleArchive(t.threadId, !t.archived)}
                           disabled={isBusy}
                           className="text-xs transition-colors hover:text-white"
-                          style={{ color: "#5A5A70", opacity: isBusy ? 0.5 : 1 }}
+                          style={{ color: "#7A7A95", opacity: isBusy ? 0.5 : 1 }}
                         >
                           {t.archived ? "Unarchive" : "Archive"}
                         </button>

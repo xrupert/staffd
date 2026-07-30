@@ -146,7 +146,7 @@ export default function BriefPreferencesPanel() {
     return (
       <section className="rounded-2xl p-6 mb-5" style={cardStyle}>
         <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Morning Brief delivery</h2>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>
       </section>
     );
   }
@@ -258,7 +258,7 @@ export default function BriefPreferencesPanel() {
             ))}
           </select>
         </div>
-        <p className="text-xs mt-2" style={{ color: "#5A5A70" }}>
+        <p className="text-xs mt-2" style={{ color: "#7A7A95" }}>
           Crossing midnight is supported — e.g. From 10 PM, Until 7 AM.
         </p>
       </div>

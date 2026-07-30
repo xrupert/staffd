@@ -163,7 +163,7 @@ export default function BookPage() {
   if (hostLoading) {
     return (
       <main style={{ background: "#09090F", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ color: "#5A5A70", fontSize: "13px" }}>Loading…</span>
+        <span style={{ color: "#7A7A95", fontSize: "13px" }}>Loading…</span>
       </main>
     );
   }
@@ -173,7 +173,7 @@ export default function BookPage() {
       <main style={{ background: "#09090F", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center" }}>
           <p style={{ color: "#F0F0F8", fontSize: "14px", marginBottom: "6px", fontWeight: 600 }}>This booking page isn&apos;t available.</p>
-          <p style={{ color: "#5A5A70", fontSize: "12px" }}>The link may have expired or scheduling may be turned off.</p>
+          <p style={{ color: "#7A7A95", fontSize: "12px" }}>The link may have expired or scheduling may be turned off.</p>
         </div>
       </main>
     );
@@ -191,7 +191,7 @@ export default function BookPage() {
           <div style={{ fontSize: "36px", marginBottom: "12px" }}>✅</div>
           <h1 className="text-xl font-bold mb-2" style={{ color: "#F0F0F8" }}>You&apos;re booked.</h1>
           <p className="text-sm mb-1" style={{ color: "#A07BFF" }}>{display}</p>
-          <p className="text-sm" style={{ color: "#5A5A70" }}>{bookingState.duration} minutes with {host.business_name || "the team"}</p>
+          <p className="text-sm" style={{ color: "#7A7A95" }}>{bookingState.duration} minutes with {host.business_name || "the team"}</p>
           <p className="text-xs mt-6" style={{ color: "#3A3A50" }}>You&apos;ll receive a calendar invite by email shortly.</p>
         </div>
       </main>
@@ -219,7 +219,7 @@ export default function BookPage() {
           </div>
           <p className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: "#5B21E8" }}>Book a Call</p>
           <h1 className="text-2xl font-bold mb-1" style={{ color: "#F0F0F8", letterSpacing: "-0.02em" }}>{host.business_name || "Schedule with us"}</h1>
-          <p className="text-sm" style={{ color: "#5A5A70" }}>{host.duration} minutes · times shown in {attendeeTz}</p>
+          <p className="text-sm" style={{ color: "#7A7A95" }}>{host.duration} minutes · times shown in {attendeeTz}</p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -232,7 +232,7 @@ export default function BookPage() {
                   else setViewMonth(viewMonth - 1);
                 }}
                 className="text-sm transition-colors hover:text-white"
-                style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
               >
                 ←
               </button>
@@ -243,7 +243,7 @@ export default function BookPage() {
                   else setViewMonth(viewMonth + 1);
                 }}
                 className="text-sm transition-colors hover:text-white"
-                style={{ color: "#5A5A70", background: "none", border: "none", cursor: "pointer" }}
+                style={{ color: "#7A7A95", background: "none", border: "none", cursor: "pointer" }}
               >
                 →
               </button>
@@ -288,9 +288,9 @@ export default function BookPage() {
                 <p className="text-xs text-center" style={{ color: "#3A3A50" }}>Pick a date to see available times.</p>
               </div>
             ) : slotsLoading ? (
-              <p className="text-xs" style={{ color: "#5A5A70" }}>Loading times…</p>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>Loading times…</p>
             ) : slots.length === 0 ? (
-              <p className="text-xs" style={{ color: "#5A5A70" }}>No times available on this day. Try another date.</p>
+              <p className="text-xs" style={{ color: "#7A7A95" }}>No times available on this day. Try another date.</p>
             ) : (
               <>
                 <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "#5B21E8" }}>

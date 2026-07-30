@@ -120,7 +120,7 @@ export default function LibraryPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>← Dashboard</a>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>← Dashboard</a>
         </header>
 
         <div className="mb-8">
@@ -128,7 +128,7 @@ export default function LibraryPage() {
           <h1 className="font-bold mb-2" style={{ color: "#F0F0F8", fontSize: "1.75rem", lineHeight: 1.1, letterSpacing: "-0.02em" }}>
             Your Generated Documents
           </h1>
-          <p className="text-sm" style={{ color: "#5A5A70" }}>
+          <p className="text-sm" style={{ color: "#7A7A95" }}>
             Every document your staff has produced, saved automatically.
           </p>
         </div>
@@ -144,7 +144,7 @@ export default function LibraryPage() {
             style={{ background: "#111118", border: "1px solid #2A2A38", color: "#F0F0F8" }}
           />
         </div>
-        <p className="text-xs mb-6" style={{ color: "#5A5A70" }}>
+        <p className="text-xs mb-6" style={{ color: "#7A7A95" }}>
           Looking by meaning, not just words?{" "}
           <a href="/dashboard/search" style={{ color: "#A07BFF", textDecoration: "none" }}>
             Try Smart Search →
@@ -161,7 +161,7 @@ export default function LibraryPage() {
               style={{
                 background: filter === d ? "rgba(91,33,232,0.2)" : "#111118",
                 border: filter === d ? "1px solid rgba(91,33,232,0.45)" : "1px solid #2A2A38",
-                color: filter === d ? "#A07BFF" : "#5A5A70",
+                color: filter === d ? "#A07BFF" : "#7A7A95",
               }}
             >
               {d === "All" ? "All" : `${DEPT_ICONS[d] ?? ""} ${d.charAt(0).toUpperCase() + d.slice(1)}`}
@@ -171,13 +171,13 @@ export default function LibraryPage() {
 
         {/* Document list */}
         {loading ? (
-          <div className="flex items-center gap-2 py-12" style={{ color: "#5A5A70" }}>
+          <div className="flex items-center gap-2 py-12" style={{ color: "#7A7A95" }}>
             <span className="inline-block w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#5B21E8" }} />
             <span className="text-sm">Loading…</span>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
-            <p className="text-sm mb-2" style={{ color: "#5A5A70" }}>
+            <p className="text-sm mb-2" style={{ color: "#7A7A95" }}>
               {docs.length === 0 ? "No documents yet — generate something from any department." : "No documents match your search."}
             </p>
             {docs.length === 0 && (
@@ -208,7 +208,7 @@ export default function LibraryPage() {
                       {doc.prompt.length > 90 ? doc.prompt.slice(0, 90) + "…" : doc.prompt}
                     </p>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs capitalize" style={{ color: "#5A5A70" }}>{doc.agent_name || doc.department}</span>
+                      <span className="text-xs capitalize" style={{ color: "#7A7A95" }}>{doc.agent_name || doc.department}</span>
                       <span className="text-xs" style={{ color: "#3A3A50" }}>·</span>
                       <span className="text-xs" style={{ color: "#3A3A50" }}>{timeAgo(doc.created)}</span>
                     </div>
@@ -222,7 +222,7 @@ export default function LibraryPage() {
                 {expanded === doc.id && (
                   <div style={{ borderTop: "1px solid #1E1E2A" }}>
                     <div className="flex items-center justify-between px-5 py-2.5" style={{ borderBottom: "1px solid #1E1E2A" }}>
-                      <span className="text-xs" style={{ color: "#5A5A70" }}>Output</span>
+                      <span className="text-xs" style={{ color: "#7A7A95" }}>Output</span>
                       <div className="flex items-center gap-4">
                         <button
                           onClick={() => {
@@ -233,13 +233,13 @@ export default function LibraryPage() {
                             });
                           }}
                           className="text-xs transition-colors hover:text-white"
-                          style={{ color: copied === doc.id ? "#22C55E" : "#5A5A70" }}
+                          style={{ color: copied === doc.id ? "#22C55E" : "#7A7A95" }}
                         >
                           {copied === doc.id ? "Link copied ✓" : "Share"}
                         </button>
-                        <button onClick={() => void navigator.clipboard.writeText(doc.output)} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Copy</button>
-                        <button onClick={() => window.print()} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Save PDF</button>
-                        <button onClick={() => void exportToDocx(doc.output, businessName || undefined)} className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70" }}>Download .docx</button>
+                        <button onClick={() => void navigator.clipboard.writeText(doc.output)} className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95" }}>Copy</button>
+                        <button onClick={() => window.print()} className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95" }}>Save PDF</button>
+                        <button onClick={() => void exportToDocx(doc.output, businessName || undefined)} className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95" }}>Download .docx</button>
                         <button
                           onClick={() => void deleteDoc(doc.id)}
                           disabled={deleting === doc.id}

@@ -71,21 +71,21 @@ export default function TopupModal({ open, onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-xl rounded-2xl overflow-hidden"
+        className="relative w-full max-w-xl rounded-2xl overflow-hidden anim-modal"
         style={{ background: "#111118", border: "1px solid #2A2A38" }}
       >
         {/* Header */}
         <div className="px-6 py-4 flex items-center justify-between" style={{ borderBottom: "1px solid #1E1E2A" }}>
           <div>
             <h2 className="text-base font-semibold" style={{ color: "#F0F0F8" }}>Extend this month&apos;s cinematic allowance</h2>
-            <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>
+            <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>
               Cinema packs add premium cinematic clips on top of your plan&apos;s monthly allowance.
             </p>
           </div>
           <button
             onClick={onClose}
             className="text-xs transition-colors hover:text-white"
-            style={{ color: "#5A5A70" }}
+            style={{ color: "#7A7A95" }}
           >
             Close
           </button>
@@ -139,7 +139,7 @@ export default function TopupModal({ open, onClose }: Props) {
           </div>
         )}
 
-        <div className="px-6 py-3 text-xs" style={{ borderTop: "1px solid #1E1E2A", color: "#5A5A70" }}>
+        <div className="px-6 py-3 text-xs" style={{ borderTop: "1px solid #1E1E2A", color: "#7A7A95" }}>
           Payment processed securely. Clips apply the moment payment completes.
         </div>
       </div>

@@ -149,7 +149,7 @@ export default function SettingsPage() {
           <a href="/dashboard">
             <Image src="/logo-light.png" alt="STAFFD" width={90} height={40} style={{ objectFit: "contain" }} />
           </a>
-          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#5A5A70" }}>
+          <a href="/dashboard" className="text-sm transition-colors hover:text-white" style={{ color: "#7A7A95" }}>
             ← Dashboard
           </a>
         </header>
@@ -244,7 +244,7 @@ export default function SettingsPage() {
         {/* Billing section (MX-7) — self-service via the billing provider's portal */}
         <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
           <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Billing</h2>
-          <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>
+          <p className="text-xs mb-4" style={{ color: "#7A7A95" }}>
             Manage your plan, update your payment method, view invoices, or cancel — in our secure billing portal.
           </p>
           {billingMsg && (
@@ -336,7 +336,7 @@ export default function SettingsPage() {
         {/* Privacy & data (GDPR — PR-Tranche-2) */}
         <section className="rounded-2xl p-6 mb-5" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
           <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Privacy &amp; data</h2>
-          <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>
+          <p className="text-xs mb-4" style={{ color: "#7A7A95" }}>
             Download everything STAFFD stores about you, or permanently delete your account. Both honor your GDPR / CCPA rights.
           </p>
           <PrivacyControls />
@@ -345,7 +345,7 @@ export default function SettingsPage() {
         {/* Danger zone */}
         <section className="rounded-2xl p-6" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
           <h2 className="text-sm font-semibold mb-2" style={{ color: "#F0F0F8" }}>Sign out</h2>
-          <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>Sign out of your account on this device.</p>
+          <p className="text-xs mb-4" style={{ color: "#7A7A95" }}>Sign out of your account on this device.</p>
           <button
             onClick={() => signOut()}
             className="px-4 py-2 rounded-xl text-xs font-semibold transition-colors"

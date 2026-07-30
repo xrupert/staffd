@@ -58,7 +58,7 @@ const FEATURES = [
 ];
 
 const TRUST_ITEMS = [
-  { icon: "🔒", title: "Your data never trains AI", body: "We use Claude via Anthropic's API. Anthropic does not train on API data. Your business information, your work, your vault — never used to train any model." },
+  { icon: "🔒", title: "Your data never trains AI", body: "Your business information, your work, your vault — never used to train any model, never shared, never sold. Your staff works for you and only you." },
   { icon: "💳", title: "7-day money-back guarantee", body: "If STAFFD isn't right for your business within 7 days, we'll refund you. No questions. No forms. One email to hello@urstaffd.com." },
   { icon: "🎯", title: "3 free trial runs per department", body: "Every department you haven't hired yet gives you 3 free runs so you can test the staff before committing. No credit card required for trial runs." },
   { icon: "❌", title: "Cancel any time", body: "No annual lock-ins, no cancellation fees, no 'talk to sales' to downgrade. You're in control of your subscription from the moment you sign up." },
@@ -81,10 +81,10 @@ function Nav() {
         <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} priority />
       </Link>
       <div className="flex items-center gap-6">
-        <Link href="/pricing" className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>
+        <Link href="/pricing" className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>
           Pricing
         </Link>
-        <Link href="/auth/login" className="text-xs transition-colors hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>
+        <Link href="/auth/login" className="text-xs transition-colors hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>
           Sign in
         </Link>
         <Link
@@ -142,7 +142,7 @@ function ProductMock() {
           </div>
           <div>
             <p className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>Content Creator</p>
-            <p className="text-xs" style={{ color: "#5A5A70" }}>Marketing · STAFFD specialist</p>
+            <p className="text-xs" style={{ color: "#7A7A95" }}>Marketing · STAFFD specialist</p>
           </div>
           <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.1)", color: "#22C55E", border: "1px solid rgba(34,197,94,0.2)" }}>
             Done
@@ -222,7 +222,7 @@ export default function Home() {
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full mb-8 text-xs font-semibold"
               style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.3)", color: "#A07BFF" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#5B21E8", display: "inline-block" }} />
-              AI-powered business staff
+              You've been staffed
             </div>
 
             {/* H1 */}
@@ -274,7 +274,7 @@ export default function Home() {
             {/* Trust strip */}
             <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
               {[
-                "Powered by Claude AI",
+                "Enterprise-grade intelligence",
                 "Your data never trains AI",
                 "7-day money-back guarantee",
                 "Cancel any time",
@@ -344,7 +344,7 @@ export default function Home() {
                 >
                   <div className="text-2xl mb-3">{dept.icon}</div>
                   <p className="font-semibold mb-0.5" style={{ color: "#F0F0F8", fontSize: "14px" }}>{dept.name}</p>
-                  <p className="text-xs mb-3" style={{ color: "#5A5A70" }}>{dept.count} specialists</p>
+                  <p className="text-xs mb-3" style={{ color: "#7A7A95" }}>{dept.count} specialists</p>
                   <p className="text-xs" style={{ color: "#4A4A65", lineHeight: 1.5 }}>{dept.example}</p>
                 </div>
               ))}

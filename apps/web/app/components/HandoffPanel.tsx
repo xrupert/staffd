@@ -113,7 +113,7 @@ export default function HandoffPanel({ documentId, sourceDepartment, sourceText,
   if (loading) {
     return (
       <div className="rounded-xl px-4 py-3" style={{ background: "#0D0D16", border: "1px solid #1E1E2A" }}>
-        <p className="text-xs" style={{ color: "#5A5A70" }}>Looking for cross-functional next steps…</p>
+        <p className="text-xs" style={{ color: "#7A7A95" }}>Looking for cross-functional next steps…</p>
       </div>
     );
   }
@@ -154,7 +154,7 @@ export default function HandoffPanel({ documentId, sourceDepartment, sourceText,
                   <span style={{ color: f.locked ? "#F59E0B" : "#A07BFF" }}>{f.task}</span>
                 </a>
                 {f.rationale && (
-                  <p className="text-xs mt-0.5" style={{ color: "#5A5A70", lineHeight: 1.45 }}>
+                  <p className="text-xs mt-0.5" style={{ color: "#7A7A95", lineHeight: 1.45 }}>
                     {f.rationale}
                   </p>
                 )}

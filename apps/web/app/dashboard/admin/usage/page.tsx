@@ -58,13 +58,13 @@ export default function UsageDashboard() {
     <div className="w-full max-w-5xl mx-auto px-6 py-8">
       <header className="mb-6 flex items-center justify-between">
         <a href="/dashboard/admin"><Image src="/logo-light.png" alt="STAFFD" width={86} height={38} style={{ objectFit: "contain" }} /></a>
-        <a href="/dashboard/admin" className="text-xs hover:text-white" style={{ color: "#5A5A70", textDecoration: "none" }}>← Admin</a>
+        <a href="/dashboard/admin" className="text-xs hover:text-white" style={{ color: "#7A7A95", textDecoration: "none" }}>← Admin</a>
       </header>
       <h1 className="font-bold mb-1" style={{ color: "#F0F0F8", fontSize: "1.6rem" }}>Usage</h1>
       <p className="text-sm mb-5" style={{ color: "#7070A0" }}>Fleet-wide activity across all users. Read-only.</p>
 
       {error && <div style={{ ...card, color: "#F59E0B" }}>{error}</div>}
-      {!error && !data && <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p>}
+      {!error && !data && <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p>}
 
       {data && (
         <>
@@ -89,7 +89,7 @@ export default function UsageDashboard() {
 }
 
 function Stat({ label, value }: { label: string; value: string | number }) {
-  return <div style={card}><p className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.5rem", lineHeight: 1 }}>{value}</p><p className="text-xs mt-1.5" style={{ color: "#5A5A70" }}>{label}</p></div>;
+  return <div style={card}><p className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.5rem", lineHeight: 1 }}>{value}</p><p className="text-xs mt-1.5" style={{ color: "#7A7A95" }}>{label}</p></div>;
 }
 
 function UsersTab({ d, onOpen }: { d: Usage["users"]; onOpen: (id: string) => void }) {
@@ -134,9 +134,9 @@ function UsersTab({ d, onOpen }: { d: Usage["users"]; onOpen: (id: string) => vo
       <div style={card}>
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "#6060A0" }}>Roster</p>
-          <p className="text-xs" style={{ color: "#5A5A70" }}>{Object.entries(d.byPlan).filter(([, n]) => n > 0).map(([p, n]) => `${p}: ${n}`).join(" · ")}</p>
+          <p className="text-xs" style={{ color: "#7A7A95" }}>{Object.entries(d.byPlan).filter(([, n]) => n > 0).map(([p, n]) => `${p}: ${n}`).join(" · ")}</p>
         </div>
-        <p className="text-xs mb-2" style={{ color: "#5A5A70" }}>
+        <p className="text-xs mb-2" style={{ color: "#7A7A95" }}>
           <span style={{ color: "#22C55E" }}>●</span> = site analytics provisioned. Click the dot to set/clear a customer&apos;s Plausible site id (operator creates the site manually — there&apos;s no Sites API).
         </p>
         <div className="flex flex-col gap-1">
@@ -152,7 +152,7 @@ function UsersTab({ d, onOpen }: { d: Usage["users"]; onOpen: (id: string) => vo
                     <span className="text-xs truncate" style={{ color: "#D0D0E8" }}>{u.email}</span>
                   </button>
                   <span className="flex items-center gap-3 flex-shrink-0">
-                    <span className="text-xs" style={{ color: "#5A5A70" }}>{u.plan} · {u.docCount} docs · {u.lastActivity ? new Date(u.lastActivity).toLocaleDateString() : "never"}</span>
+                    <span className="text-xs" style={{ color: "#7A7A95" }}>{u.plan} · {u.docCount} docs · {u.lastActivity ? new Date(u.lastActivity).toLocaleDateString() : "never"}</span>
                     <button
                       onClick={() => { setEditing(isEditing ? null : u.id); setVal(u.plausibleSiteId ?? ""); }}
                       title={hasSite ? `Site: ${u.plausibleSiteId}` : "No site analytics — click to provision"}
@@ -172,7 +172,7 @@ function UsersTab({ d, onOpen }: { d: Usage["users"]; onOpen: (id: string) => vo
                     />
                     <button onClick={() => void save(u.id, val)} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg btn-primary text-white font-semibold" style={{ opacity: busy ? 0.5 : 1 }}>Save</button>
                     {hasSite && <button onClick={() => void save(u.id, "")} disabled={busy} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "#1A1A24", border: "1px solid #2A2A38", color: "#F59E0B", opacity: busy ? 0.5 : 1, cursor: "pointer" }}>Clear</button>}
-                    <button onClick={() => setEditing(null)} className="text-xs px-2 py-1.5 rounded-lg" style={{ background: "none", border: "none", color: "#5A5A70", cursor: "pointer" }}>Cancel</button>
+                    <button onClick={() => setEditing(null)} className="text-xs px-2 py-1.5 rounded-lg" style={{ background: "none", border: "none", color: "#7A7A95", cursor: "pointer" }}>Cancel</button>
                   </div>
                 )}
               </div>
@@ -208,15 +208,15 @@ function DeptTab({ d }: { d: Usage["departments"] }) {
     <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))" }}>
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Output by department</p>
-        {d.byDept.length === 0 ? <p className="text-xs" style={{ color: "#5A5A70" }}>No documents yet.</p> : <Bars rows={d.byDept.map((x) => ({ label: x.department, value: x.count }))} />}
+        {d.byDept.length === 0 ? <p className="text-xs" style={{ color: "#7A7A95" }}>No documents yet.</p> : <Bars rows={d.byDept.map((x) => ({ label: x.department, value: x.count }))} />}
       </div>
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Specialist leaderboard</p>
-        {d.specialists.length === 0 ? <p className="text-xs" style={{ color: "#5A5A70" }}>No documents yet.</p> : (
+        {d.specialists.length === 0 ? <p className="text-xs" style={{ color: "#7A7A95" }}>No documents yet.</p> : (
           <div className="flex flex-col gap-2">
             {d.specialists.map((s, i) => (
               <div key={i} className="flex items-center justify-between gap-2">
-                <span className="text-xs truncate" style={{ color: "#D0D0E8" }}>{s.agent_name} <span style={{ color: "#5A5A70" }}>· {s.department}</span></span>
+                <span className="text-xs truncate" style={{ color: "#D0D0E8" }}>{s.agent_name} <span style={{ color: "#7A7A95" }}>· {s.department}</span></span>
                 <span className="text-xs" style={{ color: "#7070A0" }}>{s.count}</span>
               </div>
             ))}
@@ -236,15 +236,15 @@ function IntegrationsTab({ d }: { d: Usage["integrations"] }) {
           {d.health.map((h) => (
             <div key={h.key} className="rounded-lg p-3" style={{ background: "#1A1A24", border: "1px solid #2A2A38" }}>
               <p className="text-xs" style={{ color: "#D0D0E8" }}>{h.label}</p>
-              <p className="text-xs mt-1" style={{ color: h.connected ? "#22C55E" : "#5A5A70" }}>{h.connected ? "● Connected" : "○ Not connected"}</p>
+              <p className="text-xs mt-1" style={{ color: h.connected ? "#22C55E" : "#7A7A95" }}>{h.connected ? "● Connected" : "○ Not connected"}</p>
             </div>
           ))}
         </div>
       </div>
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Outcomes (fleet-wide)</p>
-        {d.outcomes.length === 0 ? <p className="text-xs" style={{ color: "#5A5A70" }}>No recorded outcomes yet.</p> : <Bars rows={d.outcomes.map((o) => ({ label: o.decision_kind, value: o.count }))} />}
-        <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>{d.note}</p>
+        {d.outcomes.length === 0 ? <p className="text-xs" style={{ color: "#7A7A95" }}>No recorded outcomes yet.</p> : <Bars rows={d.outcomes.map((o) => ({ label: o.decision_kind, value: o.count }))} />}
+        <p className="text-xs mt-3" style={{ color: "#7A7A95" }}>{d.note}</p>
       </div>
     </div>
   );
@@ -279,7 +279,7 @@ function WorkflowsTab({ d }: { d: Usage["workflows"] }) {
       </div>
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#6060A0" }}>Task success rate</p>
-        <p className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.5rem" }}>{d.taskSuccess.rate}% <span className="text-xs font-normal" style={{ color: "#5A5A70" }}>({d.taskSuccess.succeeded}/{d.taskSuccess.total} tasks)</span></p>
+        <p className="font-bold" style={{ color: "#F0F0F8", fontSize: "1.5rem" }}>{d.taskSuccess.rate}% <span className="text-xs font-normal" style={{ color: "#7A7A95" }}>({d.taskSuccess.succeeded}/{d.taskSuccess.total} tasks)</span></p>
       </div>
       {/* W95.2 — vendor mirror-retry health (Model B3 mirror discipline) */}
       <div style={card}>
@@ -290,7 +290,7 @@ function WorkflowsTab({ d }: { d: Usage["workflows"] }) {
           <Stat label="Succeeded" value={d.mirrorRetry?.succeeded ?? 0} />
           <Stat label="Failed" value={d.mirrorRetry?.failed ?? 0} />
         </div>
-        <p className="text-xs mt-3" style={{ color: "#5A5A70" }}>Re-syncs of STAFFD-native records to the operator-shared vendor backends. Failed = exhausted 3 retries — needs attention.</p>
+        <p className="text-xs mt-3" style={{ color: "#7A7A95" }}>Re-syncs of STAFFD-native records to the operator-shared vendor backends. Failed = exhausted 3 retries — needs attention.</p>
       </div>
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Transition velocity · last 7 days</p>
@@ -298,12 +298,12 @@ function WorkflowsTab({ d }: { d: Usage["workflows"] }) {
       </div>
       <div style={card}>
         <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "#6060A0" }}>Recent transitions</p>
-        {d.recentTransitions.length === 0 ? <p className="text-xs" style={{ color: "#5A5A70" }}>No transitions yet.</p> : (
+        {d.recentTransitions.length === 0 ? <p className="text-xs" style={{ color: "#7A7A95" }}>No transitions yet.</p> : (
           <div className="flex flex-col gap-1.5">
             {d.recentTransitions.slice(0, 12).map((t, i) => (
               <div key={i} className="flex items-center justify-between gap-2">
                 <span className="text-xs truncate" style={{ color: "#D0D0E8" }}>{t.detail}</span>
-                <span className="text-xs flex-shrink-0" style={{ color: "#5A5A70" }}>{t.at ? new Date(t.at).toLocaleString() : ""}</span>
+                <span className="text-xs flex-shrink-0" style={{ color: "#7A7A95" }}>{t.at ? new Date(t.at).toLocaleString() : ""}</span>
               </div>
             ))}
           </div>
@@ -317,13 +317,13 @@ function DrillIn({ detail, loading, onClose }: { detail: Detail | null; loading:
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
       <div style={{ ...card, maxWidth: "420px", width: "100%" }} onClick={(e) => e.stopPropagation()}>
-        {loading || !detail ? <p className="text-xs" style={{ color: "#5A5A70" }}>Loading…</p> : (
+        {loading || !detail ? <p className="text-xs" style={{ color: "#7A7A95" }}>Loading…</p> : (
           <>
             <div className="flex items-center justify-between mb-3">
               <p className="font-semibold text-sm" style={{ color: "#F0F0F8" }}>{detail.user.email}</p>
               <button onClick={onClose} className="text-xs" style={{ color: "#7070A0", background: "none", border: "none", cursor: "pointer" }}>✕</button>
             </div>
-            <p className="text-xs mb-4" style={{ color: "#5A5A70" }}>{detail.user.type} · {detail.user.plan} · joined {new Date(detail.user.created).toLocaleDateString()} · last active {detail.user.lastActivity ? new Date(detail.user.lastActivity).toLocaleDateString() : "never"}</p>
+            <p className="text-xs mb-4" style={{ color: "#7A7A95" }}>{detail.user.type} · {detail.user.plan} · joined {new Date(detail.user.created).toLocaleDateString()} · last active {detail.user.lastActivity ? new Date(detail.user.lastActivity).toLocaleDateString() : "never"}</p>
             <div className="grid grid-cols-3 gap-2 mb-4">
               <Stat label="Docs" value={detail.counts.documents} />
               <Stat label="Threads" value={detail.counts.threads} />

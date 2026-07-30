@@ -53,8 +53,8 @@ export default function ActivityPage() {
               {rows.map((r) => (
                 <li key={r.id} className="flex items-center justify-between rounded-xl px-4 py-3" style={{ background: "#111118", border: "1px solid #2A2A38" }}>
                   <div className="min-w-0">
-                    <p className="text-sm" style={{ color: "#E8E8F4" }}>{r.intent_type} <span style={{ color: "#5A5A70" }}>· {r.target_collection}</span></p>
-                    <p className="text-xs mt-0.5" style={{ color: "#5A5A70" }}>{new Date(r.committed_at).toLocaleString()} · user {String(r.user).slice(0, 8)}</p>
+                    <p className="text-sm" style={{ color: "#E8E8F4" }}>{r.intent_type} <span style={{ color: "#7A7A95" }}>· {r.target_collection}</span></p>
+                    <p className="text-xs mt-0.5" style={{ color: "#7A7A95" }}>{new Date(r.committed_at).toLocaleString()} · user {String(r.user).slice(0, 8)}</p>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="text-xs" style={{ color: statusColor[r.status] }}>{r.status}</span>

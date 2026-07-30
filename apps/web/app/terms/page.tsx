@@ -21,10 +21,10 @@ export default function TermsPage() {
           <Link href="/">
             <Image src="/logo-light.png" alt="STAFFD" width={100} height={44} style={{ objectFit: "contain" }} />
           </Link>
-          <div className="flex gap-6 text-xs" style={{ color: "#5A5A70" }}>
-            <Link href="/privacy" style={{ color: "#5A5A70", textDecoration: "none" }}>Privacy</Link>
+          <div className="flex gap-6 text-xs" style={{ color: "#7A7A95" }}>
+            <Link href="/privacy" style={{ color: "#7A7A95", textDecoration: "none" }}>Privacy</Link>
             <Link href="/terms" style={{ color: "#A07BFF", textDecoration: "none" }}>Terms</Link>
-            <Link href="/" style={{ color: "#5A5A70", textDecoration: "none" }}>← Home</Link>
+            <Link href="/" style={{ color: "#7A7A95", textDecoration: "none" }}>← Home</Link>
           </div>
         </header>
 
@@ -35,7 +35,7 @@ export default function TermsPage() {
           <h1 className="text-3xl font-bold mb-3" style={{ color: "#F0F0F8", letterSpacing: "-0.02em" }}>
             The rules of the road.
           </h1>
-          <p className="text-sm mb-8" style={{ color: "#5A5A70" }}>
+          <p className="text-sm mb-8" style={{ color: "#7A7A95" }}>
             Last updated: November 1, 2025 · STAFFD, operated by Cybrid Agency.
           </p>
 
