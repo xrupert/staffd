@@ -184,7 +184,9 @@ describe("POST /api/webhooks/montage", () => {
   it("succeeded → completes the ledger job with the STAFFD proxy URL", async () => {
     const res = await webhook(signed(JSON.stringify({ job_id: "mj1", status: "succeeded" }), "shhh"));
     expect(res.status).toBe(200);
-    expect(jobs.completed).toEqual(["/api/montage/output/mj1"]);
+    // Delivery fix: the URL carries a signed capability token so <video>
+    // elements (which can't send auth headers) can play the render.
+    expect(jobs.completed[0]).toMatch(/^\/api\/montage\/output\/mj1\?t=[0-9a-f]{32}$/);
   });
 
   it("failed → fails the ledger job (notification fires downstream)", async () => {

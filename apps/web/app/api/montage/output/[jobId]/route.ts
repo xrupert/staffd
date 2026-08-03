@@ -11,18 +11,24 @@ import { whoAmI } from "../../../_lib/integrations/identity";
 import { getAdminToken, pbUrl } from "../../../_lib/pb";
 import { getJobByPrediction } from "../../../_lib/generation/jobs";
 import { montageConfigured, fetchOutput } from "../../../_lib/integrations/montage/client";
+import { verifyOutputToken } from "../../../_lib/montage/output-token";
 
 export async function GET(req: Request, { params }: { params: Promise<{ jobId: string }> }) {
-  const me = await whoAmI(req);
-  if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
   if (!montageConfigured()) return Response.json({ error: "montage_not_configured" }, { status: 503 });
-
   const { jobId } = await params;
-  const pb = pbUrl();
-  const token = await getAdminToken();
-  const job = await getJobByPrediction(pb, token, jobId);
-  if (!job || job.user !== me.id) {
-    return Response.json({ error: "not_found" }, { status: 404 });
+
+  // Media elements can't send Authorization headers — accept the signed
+  // capability token from the completion URL, OR a session with ownership.
+  const capability = verifyOutputToken(jobId, new URL(req.url).searchParams.get("t"));
+  if (!capability) {
+    const me = await whoAmI(req);
+    if (!me) return Response.json({ error: "unauthorized" }, { status: 401 });
+    const pb = pbUrl();
+    const token = await getAdminToken();
+    const job = await getJobByPrediction(pb, token, jobId);
+    if (!job || job.user !== me.id) {
+      return Response.json({ error: "not_found" }, { status: 404 });
+    }
   }
 
   const upstream = await fetchOutput(jobId);

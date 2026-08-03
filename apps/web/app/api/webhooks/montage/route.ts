@@ -14,6 +14,7 @@ import crypto from "node:crypto";
 import { getAdminToken, pbUrl } from "../../_lib/pb";
 import { getJobByPrediction, completeJob, failJob } from "../../_lib/generation/jobs";
 import { parseBeats } from "../../_lib/montage/spec";
+import { outputToken } from "../../_lib/montage/output-token";
 
 /** Render grader (loop doctrine: never deliver unverified). The wrapper
  *  reports the MEASURED output duration; the scripted timeline (recomputed
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
       await failJob(pb, token, job, verdict.reason ?? "render_verification_failed");
       return Response.json({ ok: true, graded: "rejected" });
     }
-    await completeJob(pb, token, job, `/api/montage/output/${encodeURIComponent(montageJob)}`, null);
+    await completeJob(pb, token, job, `/api/montage/output/${encodeURIComponent(montageJob)}?t=${outputToken(montageJob)}`, null);
   } else {
     await failJob(pb, token, job, "studio_render_failed");
   }

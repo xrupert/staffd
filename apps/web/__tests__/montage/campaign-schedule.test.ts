@@ -52,3 +52,24 @@ describe("POST /api/campaign/schedule", () => {
     expect(writes[0]?.scheduled_date).toBe("2026-08-05");
   });
 });
+
+// ── output capability token (delivery fix) ─────────────────────────────────
+import { outputToken, verifyOutputToken } from "../../app/api/_lib/montage/output-token";
+
+describe("output capability token", () => {
+  it("round-trips for the same job id", () => {
+    vi.stubEnv("MONTAGE_WEBHOOK_SECRET", "s3cret");
+    const t = outputToken("job1");
+    expect(verifyOutputToken("job1", t)).toBe(true);
+    expect(verifyOutputToken("job2", t)).toBe(false);
+    expect(verifyOutputToken("job1", "forged")).toBe(false);
+    vi.unstubAllEnvs();
+  });
+
+  it("fails closed with no secret", () => {
+    vi.stubEnv("MONTAGE_WEBHOOK_SECRET", "");
+    vi.stubEnv("MONTAGE_API_KEY", "");
+    expect(verifyOutputToken("job1", outputToken("job1"))).toBe(false);
+    vi.unstubAllEnvs();
+  });
+});
