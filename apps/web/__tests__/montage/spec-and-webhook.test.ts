@@ -115,7 +115,26 @@ vi.mock("../../app/api/_lib/generation/jobs", () => ({
   failJob: async () => { jobs.failed.push("x"); },
 }));
 
-import { POST as webhook } from "../../app/api/webhooks/montage/route";
+import { POST as webhook, gradeRender } from "../../app/api/webhooks/montage/route";
+
+describe("gradeRender — the render grader (never deliver unverified)", () => {
+  const SCRIPTED = `My video\n\n${INCIDENT_SCRIPT}`; // scripted through 0:45
+
+  it("passes when measured duration matches the scripted timeline", () => {
+    expect(gradeRender(SCRIPTED, 44.9).pass).toBe(true);
+  });
+
+  it("rejects a render under half the scripted length (the 8s-clip class)", () => {
+    const v = gradeRender(SCRIPTED, 8.2);
+    expect(v.pass).toBe(false);
+    expect(v.reason).toContain("render_verification_failed");
+  });
+
+  it("absent evidence passes (grader acts only on affirmative mismatch)", () => {
+    expect(gradeRender(SCRIPTED, undefined).pass).toBe(true);
+    expect(gradeRender("no beats here", 3).pass).toBe(true);
+  });
+});
 
 function signed(body: string, secret: string): Request {
   const sig = crypto.createHmac("sha256", secret).update(body).digest("hex");
