@@ -353,6 +353,20 @@ describe("CommandCenter B2 pins — inline media + schedule + W35 email", () => 
   });
 });
 
+describe("DepartmentRoom FC-2c pins — integration chips run the confirm-to-commit paths", () => {
+  const src = readFileSync(join(COMPONENTS, "DepartmentRoom.tsx"), "utf8");
+
+  it("registers the three FC-2 actions on the same functions as the static buttons", () => {
+    expect(src).toContain("send_to_crm: () => { addToCRM(); }");
+    expect(src).toContain("send_email_campaign: () => { sendCampaign(); }");
+    expect(src).toContain("send_for_signature: () => { sendForSignature(); }");
+  });
+
+  it("still no open_support_ticket handler (hidden until create_support_thread intent ships)", () => {
+    expect(src).not.toContain("open_support_ticket:");
+  });
+});
+
 describe("W63 emission seam preserved (W64 must not change the payload)", () => {
   it("ActionAffordances still emits staffd:action-select with {candidate, context}", () => {
     const src = readFileSync(join(COMPONENTS, "ActionAffordances.tsx"), "utf8");

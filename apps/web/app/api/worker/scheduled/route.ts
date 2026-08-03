@@ -21,6 +21,7 @@ import { materializePlan } from "../../_lib/workflow-materialize";
 import { isRecurrence, nextRecurrenceDate } from "../../_lib/recurrence";
 import { produceStudioVideo } from "../../_lib/montage/produce-core";
 import { montageConfigured } from "../../_lib/integrations/montage/client";
+import { buildDueFilter, claimScheduledItem } from "../../_lib/worker/wake-gate";
 
 const anthropic = new Anthropic();
 
@@ -110,8 +111,10 @@ export async function GET(req: Request) {
     const token = await getAdminToken(pbUrl);
     const headers = { Authorization: token, "Content-Type": "application/json" };
 
-    // Fetch all planned items due today or earlier
-    const encoded = encodeURIComponent(`(status='planned'&&scheduled_date<='${todayKey}')`);
+    // Wake-gate — due planned rows plus stale "working" rows (crashed-runner
+    // reclaim). Each row is then individually claimed before processing so
+    // overlapping cron fires never double-produce.
+    const encoded = encodeURIComponent(buildDueFilter(todayKey, Date.now()));
     const listRes = await fetch(
       `${pbUrl}/api/collections/scheduled_content/records?filter=${encoded}&perPage=50&sort=scheduled_date`,
       { headers: { Authorization: token } }
@@ -135,12 +138,11 @@ export async function GET(req: Request) {
       }>;
     };
 
+    // Note: NO early return on empty — the daily rollups below must run
+    // every fire (previously a quiet day silently skipped them).
     const items = listData.items ?? [];
-    if (items.length === 0) {
-      return Response.json({ ok: true, processed: 0, message: "No items due" });
-    }
 
-    const results: Array<{ id: string; status: "completed" | "failed"; error?: string }> = [];
+    const results: Array<{ id: string; status: "completed" | "failed" | "skipped"; error?: string }> = [];
 
     // PR-Loop-V4 (#8) — after an item lands (either outcome), a recurring
     // item schedules its next occurrence. Cloned on failure too, so one
@@ -168,6 +170,14 @@ export async function GET(req: Request) {
     };
 
     for (const item of items) {
+      // Wake-gate — claim before any expensive work; a row another runner
+      // already claimed (or finished) is skipped, not double-processed.
+      const claimed = await claimScheduledItem(pbUrl, headers, item.id);
+      if (!claimed) {
+        results.push({ id: item.id, status: "skipped", error: "claimed_elsewhere" });
+        continue;
+      }
+
       // PR-Loop-V4 (#8) — recurring staff: a "workflow_goal" item runs the
       // SAME planner → critic → materialize pipeline as an interactive L4
       // ask, but always review-gated (HITL on anything outbound). The

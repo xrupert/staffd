@@ -14,6 +14,7 @@ import { bridgingIndustryFor } from "../_lib/industry";
 import { trySuperAdminFromToken } from "../_lib/auth/super-admin";
 import { logSuperAdminUsage } from "../_lib/auth/super-admin-logging";
 import { ensureConversationThreadRow } from "../_lib/conversations";
+import { buildIntegrationReadsBlock } from "../_lib/integrations/context-reads";
 
 const anthropic = new Anthropic();
 
@@ -199,9 +200,12 @@ export async function POST(req: Request) {
     const vault = pbToken && userId
       ? await fetchVault(pbToken, userId, { clientId })
       : null;
-    const [voiceBlock, trialStateForPacks] = await Promise.all([
+    // FC-1d — live reads from connected tools ride the same parallel fetch;
+    // fail-open + time-boxed inside the helper, so worst case adds nothing.
+    const [voiceBlock, trialStateForPacks, integrationReadsBlock] = await Promise.all([
       getVoiceBlock(userId ?? undefined, department),
       userId ? resolveDepartments(userId, { vaultIndustry: bridgingIndustryFor(vault) }) : Promise.resolve(null),
+      userId ? buildIntegrationReadsBlock(userId, department) : Promise.resolve(""),
     ]);
     const vaultBlock = renderVaultBlock(vault, { detail: "full" });
     const activePacks = trialStateForPacks?.activePacks ?? [];
@@ -254,7 +258,10 @@ export async function POST(req: Request) {
       (agentId ? getAgent(agentId) : null)
       ?? (task?.trim() ? routeTask(task, department as Department, { activePacks }) : null)
       ?? getDepartmentDefaultAgent(department, activePacks);
-    let systemPrompt = (resolvedAgent?.systemPrompt ?? "") + vaultBlock + voiceBlock;
+    let systemPrompt = (resolvedAgent?.systemPrompt ?? "") + vaultBlock + voiceBlock + integrationReadsBlock;
+    if (integrationReadsBlock) {
+      console.log(`[agent] FC-1d live-data block injected: dept=${department} chars=${integrationReadsBlock.length}`);
+    }
 
     // V5 — LIVING MEMORY goes in right after the vault block, before the
     // legacy memory paths below. When this is populated, the non-CEO

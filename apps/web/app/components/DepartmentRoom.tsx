@@ -522,6 +522,12 @@ export default function DepartmentRoom({
       }
       handoffToDepartment("marketing");
     },
+    // FC-2c — the classifier's integration chips run the SAME confirm-to-commit
+    // paths as the static buttons (pre-filled intent → ConfirmActionModal →
+    // /api/intent/commit). No duplicated backend paths.
+    send_to_crm: () => { addToCRM(); },
+    send_email_campaign: () => { sendCampaign(); },
+    send_for_signature: () => { sendForSignature(); },
   });
 
   async function copyOutput() {
