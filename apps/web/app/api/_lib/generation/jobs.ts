@@ -155,6 +155,28 @@ export async function completeJob(
   // W95.8 — persist a customer notification (best-effort; fires only on the
   // newly-completed transition, never on the idempotent re-poll short-circuit).
   void notifyUser(pb, token, job.user, "generation.ready", { kind: job.kind, url: resultUrl });
+  // P4a — every finished visual is a LIBRARY asset, not just a chat message.
+  // Single completion point = every path (muapi, edits, Studio) lands here.
+  // Best-effort; runs only on the completing transition (idempotent re-polls
+  // short-circuit above), so no duplicates.
+  void (async () => {
+    try {
+      const isStudio = job.model === "staffd-studio";
+      const label = job.kind === "video" ? "video" : "visual";
+      const titleLine = (job.prompt ?? "").split("\n")[0]?.trim().slice(0, 120) || `Your ${label}`;
+      await fetch(`${pb}/api/collections/documents/records`, {
+        method: "POST",
+        headers: adminHeaders(token),
+        body: JSON.stringify({
+          user: job.user,
+          department: "design",
+          agent_name: isStudio ? "Studio" : "Design",
+          prompt: titleLine,
+          output: `Your ${label} is ready.\n\n[▶ Watch / download](${resultUrl})\n\n_Produced ${isStudio ? "by your Studio from the full script" : "by your Design team"}. Find it any time right here in your Library._`,
+        }),
+      });
+    } catch { /* the Library entry is a convenience — never blocks delivery */ }
+  })();
   return { status: "completed", url: resultUrl, remaining, ...(creditWarning ? { creditWarning } : {}) };
 }
 
