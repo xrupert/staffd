@@ -90,20 +90,28 @@ export function parseBeats(script: string): SpecBeat[] {
 const DEFAULT_BEAT_SECONDS = 4;
 
 /** Build a v1 typed-scene timeline. Every cut is a text-driven Remotion
- *  scene; durations honor the script's timing ranges when present. */
-export function buildEditDecisions(script: string, title: string): Record<string, unknown> | null {
+ *  scene; durations honor the script's timing ranges when present.
+ *  Field names match the Explainer composition's Cut contract exactly:
+ *  typed scenes read `text` (+ `subtitle`), NOT title/body — the wrong
+ *  names render black scenes (verified against the composer source). */
+export function buildEditDecisions(
+  script: string,
+  title: string,
+  opts?: { outroText?: string },
+): Record<string, unknown> | null {
   const beats = parseBeats(script);
   if (beats.length === 0) return null;
 
   let clock = 0;
-  const cuts = beats.map((b, i) => {
+  const cuts: Array<Record<string, unknown>> = beats.map((b, i) => {
     const dur = b.startS !== undefined && b.endS !== undefined && b.endS > b.startS
       ? b.endS - b.startS
       : DEFAULT_BEAT_SECONDS;
     const start = clock;
     clock += dur;
-    const isHook = /hook/i.test(b.label);
+    const isHook = /hook/i.test(b.label) && i === 0;
     const isCta = /cta|close/i.test(b.label);
+    const primary = b.onScreen ?? b.text;
     return {
       id: `cut-${i + 1}`,
       type: isHook ? "hero_title" : isCta ? "callout" : "text_card",
@@ -111,12 +119,28 @@ export function buildEditDecisions(script: string, title: string): Record<string
       out_seconds: clock,
       layer: "primary",
       transition_in: i === 0 ? "fade" : "cut",
-      transition_out: i === beats.length - 1 ? "fade" : "cut",
-      // Typed-scene props (Remotion Explainer family)
-      title: b.onScreen ?? b.text.slice(0, 60),
-      body: b.onScreen ? b.text : undefined,
+      transition_out: "cut",
+      // Explainer Cut contract: `text` carries the on-screen copy.
+      text: primary.slice(0, 140),
+      subtitle: isHook && b.onScreen && b.text !== b.onScreen ? b.text.slice(0, 90) : undefined,
     };
   });
+
+  // S4 — branded fade-to-black close (the owner's mark on every video).
+  const outro = (opts?.outroText ?? "").trim();
+  if (outro) {
+    cuts.push({
+      id: "outro",
+      type: "logo_outro",
+      in_seconds: clock,
+      out_seconds: clock + 3,
+      layer: "primary",
+      transition_in: "fade",
+      transition_out: "fade",
+      text: outro.slice(0, 60),
+    });
+    clock += 3;
+  }
 
   return {
     version: "1.0",

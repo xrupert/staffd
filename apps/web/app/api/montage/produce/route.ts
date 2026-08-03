@@ -13,7 +13,7 @@
  */
 
 import { whoAmI } from "../../_lib/integrations/identity";
-import { getAdminToken, pbUrl } from "../../_lib/pb";
+import { getAdminToken, pbUrl, pbEscape } from "../../_lib/pb";
 import { montageConfigured, createProject, startRenderProps } from "../../_lib/integrations/montage/client";
 import { buildEditDecisions } from "../../_lib/montage/spec";
 import { createJob, fingerprintFor } from "../../_lib/generation/jobs";
@@ -37,7 +37,22 @@ export async function POST(req: Request) {
   const tier = String(body.tier ?? "pro");
   if (script.length < 20) return Response.json({ error: "script_required" }, { status: 400 });
 
-  const spec = buildEditDecisions(script, title);
+  // S4 — the branded outro carries the OWNER's business name (their mark
+  // on every video). Best-effort vault read; absent name = no outro.
+  let outroText = "";
+  try {
+    const token0 = await getAdminToken();
+    const bizRes = await fetch(
+      `${pbUrl()}/api/collections/businesses/records?filter=${encodeURIComponent(`(user='${pbEscape(me.id)}')`)}&perPage=1&fields=business_name`,
+      { headers: { Authorization: token0 } },
+    );
+    if (bizRes.ok) {
+      const biz = (await bizRes.json()) as { items?: Array<{ business_name?: string }> };
+      outroText = (biz.items?.[0]?.business_name ?? "").trim();
+    }
+  } catch { /* outro is optional */ }
+
+  const spec = buildEditDecisions(script, title, { outroText });
   if (!spec) {
     return Response.json({ error: "script_unparseable", detail: "No Hook/Beat/CTA structure found." }, { status: 422 });
   }

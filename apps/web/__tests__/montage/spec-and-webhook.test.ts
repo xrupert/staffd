@@ -91,6 +91,23 @@ describe("buildEditDecisions", () => {
     expect(cuts[1]).toMatchObject({ in_seconds: 3, out_seconds: 20 });
     expect(cuts[3]).toMatchObject({ type: "callout", out_seconds: 30 });
     expect(spec).toMatchObject({ render_runtime: "remotion", composition_mode: "templated" });
+    // Explainer Cut contract: on-screen copy rides `text` (title/body render BLACK).
+    expect(cuts[0]?.text).toBeTruthy();
+    expect(cuts.every((c) => typeof c.text === "string" && (c.text as string).length > 0)).toBe(true);
+  });
+
+  it("appends a branded logo_outro when outroText is provided", () => {
+    const spec = buildEditDecisions(SCRIPT, "Directing demo", { outroText: "Acme Fence Co" })!;
+    const cuts = spec.cuts as Array<Record<string, unknown>>;
+    const outro = cuts[cuts.length - 1]!;
+    expect(outro).toMatchObject({ type: "logo_outro", text: "Acme Fence Co" });
+    expect(outro.out_seconds).toBe((outro.in_seconds as number) + 3);
+  });
+
+  it("no outro without outroText", () => {
+    const spec = buildEditDecisions(SCRIPT, "x")!;
+    const cuts = spec.cuts as Array<Record<string, unknown>>;
+    expect(cuts.some((c) => c.type === "logo_outro")).toBe(false);
   });
 
   it("returns null for unstructured text (caller falls back to single-clip)", () => {
