@@ -87,6 +87,7 @@ export async function POST(req: Request) {
       templateContent,
       clientId,
       threadId: incomingThreadId,
+      history: rawHistory,
     } = (await req.json()) as {
       task: string;
       department: string;
@@ -96,7 +97,14 @@ export async function POST(req: Request) {
       templateContent?: string;
       clientId?: string; // Agency: scope vault to this client
       threadId?: string; // V5 — optional client-supplied conversation thread id
+      // Memory fix — recent conversation turns so the specialist remembers
+      // its own clarifying questions (previously single-turn by construction).
+      history?: Array<{ role: "user" | "assistant"; content: string }>;
     };
+    const history = (Array.isArray(rawHistory) ? rawHistory : [])
+      .filter((m) => (m?.role === "user" || m?.role === "assistant") && typeof m?.content === "string" && m.content.trim().length > 0)
+      .slice(-8)
+      .map((m) => ({ role: m.role, content: m.content.slice(0, 4000) }));
 
     // h6f — never trust the body `userId`. Resolve the trusted id from the
     // pbToken: a user session binds to its own id; the internal worker
@@ -340,7 +348,7 @@ export async function POST(req: Request) {
     // We fall through to the Anthropic Haiku streaming path below so the
     // user still gets their work. Groq is a cost optimization, never a
     // single point of failure for short-form generation.
-    if (choice.provider === "groq") {
+    if (choice.provider === "groq" && history.length === 0) {
       try {
         const result = await callGroq(choice.model, systemPrompt, task, 8192);
         const assistantText = result.text;
@@ -387,7 +395,7 @@ export async function POST(req: Request) {
           cache_control: { type: "ephemeral" }, // cache system prompt — vault context is expensive to reprocess
         },
       ],
-      messages: [{ role: "user", content: task }],
+      messages: [...history, { role: "user" as const, content: task }],
     });
 
     const readable = new ReadableStream({

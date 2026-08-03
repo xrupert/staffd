@@ -224,6 +224,7 @@ export default function CommandCenter() {
     task: string;
     output: string;
     userGoal: string;
+    agentId?: string;
   } | null>(null);
   // W68 — anchors the TOP of the newest response into view (once, at
   // generation start, only when it's below the viewport). After that,
@@ -697,6 +698,23 @@ export default function CommandCenter() {
     const newMessages: Message[] = [...messages, { role: "user", content }];
     setMessages(newMessages);
     setInput("");
+    // Memory fix — when the specialist just asked a clarifying question,
+    // the user's reply goes STRAIGHT back to that specialist with full
+    // history (the router funnel was lossily re-summarizing answers and
+    // sometimes re-routing them to a different specialist).
+    if (agentAwaitingReply && lastCompleted) {
+      setPhase("generating");
+      const userId0 = pb.authStore.record?.id ?? "";
+      const pbToken0 = pb.authStore.token;
+      void (async () => {
+        try {
+          await runAgent(lastCompleted.department, content, userId0, pbToken0, lastCompleted.agentId);
+        } finally {
+          setPhase("done");
+        }
+      })();
+      return;
+    }
     setPhase("routing");
     setTheater({});
 
@@ -1021,6 +1039,13 @@ export default function CommandCenter() {
           clientId: activeClientId ?? undefined,
           // Phase 9 — threadId persists conversation turns across reloads.
           threadId: threadId || undefined,
+          // Memory fix — recent turns so the specialist remembers its own
+          // clarifying questions (was single-turn by construction).
+          history: messages
+            .filter((m) => m.content.trim().length > 0 && !m.media)
+            .slice(-8)
+            .map((m) => ({ role: m.role, content: cleanContent(m.content).slice(0, 4000) }))
+            .filter((m) => m.content.trim().length > 0),
         }),
       });
       if (!res.ok) {
@@ -1104,7 +1129,7 @@ export default function CommandCenter() {
         }
         return task;
       })();
-      setLastCompleted({ department, task, output: completedOutput, userGoal });
+      setLastCompleted({ department, task, output: completedOutput, userGoal, agentId });
       // PR-Tranche-2.6.5 (W38) — skip handoff fetch when agent is asking
       // a clarifying question. Handoff suggestions are nonsense if the
       // work isn't done — the user needs to answer first.
