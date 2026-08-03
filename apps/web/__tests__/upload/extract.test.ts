@@ -61,5 +61,7 @@ describe("extractText", () => {
     const r = await extractText(new Uint8Array(Buffer.from(pdf, "latin1")), "pdf");
     expect(r.ok).toBe(true);
     expect(r.text).toMatch(/Hello STAFFD/);
-  });
+    // 30s ceiling — real pdf-parse under full-suite CPU contention has
+    // repeatedly tripped the default 5s as a pure timing flake.
+  }, 30_000);
 });
