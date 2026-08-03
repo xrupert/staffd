@@ -19,6 +19,8 @@ import { pickModel, callGroq, computeCostUsd } from "../../_lib/llm-router";
 import { planGoal } from "../../_lib/orchestrator/plan-goal";
 import { materializePlan } from "../../_lib/workflow-materialize";
 import { isRecurrence, nextRecurrenceDate } from "../../_lib/recurrence";
+import { produceStudioVideo } from "../../_lib/montage/produce-core";
+import { montageConfigured } from "../../_lib/integrations/montage/client";
 
 const anthropic = new Anthropic();
 
@@ -170,6 +172,29 @@ export async function GET(req: Request) {
       // SAME planner → critic → materialize pipeline as an interactive L4
       // ask, but always review-gated (HITL on anything outbound). The
       // per-minute drain then executes it; StaffWorkQueue holds the gate.
+      // P3 — campaign runner: a scheduled video enters Studio production
+      // on its calendar date. The webhook + render grader + bell handle
+      // delivery; recurrence (if any) reschedules via scheduleNext below.
+      if (item.kind === "video_production") {
+        if (!montageConfigured()) {
+          await fetch(`${pbUrl}/api/collections/scheduled_content/records/${item.id}`, {
+            method: "PATCH", headers, body: JSON.stringify({ status: "failed" }),
+          }).catch(() => null);
+          results.push({ id: item.id, status: "failed", error: "montage_not_configured" });
+          await scheduleNext(item);
+          continue;
+        }
+        const title = item.task.split("\n")[0]?.replace(/[#*]/g, "").trim().slice(0, 100) || "Scheduled video";
+        const r = await produceStudioVideo({ userId: item.user, script: item.task, title, tier: "pro" });
+        await fetch(`${pbUrl}/api/collections/scheduled_content/records/${item.id}`, {
+          method: "PATCH", headers,
+          body: JSON.stringify({ status: r.ok ? "completed" : "failed" }),
+        }).catch(() => null);
+        results.push(r.ok ? { id: item.id, status: "completed" } : { id: item.id, status: "failed", error: r.error });
+        await scheduleNext(item);
+        continue;
+      }
+
       if (item.kind === "workflow_goal") {
         try {
           const { plan } = await planGoal(item.task);

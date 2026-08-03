@@ -1,22 +1,16 @@
 /**
  * POST /api/montage/produce  (S3 — the Studio path)
  *
- * Owner-authed. Body: { script, title, tier }. Turns one scripted video
- * into a complete assembled render via the Montage Service: spec
- * generation → project → render job, recorded on the EXISTING
- * generation_jobs ledger (prediction_id = montage job id) so the webhook,
- * notifications (generation.ready), and polling all reuse the muapi
- * machinery unchanged.
- *
- * 503 montage_not_configured when the service env is absent — callers
- * fall back to the single-clip path (never a dead end).
+ * Owner-authed. Body: { script, title, tier }. Delegates to the shared
+ * produce-core (also used by the campaign runner's scheduled worker):
+ * vault outro → spec → project → render job on the generation_jobs
+ * ledger. 503 montage_not_configured when the service env is absent —
+ * callers fall back to the single-clip path (never a dead end).
  */
 
 import { whoAmI } from "../../_lib/integrations/identity";
-import { getAdminToken, pbUrl, pbEscape } from "../../_lib/pb";
-import { montageConfigured, createProject, startRenderProps } from "../../_lib/integrations/montage/client";
-import { buildEditDecisions } from "../../_lib/montage/spec";
-import { createJob, fingerprintFor } from "../../_lib/generation/jobs";
+import { montageConfigured } from "../../_lib/integrations/montage/client";
+import { produceStudioVideo } from "../../_lib/montage/produce-core";
 
 export async function POST(req: Request) {
   const me = await whoAmI(req);
@@ -37,48 +31,12 @@ export async function POST(req: Request) {
   const tier = String(body.tier ?? "pro");
   if (script.length < 20) return Response.json({ error: "script_required" }, { status: 400 });
 
-  // S4 — the branded outro carries the OWNER's business name (their mark
-  // on every video). Best-effort vault read; absent name = no outro.
-  let outroText = "";
-  try {
-    const token0 = await getAdminToken();
-    const bizRes = await fetch(
-      `${pbUrl()}/api/collections/businesses/records?filter=${encodeURIComponent(`(user='${pbEscape(me.id)}')`)}&perPage=1&fields=business_name`,
-      { headers: { Authorization: token0 } },
-    );
-    if (bizRes.ok) {
-      const biz = (await bizRes.json()) as { items?: Array<{ business_name?: string }> };
-      outroText = (biz.items?.[0]?.business_name ?? "").trim();
+  const result = await produceStudioVideo({ userId: me.id, script, title, tier });
+  if (!result.ok) {
+    if (result.error === "script_unparseable") {
+      return Response.json({ error: "script_unparseable", detail: "No Hook/Beat/CTA structure found." }, { status: 422 });
     }
-  } catch { /* outro is optional */ }
-
-  const spec = buildEditDecisions(script, title, { outroText });
-  if (!spec) {
-    return Response.json({ error: "script_unparseable", detail: "No Hook/Beat/CTA structure found." }, { status: 422 });
+    return Response.json({ error: result.error }, { status: result.error === "studio_unavailable" ? 502 : 500 });
   }
-
-  try {
-    const projectId = await createProject(title);
-    const jobId = await startRenderProps(projectId, spec);
-
-    const pb = pbUrl();
-    const token = await getAdminToken();
-    const recordId = await createJob(pb, token, {
-      user: me.id,
-      kind: "video",
-      model: "staffd-studio",
-      prompt: `${title}\n\n${script.slice(0, 1500)}`,
-      aspect_ratio: "9:16",
-      prediction_id: jobId,
-      fingerprint: fingerprintFor(me.id, "video", script, "9:16", jobId),
-      tier,
-      credit_weight: 0, // Studio cost accounting lands in S5 (unit-economics sheet)
-    });
-
-    if (!recordId) return Response.json({ error: "ledger_write_failed" }, { status: 500 });
-    return Response.json({ ok: true, jobId: recordId, montageJob: jobId, projectId });
-  } catch (err) {
-    console.error("[montage.produce]", err);
-    return Response.json({ error: "studio_unavailable" }, { status: 502 });
-  }
+  return Response.json({ ok: true, jobId: result.ledgerId, montageJob: result.montageJob, projectId: result.projectId });
 }

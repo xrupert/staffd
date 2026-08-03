@@ -1533,6 +1533,37 @@ export default function CommandCenter() {
                     <p className="text-xs mt-1.5" style={{ color: "#4A4A65" }}>
                       👤 = needs you on camera — script ready for your shoot
                     </p>
+                    {/* P3 — campaign runner: put the whole series on the
+                        calendar; the staff produces each video on cadence. */}
+                    <button
+                      onClick={() => {
+                        void (async () => {
+                          try {
+                            const res = await fetch("/api/campaign/schedule", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+                              body: JSON.stringify({ plan: lastCompleted.output }),
+                            });
+                            const d = await res.json();
+                            if (res.ok && d.ok) {
+                              const first = d.scheduled?.[0];
+                              setMessages((prev) => [...prev, {
+                                role: "assistant",
+                                content: `Campaign scheduled — ${d.scheduled.length} videos go into production on a Mon/Wed/Fri cadence, starting ${first?.date}. Each lands at your bell for review when it's ready.${d.camera_facing_skipped ? ` (${d.camera_facing_skipped} camera-facing script${d.camera_facing_skipped > 1 ? "s are" : " is"} yours to film — they're written and ready.)` : ""} Find them on your Calendar.`,
+                              }]);
+                            } else {
+                              setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't schedule the campaign — try again in a moment." }]);
+                            }
+                          } catch {
+                            setMessages((prev) => [...prev, { role: "assistant", content: "Couldn't schedule the campaign — try again in a moment." }]);
+                          }
+                        })();
+                      }}
+                      className="mt-2 text-xs px-3 py-1.5 rounded-lg transition-colors hover:text-white"
+                      style={{ background: "rgba(91,33,232,0.12)", border: "1px solid rgba(91,33,232,0.30)", color: "#A07BFF", cursor: "pointer" }}
+                    >
+                      🗓️ Schedule this campaign — produce every video on cadence
+                    </button>
                   </div>
                 );
               })()}
