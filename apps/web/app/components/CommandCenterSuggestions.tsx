@@ -5,6 +5,9 @@ import pb from "../../lib/pb";
 import ExecutiveAttentionCard, {
   type ExecutiveRecommendation,
 } from "./ExecutiveAttentionCard";
+import ExecutiveInbox, {
+  type ExecutiveInboxItem,
+} from "./ExecutiveInbox";
 import {
   rankOutcomesByReadiness,
   type CapabilityReadiness,
@@ -117,6 +120,7 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
   const [capabilities, setCapabilities] = useState<CapabilityReadiness[] | null>(null);
   const [missions, setMissions] = useState<MissionBrief[]>([]);
   const [recommendations, setRecommendations] = useState<ExecutiveRecommendation[]>([]);
+  const [inboxItems, setInboxItems] = useState<ExecutiveInboxItem[]>([]);
   const [starting, setStarting] = useState<StaffOutcomeId | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const baseOutcomes = useMemo(() => suggestedOutcomes(), []);
@@ -139,7 +143,11 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
         if (!response.ok) return null;
         return response.json() as Promise<{ recommendations?: ExecutiveRecommendation[] }>;
       }),
-    ]).then(([capabilityResult, missionResult, recommendationResult]) => {
+      fetch("/api/executive/inbox", { headers }).then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ items?: ExecutiveInboxItem[] }>;
+      }),
+    ]).then(([capabilityResult, missionResult, recommendationResult, inboxResult]) => {
       if (capabilityResult.status === "fulfilled") {
         setCapabilities(capabilityResult.value?.capabilities ?? null);
       }
@@ -148,6 +156,9 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
       }
       if (recommendationResult.status === "fulfilled") {
         setRecommendations(recommendationResult.value?.recommendations ?? []);
+      }
+      if (inboxResult.status === "fulfilled") {
+        setInboxItems(inboxResult.value?.items ?? []);
       }
     });
   }, []);
@@ -210,6 +221,7 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
 
   return (
     <section className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
+      <ExecutiveInbox items={inboxItems} />
       {recommendations[0] && <ExecutiveAttentionCard recommendation={recommendations[0]} />}
       <ExecutiveBriefing missions={missions} />
 
