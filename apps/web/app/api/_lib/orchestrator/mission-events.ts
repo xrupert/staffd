@@ -44,7 +44,11 @@ export function summarizeMissionTimeline(
     events.filter((event) => event.type === "step_completed" && event.step_id).map((event) => event.step_id!),
   );
   const spentCredits = events.reduce((sum, event) => sum + Math.max(0, event.cost_credits ?? 0), 0);
-  const terminal = status === "completed" ? 100 : status === "failed" ? Math.min(99, totalSteps ? Math.round((completedStepIds.size / totalSteps) * 100) : 0) : null;
+  const terminal = status === "completed"
+    ? 100
+    : status === "failed"
+      ? Math.min(99, totalSteps ? Math.round((completedStepIds.size / totalSteps) * 100) : 0)
+      : null;
 
   return {
     progressPercent: terminal ?? (totalSteps ? Math.round((completedStepIds.size / totalSteps) * 100) : 0),
@@ -56,16 +60,37 @@ export function summarizeMissionTimeline(
   };
 }
 
-export async function listMissionEvents(userId: string, missionId: string): Promise<MissionEventRecord[]> {
+async function fetchMissionEvents(filter: string): Promise<MissionEventRecord[]> {
   const token = await getAdminToken();
-  const filter = `user = '${pbEscape(userId)}' && mission = '${pbEscape(missionId)}'`;
-  const params = new URLSearchParams({ filter, sort: "+created", perPage: "200" });
+  const params = new URLSearchParams({ filter, sort: "+created", perPage: "500" });
   const response = await fetch(`${pbUrl()}/api/collections/mission_events/records?${params}`, {
     headers: { Authorization: token },
   });
   if (!response.ok) throw new Error(`Mission events could not be loaded (${response.status})`);
   const payload = (await response.json()) as { items?: MissionEventRecord[] };
   return payload.items ?? [];
+}
+
+export function groupMissionEvents(
+  events: readonly MissionEventRecord[],
+): Map<string, MissionEventRecord[]> {
+  const grouped = new Map<string, MissionEventRecord[]>();
+  for (const event of events) {
+    const missionEvents = grouped.get(event.mission) ?? [];
+    missionEvents.push(event);
+    grouped.set(event.mission, missionEvents);
+  }
+  return grouped;
+}
+
+export async function listMissionEvents(userId: string, missionId: string): Promise<MissionEventRecord[]> {
+  return fetchMissionEvents(
+    `user = '${pbEscape(userId)}' && mission = '${pbEscape(missionId)}'`,
+  );
+}
+
+export async function listMissionEventsForUser(userId: string): Promise<MissionEventRecord[]> {
+  return fetchMissionEvents(`user = '${pbEscape(userId)}'`);
 }
 
 export async function appendMissionEvent(
