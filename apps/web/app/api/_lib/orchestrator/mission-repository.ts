@@ -1,5 +1,6 @@
 import { adminHeaders, getAdminToken, pbUrl } from "../pb";
 import type { MissionPlan, MissionStatus } from "./mission-control";
+import { createPendingMissionEvent, type PendingMissionEvent } from "./mission-outbox";
 import type { StaffOutcomeId } from "./outcome-catalog";
 
 export type MissionRecord = {
@@ -13,6 +14,7 @@ export type MissionRecord = {
   approval_required: boolean;
   plan: MissionPlan;
   evidence: string[];
+  pending_events?: PendingMissionEvent[];
   correlation_id: string;
   created?: string;
   updated?: string;
@@ -40,12 +42,10 @@ function defaultDeps(): MissionRepositoryDeps {
         headers: adminHeaders(token),
         body: JSON.stringify(body),
       });
-
       if (!response.ok) {
         const detail = (await response.text().catch(() => "")).slice(0, 300);
         throw new Error(`Mission persistence failed (${response.status}): ${detail}`);
       }
-
       return response.json() as Promise<MissionRecord>;
     },
   };
@@ -58,16 +58,27 @@ export async function createMission(
   if (!input.userId.trim()) throw new Error("Mission owner is required");
   if (!input.correlationId.trim()) throw new Error("Mission correlation ID is required");
 
+  const approvalRequired = input.approvalRequired;
   return deps.createRecord({
     user: input.userId,
     outcome_id: input.outcomeId,
     goal: input.plan.goal,
-    status: input.approvalRequired ? "waiting_for_approval" : input.plan.status,
+    status: approvalRequired ? "waiting_for_approval" : input.plan.status,
     risk: input.plan.risk,
     budget_credits: input.plan.budgetCredits,
-    approval_required: input.approvalRequired,
+    approval_required: approvalRequired,
     plan: input.plan,
     evidence: input.evidence,
+    pending_events: [
+      createPendingMissionEvent({
+        key: `${input.correlationId}:created`,
+        type: "mission_created",
+        message: approvalRequired
+          ? "Mission created and waiting for your approval."
+          : "Mission created and ready for planning.",
+        evidence: { outcomeId: input.outcomeId, requiredEvidence: input.evidence },
+      }),
+    ],
     correlation_id: input.correlationId,
   });
 }
