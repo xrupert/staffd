@@ -1,5 +1,6 @@
 import { adminHeaders, getAdminToken, pbEscape, pbFirst, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
+import { appendMissionEvent, type MissionEventType } from "../../_lib/orchestrator/mission-events";
 import type { MissionRecord } from "../../_lib/orchestrator/mission-repository";
 
 type MissionAction = "approve" | "resume" | "cancel";
@@ -8,6 +9,12 @@ const NEXT_STATUS: Record<MissionAction, MissionRecord["status"]> = {
   approve: "planned",
   resume: "planned",
   cancel: "failed",
+};
+
+const EVENT_BY_ACTION: Record<MissionAction, { type: MissionEventType; message: string }> = {
+  approve: { type: "mission_approved", message: "You approved this mission." },
+  resume: { type: "mission_started", message: "Mission resumed safely." },
+  cancel: { type: "mission_cancelled", message: "Mission cancelled by the owner." },
 };
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -51,5 +58,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
 
   const updated = (await response.json()) as MissionRecord;
-  return Response.json({ mission: updated });
+  let eventRecorded = true;
+  try {
+    const event = EVENT_BY_ACTION[body.action];
+    await appendMissionEvent({
+      user: user.id,
+      mission: mission.id,
+      type: event.type,
+      message: event.message,
+    });
+  } catch (eventError) {
+    eventRecorded = false;
+    console.error("mission lifecycle event failed:", eventError);
+  }
+
+  return Response.json({ mission: updated, eventRecorded });
 }

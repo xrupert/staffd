@@ -1,6 +1,7 @@
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { whoAmI } from "../_lib/integrations/identity";
 import { planMission } from "../_lib/orchestrator/mission-control";
+import { appendMissionEvent } from "../_lib/orchestrator/mission-events";
 import { createMission, type MissionRecord } from "../_lib/orchestrator/mission-repository";
 import { outcomeById, type StaffOutcomeId } from "../_lib/orchestrator/outcome-catalog";
 
@@ -61,12 +62,29 @@ export async function POST(request: Request) {
       correlationId: correlationId(),
     });
 
+    let eventRecorded = true;
+    try {
+      await appendMissionEvent({
+        user: user.id,
+        mission: mission.id,
+        type: "mission_created",
+        message: mission.approval_required
+          ? "Mission created and waiting for your approval."
+          : "Mission created and ready for planning.",
+        evidence: { outcomeId: outcome.id, requiredEvidence: outcome.evidence },
+      });
+    } catch (eventError) {
+      eventRecorded = false;
+      console.error("mission creation event failed:", eventError);
+    }
+
     return Response.json({
       missionId: mission.id,
       status: mission.status,
       goal: mission.goal,
       approvalRequired: mission.approval_required,
       plan: mission.plan,
+      eventRecorded,
     }, { status: 201 });
   } catch (error) {
     console.error("mission intake failed:", error);
