@@ -28,6 +28,10 @@
       "schedule": "* * * * *"
     },
     {
+      "path": "/api/worker/mission-sync",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/drain-mission-outbox",
       "schedule": "* * * * *"
     },
