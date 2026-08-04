@@ -15,15 +15,21 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "STAFFD — Hire your business staff",
-  description: "STAFFD staffs your business with specialists across Marketing, Sales, Legal, HR, Finance, Operations, Paid Media, Design, Reputation, and The CEO. On call the moment you sign up.",
+  title: "STAFFD — Tell your staff what to accomplish",
+  description:
+    "Brief STAFFD in plain language. Your AI business staff plans, executes, reviews, and delivers coordinated work while you remain in control.",
   openGraph: {
-    title: "STAFFD",
-    description: "Staff your business. 83 specialists. 10 departments. On call the moment you hire them.",
+    title: "STAFFD — Your AI business staff",
+    description:
+      "Ask for a business outcome. STAFFD assembles the right specialists, coordinates your tools, reviews the work, and brings you the result.",
     siteName: "STAFFD",
   },
-  // Phase 7 — PWA manifest + iOS install hints. Apple ignores the manifest
-  // and uses these meta tags instead for "Add to Home Screen".
+  twitter: {
+    card: "summary",
+    title: "STAFFD — Your AI business staff",
+    description:
+      "Ask for a business outcome. STAFFD plans, coordinates, reviews, and delivers the work.",
+  },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -44,10 +50,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        {/* Analytics loads for customer sessions only — super-admin opts out (W72). */}
         <PlausibleScript />
         <RegisterServiceWorker />
-        {/* W95.7.3a — clears the orphaned staffd_active_client key (remove at W94). */}
         <StaleClientStateCleanup />
         {children}
       </body>
