@@ -71,7 +71,7 @@ describe("mission control", () => {
         ],
         policy,
       ),
-    ).toEqual({ action: "escalate", reason: "attempt_limit" });
+    ).toEqual({ action: "escalate", reason: "no_progress" });
   });
 
   it("rejects missing graph dependencies", () => {
@@ -88,5 +88,22 @@ describe("mission control", () => {
         },
       ]),
     ).toEqual(["publish depends on missing step approve"]);
+  });
+
+  it("rejects cyclic execution graphs", () => {
+    const shared = {
+      title: "Step",
+      capability: "operations" as const,
+      approvalRequired: false,
+      successCriteria: ["Done"],
+      maxAttempts: 2,
+    };
+
+    expect(
+      validateExecutionGraph([
+        { ...shared, id: "a", dependsOn: ["b"] },
+        { ...shared, id: "b", dependsOn: ["a"] },
+      ]),
+    ).toContain("Mission execution graph contains a cycle");
   });
 });
