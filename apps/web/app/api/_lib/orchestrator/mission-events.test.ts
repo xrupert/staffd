@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { summarizeMissionTimeline, type MissionEventRecord } from "./mission-events";
+import {
+  groupMissionEvents,
+  summarizeMissionTimeline,
+  type MissionEventRecord,
+} from "./mission-events";
 
 function event(partial: Partial<MissionEventRecord>): MissionEventRecord {
   return {
@@ -35,5 +39,18 @@ describe("summarizeMissionTimeline", () => {
       event({ type: "step_completed", step_id: "b" }),
     ];
     expect(summarizeMissionTimeline(2, "failed", events).progressPercent).toBe(99);
+  });
+});
+
+describe("groupMissionEvents", () => {
+  it("groups one owner event feed by mission without reordering it", () => {
+    const first = event({ id: "1", mission: "mission-a", message: "Started" });
+    const second = event({ id: "2", mission: "mission-b", message: "Waiting" });
+    const third = event({ id: "3", mission: "mission-a", message: "Completed" });
+
+    const grouped = groupMissionEvents([first, second, third]);
+
+    expect(grouped.get("mission-a")).toEqual([first, third]);
+    expect(grouped.get("mission-b")).toEqual([second]);
   });
 });
