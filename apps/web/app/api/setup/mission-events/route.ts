@@ -1,4 +1,5 @@
 const FIELDS = [
+  { name: "event_key", type: "text", required: true },
   { name: "user", type: "text", required: true },
   { name: "mission", type: "text", required: true },
   { name: "type", type: "text", required: true },
@@ -9,6 +10,7 @@ const FIELDS = [
 ];
 
 const INDEXES = [
+  "CREATE UNIQUE INDEX idx_mission_events_key ON mission_events (event_key)",
   "CREATE INDEX idx_mission_events_user ON mission_events (user)",
   "CREATE INDEX idx_mission_events_mission ON mission_events (mission)",
   "CREATE INDEX idx_mission_events_created ON mission_events (created)",

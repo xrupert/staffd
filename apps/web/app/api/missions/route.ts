@@ -2,7 +2,6 @@ import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { whoAmI } from "../_lib/integrations/identity";
 import { planMission } from "../_lib/orchestrator/mission-control";
 import {
-  appendMissionEvent,
   groupMissionEvents,
   listMissionEventsForUser,
   summarizeMissionTimeline,
@@ -20,11 +19,7 @@ export async function GET(request: Request) {
 
   try {
     const token = await getAdminToken();
-    const params = new URLSearchParams({
-      filter: `user = '${pbEscape(user.id)}'`,
-      sort: "-updated",
-      perPage: "50",
-    });
+    const params = new URLSearchParams({ filter: `user = '${pbEscape(user.id)}'`, sort: "-updated", perPage: "50" });
     const response = await fetch(`${pbUrl()}/api/collections/missions/records?${params}`, {
       headers: adminHeaders(token),
     });
@@ -96,29 +91,13 @@ export async function POST(request: Request) {
       correlationId: correlationId(),
     });
 
-    let eventRecorded = true;
-    try {
-      await appendMissionEvent({
-        user: user.id,
-        mission: mission.id,
-        type: "mission_created",
-        message: mission.approval_required
-          ? "Mission created and waiting for your approval."
-          : "Mission created and ready for planning.",
-        evidence: { outcomeId: outcome.id, requiredEvidence: outcome.evidence },
-      });
-    } catch (eventError) {
-      eventRecorded = false;
-      console.error("mission creation event failed:", eventError);
-    }
-
     return Response.json({
       missionId: mission.id,
       status: mission.status,
       goal: mission.goal,
       approvalRequired: mission.approval_required,
       plan: mission.plan,
-      eventRecorded,
+      eventQueued: Boolean(mission.pending_events?.length),
     }, { status: 201 });
   } catch (error) {
     console.error("mission intake failed:", error);

@@ -1,6 +1,10 @@
 import { adminHeaders, getAdminToken, pbEscape, pbFirst, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
-import { appendMissionEvent, type MissionEventType } from "../../_lib/orchestrator/mission-events";
+import type { MissionEventType } from "../../_lib/orchestrator/mission-events";
+import {
+  createPendingMissionEvent,
+  enqueueMissionEvent,
+} from "../../_lib/orchestrator/mission-outbox";
 import type { MissionRecord } from "../../_lib/orchestrator/mission-repository";
 
 type MissionAction = "approve" | "resume" | "cancel";
@@ -48,29 +52,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return Response.json({ error: "mission_not_resumable" }, { status: 409 });
   }
 
+  const event = EVENT_BY_ACTION[body.action];
+  const pendingEvent = createPendingMissionEvent({
+    key: `${mission.id}:${body.action}:${Date.now()}`,
+    type: event.type,
+    message: event.message,
+  });
+  const pendingEvents = enqueueMissionEvent(mission.pending_events, pendingEvent);
+
   const response = await fetch(`${pbUrl()}/api/collections/missions/records/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: adminHeaders(token),
-    body: JSON.stringify({ status: NEXT_STATUS[body.action] }),
+    body: JSON.stringify({
+      status: NEXT_STATUS[body.action],
+      pending_events: pendingEvents,
+    }),
   });
   if (!response.ok) {
     return Response.json({ error: "mission_update_failed" }, { status: 500 });
   }
 
   const updated = (await response.json()) as MissionRecord;
-  let eventRecorded = true;
-  try {
-    const event = EVENT_BY_ACTION[body.action];
-    await appendMissionEvent({
-      user: user.id,
-      mission: mission.id,
-      type: event.type,
-      message: event.message,
-    });
-  } catch (eventError) {
-    eventRecorded = false;
-    console.error("mission lifecycle event failed:", eventError);
-  }
-
-  return Response.json({ mission: updated, eventRecorded });
+  return Response.json({ mission: updated, eventQueued: true });
 }
