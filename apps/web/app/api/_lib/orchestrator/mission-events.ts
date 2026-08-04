@@ -16,6 +16,7 @@ export type MissionEventType =
 
 export type MissionEventRecord = {
   id: string;
+  event_key?: string;
   user: string;
   mission: string;
   type: MissionEventType;
@@ -84,9 +85,7 @@ export function groupMissionEvents(
 }
 
 export async function listMissionEvents(userId: string, missionId: string): Promise<MissionEventRecord[]> {
-  return fetchMissionEvents(
-    `user = '${pbEscape(userId)}' && mission = '${pbEscape(missionId)}'`,
-  );
+  return fetchMissionEvents(`user = '${pbEscape(userId)}' && mission = '${pbEscape(missionId)}'`);
 }
 
 export async function listMissionEventsForUser(userId: string): Promise<MissionEventRecord[]> {
