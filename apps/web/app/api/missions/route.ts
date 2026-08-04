@@ -1,7 +1,12 @@
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { whoAmI } from "../_lib/integrations/identity";
 import { planMission } from "../_lib/orchestrator/mission-control";
-import { appendMissionEvent } from "../_lib/orchestrator/mission-events";
+import {
+  appendMissionEvent,
+  groupMissionEvents,
+  listMissionEventsForUser,
+  summarizeMissionTimeline,
+} from "../_lib/orchestrator/mission-events";
 import { createMission, type MissionRecord } from "../_lib/orchestrator/mission-repository";
 import { outcomeById, type StaffOutcomeId } from "../_lib/orchestrator/outcome-catalog";
 
@@ -25,7 +30,36 @@ export async function GET(request: Request) {
     });
     if (!response.ok) throw new Error(`Mission listing failed (${response.status})`);
     const payload = (await response.json()) as { items?: MissionRecord[] };
-    return Response.json({ missions: payload.items ?? [] });
+    const missions = payload.items ?? [];
+
+    let eventsByMission = new Map();
+    try {
+      eventsByMission = groupMissionEvents(await listMissionEventsForUser(user.id));
+    } catch (eventError) {
+      console.error("mission progress events unavailable:", eventError);
+    }
+
+    return Response.json({
+      missions: missions.map((mission) => {
+        const timeline = summarizeMissionTimeline(
+          mission.plan.steps.length,
+          mission.status,
+          eventsByMission.get(mission.id) ?? [],
+        );
+        const latestEvent = timeline.events.at(-1);
+        return {
+          ...mission,
+          progress: {
+            percent: timeline.progressPercent,
+            completedSteps: timeline.completedSteps,
+            totalSteps: timeline.totalSteps,
+            spentCredits: timeline.spentCredits,
+            latestMessage: latestEvent?.message ?? null,
+            latestAt: latestEvent?.created ?? null,
+          },
+        };
+      }),
+    });
   } catch (error) {
     console.error("mission listing failed:", error);
     return Response.json({ error: "mission_listing_failed" }, { status: 500 });
