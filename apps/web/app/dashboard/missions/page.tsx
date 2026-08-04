@@ -4,6 +4,17 @@ import { useCallback, useEffect, useState } from "react";
 import pb from "../../../lib/pb";
 import type { MissionRecord } from "../../api/_lib/orchestrator/mission-repository";
 
+type MissionWithProgress = MissionRecord & {
+  progress: {
+    percent: number;
+    completedSteps: number;
+    totalSteps: number;
+    spentCredits: number;
+    latestMessage: string | null;
+    latestAt: string | null;
+  };
+};
+
 const LABELS: Record<MissionRecord["status"], string> = {
   draft: "Draft",
   planned: "Planned",
@@ -15,7 +26,7 @@ const LABELS: Record<MissionRecord["status"], string> = {
 };
 
 export default function MissionsPage() {
-  const [missions, setMissions] = useState<MissionRecord[]>([]);
+  const [missions, setMissions] = useState<MissionWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +36,7 @@ export default function MissionsPage() {
     try {
       const response = await fetch("/api/missions", { headers: { Authorization: pb.authStore.token } });
       if (!response.ok) throw new Error("Your missions could not be loaded.");
-      const payload = (await response.json()) as { missions?: MissionRecord[] };
+      const payload = (await response.json()) as { missions?: MissionWithProgress[] };
       setMissions(payload.missions ?? []);
       setError(null);
     } catch (cause) {
@@ -73,7 +84,22 @@ export default function MissionsPage() {
                   <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#A07BFF" }}>{LABELS[mission.status]}</span>
                   <h2 className="mt-2 text-base font-semibold" style={{ color: "#F0F0F8" }}>{mission.goal}</h2>
                 </div>
-                <span className="rounded-full px-2 py-1 text-xs" style={{ background: "rgba(91,33,232,.12)", color: "#C4B5FD" }}>{mission.budget_credits} credits</span>
+                <span className="rounded-full px-2 py-1 text-xs" style={{ background: "rgba(91,33,232,.12)", color: "#C4B5FD" }}>
+                  {mission.progress.spentCredits}/{mission.budget_credits} credits
+                </span>
+              </div>
+
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-xs" style={{ color: "#7A7A95" }}>
+                  <span>{mission.progress.completedSteps} of {mission.progress.totalSteps} steps complete</span>
+                  <span>{mission.progress.percent}%</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full" style={{ background: "#20202C" }}>
+                  <div className="h-full rounded-full transition-all" style={{ width: `${mission.progress.percent}%`, background: "#5B21E8" }} />
+                </div>
+                {mission.progress.latestMessage && (
+                  <p className="mt-2 text-xs" style={{ color: "#9A9AAF" }}>{mission.progress.latestMessage}</p>
+                )}
               </div>
 
               <div className="mt-4">
