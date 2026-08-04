@@ -97,7 +97,10 @@ export function inferMissionCapabilities(goal: string): MissionCapability[] {
 }
 
 export function assessMissionRisk(capabilities: MissionCapability[], constraints: string[]): MissionRisk {
-  if (capabilities.includes("legal") || constraints.some((value) => /regulated|sensitive|public/i.test(value))) {
+  if (
+    capabilities.includes("legal") ||
+    constraints.some((value) => /regulated|sensitive|public/i.test(value))
+  ) {
     return "high";
   }
   if (capabilities.length >= 5) return "high";
@@ -112,6 +115,7 @@ export function planMission(request: MissionRequest): MissionPlan {
 
   const capabilities = inferMissionCapabilities(goal);
   const risk = assessMissionRisk(capabilities, request.constraints ?? []);
+  const architectureStepId = "step-1-business_architecture";
   const steps: MissionStep[] = capabilities.map((capability, index) => ({
     id: `step-${index + 1}-${capability}`,
     title:
@@ -119,7 +123,7 @@ export function planMission(request: MissionRequest): MissionPlan {
         ? "Clarify the outcome and design the mission"
         : `Execute ${capability.replaceAll("_", " ")} work`,
     capability,
-    dependsOn: index === 0 ? [] : [`step-${index}-business_architecture`],
+    dependsOn: index === 0 ? [] : [architectureStepId],
     approvalRequired: capability === "legal" || risk === "critical",
     successCriteria:
       capability === "business_architecture"
@@ -137,7 +141,9 @@ export function planMission(request: MissionRequest): MissionPlan {
     budgetCredits: request.budgetCredits ?? Math.max(10, steps.length * 5),
     constraints: request.constraints ?? [],
     successCriteria:
-      request.successCriteria?.length ? request.successCriteria : ["The requested business outcome is delivered and verified"],
+      request.successCriteria?.length
+        ? request.successCriteria
+        : ["The requested business outcome is delivered and verified"],
     steps,
   };
 }
@@ -154,13 +160,22 @@ export function harnessPolicyFor(step: MissionStep, plan: MissionPlan): HarnessP
 
 export function nextLoopDecision(attempts: StepAttempt[], policy: HarnessPolicy): LoopDecision {
   const latest = attempts.at(-1);
-  if (!latest) return policy.approvalRequired ? { action: "escalate", reason: "approval_required" } : { action: "repair", nextAttempt: 1 };
+  if (!latest) {
+    return policy.approvalRequired
+      ? { action: "escalate", reason: "approval_required" }
+      : { action: "repair", nextAttempt: 1 };
+  }
   if (latest.passed) return { action: "complete" };
-  if (attempts.length >= policy.maxAttempts) return { action: "escalate", reason: "attempt_limit" };
 
   const previous = attempts.at(-2);
-  if (previous?.failureFingerprint && previous.failureFingerprint === latest.failureFingerprint) {
+  if (
+    previous?.failureFingerprint &&
+    previous.failureFingerprint === latest.failureFingerprint
+  ) {
     return { action: "escalate", reason: "no_progress" };
+  }
+  if (attempts.length >= policy.maxAttempts) {
+    return { action: "escalate", reason: "attempt_limit" };
   }
 
   return { action: "repair", nextAttempt: attempts.length + 1 };
@@ -169,11 +184,33 @@ export function nextLoopDecision(attempts: StepAttempt[], policy: HarnessPolicy)
 export function validateExecutionGraph(steps: MissionStep[]): string[] {
   const ids = new Set(steps.map((step) => step.id));
   const errors: string[] = [];
+  const dependencies = new Map(steps.map((step) => [step.id, step.dependsOn]));
 
   for (const step of steps) {
     for (const dependency of step.dependsOn) {
       if (!ids.has(dependency)) errors.push(`${step.id} depends on missing step ${dependency}`);
       if (dependency === step.id) errors.push(`${step.id} depends on itself`);
+    }
+  }
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (visiting.has(id)) return true;
+    if (visited.has(id)) return false;
+    visiting.add(id);
+    for (const dependency of dependencies.get(id) ?? []) {
+      if (ids.has(dependency) && visit(dependency)) return true;
+    }
+    visiting.delete(id);
+    visited.add(id);
+    return false;
+  };
+
+  for (const step of steps) {
+    if (visit(step.id)) {
+      errors.push("Mission execution graph contains a cycle");
+      break;
     }
   }
 
