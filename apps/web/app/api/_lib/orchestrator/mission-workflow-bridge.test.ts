@@ -9,7 +9,11 @@ describe("createWorkflowFromMission", () => {
       requestedBy: "user-1",
     });
     let taskCounter = 0;
-    const createTask = vi.fn(async () => ({ id: `task-${++taskCounter}` }));
+    const taskBodies: Record<string, unknown>[] = [];
+    const createTask = vi.fn(async (body: Record<string, unknown>) => {
+      taskBodies.push(body);
+      return { id: `task-${++taskCounter}` };
+    });
 
     const result = await createWorkflowFromMission(
       { missionId: "mission-1", userId: "user-1", plan },
@@ -23,8 +27,7 @@ describe("createWorkflowFromMission", () => {
     expect(result.workflowId).toBe("workflow-1");
     expect(Object.keys(result.taskIdsByStep)).toHaveLength(plan.steps.length);
     expect(createTask).toHaveBeenCalledTimes(plan.steps.length);
-    const secondTask = createTask.mock.calls[1]?.[0] as { depends_on: string[] };
-    expect(secondTask.depends_on).toEqual(["task-1"]);
+    expect(taskBodies[1]?.depends_on).toEqual(["task-1"]);
   });
 
   it("marks the workflow failed when task materialization breaks", async () => {
