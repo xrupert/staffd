@@ -5,6 +5,7 @@ import {
   buildBusinessInbox,
   missionInboxItem,
 } from "../../_lib/orchestrator/business-inbox";
+import { integrationHealthInboxItems } from "../../_lib/orchestrator/integration-health-inbox";
 import { liveIntegrationInboxItems } from "../../_lib/orchestrator/live-inbox-sources";
 import {
   groupMissionEvents,
@@ -43,11 +44,12 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   try {
-    const [missions, bookings, missionEvents, integrationItems] = await Promise.all([
+    const [missions, bookings, missionEvents, integrationItems, integrationIncidents] = await Promise.all([
       listOwnerRecords<MissionRecord>("missions", user.id),
       listOwnerRecords<BookingRecord>("bookings", user.id, "start_time"),
       listMissionEventsForUser(user.id).catch(() => []),
       liveIntegrationInboxItems(user),
+      integrationHealthInboxItems(user),
     ]);
     const eventsByMission = groupMissionEvents(missionEvents);
 
@@ -74,6 +76,7 @@ export async function GET(request: Request) {
       ...missionItems,
       ...bookingItems,
       ...integrationItems,
+      ...integrationIncidents,
     ]);
 
     return Response.json({
