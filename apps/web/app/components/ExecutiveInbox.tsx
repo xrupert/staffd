@@ -11,6 +11,7 @@ export type ExecutiveInboxItem = {
   evidence?: string[];
   actionLabel: string;
   actionHref: string;
+  actionPrompt?: string;
 };
 
 const PRIORITY_LABEL: Record<ExecutiveInboxItem["priority"], string> = {
@@ -37,7 +38,13 @@ function InboxShell({ children }: { children: ReactNode }) {
   );
 }
 
-export default function ExecutiveInbox({ items }: { items: ExecutiveInboxItem[] }) {
+export default function ExecutiveInbox({
+  items,
+  onAction,
+}: {
+  items: ExecutiveInboxItem[];
+  onAction?: (prompt: string) => void;
+}) {
   if (items.length === 0) return null;
 
   const visibleItems = items.slice(0, 3);
@@ -82,13 +89,24 @@ export default function ExecutiveInbox({ items }: { items: ExecutiveInboxItem[] 
                   </p>
                 )}
               </div>
-              <a
-                href={item.actionHref}
-                className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
-                style={{ background: "rgba(91,33,232,0.16)", color: "#C4B5FD", border: "1px solid rgba(91,33,232,0.3)" }}
-              >
-                {item.actionLabel}
-              </a>
+              {item.actionPrompt && onAction ? (
+                <button
+                  type="button"
+                  onClick={() => onAction(item.actionPrompt!)}
+                  className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
+                  style={{ background: "rgba(91,33,232,0.16)", color: "#C4B5FD", border: "1px solid rgba(91,33,232,0.3)" }}
+                >
+                  {item.actionLabel}
+                </button>
+              ) : (
+                <a
+                  href={item.actionHref}
+                  className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
+                  style={{ background: "rgba(91,33,232,0.16)", color: "#C4B5FD", border: "1px solid rgba(91,33,232,0.3)" }}
+                >
+                  {item.actionLabel}
+                </a>
+              )}
             </div>
           </article>
         ))}
