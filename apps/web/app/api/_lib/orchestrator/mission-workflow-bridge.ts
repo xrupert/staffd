@@ -35,7 +35,6 @@ export async function createWorkflowFromMission(
     root_goal: input.plan.goal,
     started_at: new Date().toISOString(),
     review_required: input.plan.steps.some((step) => step.approvalRequired),
-    mission_id: input.missionId,
   });
 
   const taskIdsByStep: Record<string, string> = {};
