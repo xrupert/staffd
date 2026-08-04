@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import pb from "../../lib/pb";
+import ExecutiveAttentionCard, {
+  type ExecutiveRecommendation,
+} from "./ExecutiveAttentionCard";
 import {
   rankOutcomesByReadiness,
   type CapabilityReadiness,
@@ -113,6 +116,7 @@ function ExecutiveBriefing({ missions }: { missions: MissionBrief[] }) {
 export default function CommandCenterSuggestions({ onPick }: Props) {
   const [capabilities, setCapabilities] = useState<CapabilityReadiness[] | null>(null);
   const [missions, setMissions] = useState<MissionBrief[]>([]);
+  const [recommendations, setRecommendations] = useState<ExecutiveRecommendation[]>([]);
   const [starting, setStarting] = useState<StaffOutcomeId | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const baseOutcomes = useMemo(() => suggestedOutcomes(), []);
@@ -131,12 +135,19 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
         if (!response.ok) return null;
         return response.json() as Promise<{ missions?: MissionBrief[] }>;
       }),
-    ]).then(([capabilityResult, missionResult]) => {
+      fetch("/api/executive/recommendations", { headers }).then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ recommendations?: ExecutiveRecommendation[] }>;
+      }),
+    ]).then(([capabilityResult, missionResult, recommendationResult]) => {
       if (capabilityResult.status === "fulfilled") {
         setCapabilities(capabilityResult.value?.capabilities ?? null);
       }
       if (missionResult.status === "fulfilled") {
         setMissions(missionResult.value?.missions ?? []);
+      }
+      if (recommendationResult.status === "fulfilled") {
+        setRecommendations(recommendationResult.value?.recommendations ?? []);
       }
     });
   }, []);
@@ -199,6 +210,7 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
 
   return (
     <section className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
+      {recommendations[0] && <ExecutiveAttentionCard recommendation={recommendations[0]} />}
       <ExecutiveBriefing missions={missions} />
 
       <div className="mb-3">
