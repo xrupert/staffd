@@ -16,6 +16,17 @@ type Props = {
   onPick: (prompt: string) => void;
 };
 
+type MissionBrief = {
+  id: string;
+  goal: string;
+  status: string;
+  updated?: string;
+  progress?: {
+    percent?: number;
+    latestMessage?: string | null;
+  };
+};
+
 function timeAwareOutcome(outcomes: readonly StaffOutcome[]): StaffOutcome {
   const hour = new Date().getHours();
   const preferredId =
@@ -48,8 +59,60 @@ function suggestedOutcomes(): StaffOutcome[] {
   return selected;
 }
 
+function statusGroup(status: string): "attention" | "working" | "done" | "other" {
+  if (["waiting_for_approval", "repairing", "blocked", "failed"].includes(status)) return "attention";
+  if (["planned", "approved", "running"].includes(status)) return "working";
+  if (["completed", "cancelled"].includes(status)) return "done";
+  return "other";
+}
+
+function ExecutiveBriefing({ missions }: { missions: MissionBrief[] }) {
+  const attention = missions.filter((mission) => statusGroup(mission.status) === "attention");
+  const working = missions.filter((mission) => statusGroup(mission.status) === "working");
+  const latest = [...missions]
+    .sort((a, b) => (b.updated ?? "").localeCompare(a.updated ?? ""))
+    .find((mission) => statusGroup(mission.status) !== "done");
+
+  if (missions.length === 0) return null;
+
+  return (
+    <div className="mb-4 rounded-xl px-4 py-3" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid #252534" }}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>Executive briefing</p>
+          <p className="mt-1 text-xs" style={{ color: "#72728A" }}>
+            {attention.length > 0
+              ? `${attention.length} mission${attention.length === 1 ? " needs" : "s need"} your attention.`
+              : working.length > 0
+                ? `${working.length} mission${working.length === 1 ? " is" : "s are"} moving forward.`
+                : "Your current missions are up to date."}
+          </p>
+        </div>
+        <a href="/dashboard/missions" className="text-xs font-semibold" style={{ color: "#A98CFF" }}>
+          Open Mission Board →
+        </a>
+      </div>
+
+      {latest && (
+        <div className="mt-3 flex items-center justify-between gap-4 rounded-lg px-3 py-2.5" style={{ background: "#12121A", border: "1px solid #252534" }}>
+          <div className="min-w-0">
+            <p className="truncate text-xs font-medium" style={{ color: "#BDBDD0" }}>{latest.goal}</p>
+            <p className="mt-1 truncate text-[11px]" style={{ color: "#606078" }}>
+              {latest.progress?.latestMessage || (latest.status === "waiting_for_approval" ? "Waiting for your approval" : "Your staff is coordinating the next step")}
+            </p>
+          </div>
+          <span className="shrink-0 text-xs font-semibold" style={{ color: latest.status === "repairing" ? "#D6A85F" : "#8B68F2" }}>
+            {Math.max(0, Math.min(100, latest.progress?.percent ?? 0))}%
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CommandCenterSuggestions({ onPick }: Props) {
   const [capabilities, setCapabilities] = useState<CapabilityReadiness[] | null>(null);
+  const [missions, setMissions] = useState<MissionBrief[]>([]);
   const [starting, setStarting] = useState<StaffOutcomeId | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const baseOutcomes = useMemo(() => suggestedOutcomes(), []);
@@ -57,15 +120,25 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
   useEffect(() => {
     if (!pb.authStore.token) return;
 
-    void fetch("/api/capabilities", {
-      headers: { Authorization: pb.authStore.token },
-    })
-      .then(async (response) => {
+    const headers = { Authorization: pb.authStore.token };
+
+    void Promise.allSettled([
+      fetch("/api/capabilities", { headers }).then(async (response) => {
         if (!response.ok) return null;
         return response.json() as Promise<{ capabilities?: CapabilityReadiness[] }>;
-      })
-      .then((result) => setCapabilities(result?.capabilities ?? null))
-      .catch(() => setCapabilities(null));
+      }),
+      fetch("/api/missions", { headers }).then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ missions?: MissionBrief[] }>;
+      }),
+    ]).then(([capabilityResult, missionResult]) => {
+      if (capabilityResult.status === "fulfilled") {
+        setCapabilities(capabilityResult.value?.capabilities ?? null);
+      }
+      if (missionResult.status === "fulfilled") {
+        setMissions(missionResult.value?.missions ?? []);
+      }
+    });
   }, []);
 
   const ranked = useMemo(
@@ -101,6 +174,21 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
         throw new Error(result?.detail || "The mission could not be started.");
       }
 
+      const result = (await response.json()) as {
+        missionId: string;
+        status: string;
+        goal: string;
+      };
+      setMissions((current) => [
+        {
+          id: result.missionId,
+          status: result.status,
+          goal: result.goal,
+          updated: new Date().toISOString(),
+          progress: { percent: 0, latestMessage: result.status === "waiting_for_approval" ? "Waiting for your approval" : "Mission planned" },
+        },
+        ...current,
+      ]);
       onPick(outcome.exampleRequest);
     } catch (error) {
       setStartError(error instanceof Error ? error.message : "The mission could not be started.");
@@ -111,6 +199,8 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
 
   return (
     <section className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
+      <ExecutiveBriefing missions={missions} />
+
       <div className="mb-3">
         <p className="text-xs font-semibold" style={{ color: "#F0F0F8" }}>
           What should your staff accomplish?
@@ -155,11 +245,7 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
               </button>
 
               {state === "missing" ? (
-                <a
-                  href="/dashboard/settings"
-                  className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-wide"
-                  style={{ color: "#A07BFF" }}
-                >
+                <a href="/dashboard/settings" className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-wide" style={{ color: "#A07BFF" }}>
                   Connect what this mission needs
                 </a>
               ) : state === "degraded" ? (
