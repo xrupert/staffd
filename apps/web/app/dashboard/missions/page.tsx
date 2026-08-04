@@ -86,7 +86,7 @@ export default function MissionsPage() {
               <div className="mt-5 flex flex-wrap gap-2">
                 {mission.status === "waiting_for_approval" && <button onClick={() => void act(mission, "approve")} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: "#5B21E8", color: "white" }}>Approve mission</button>}
                 {["failed", "repairing"].includes(mission.status) && <button onClick={() => void act(mission, "resume")} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: "#5B21E8", color: "white" }}>Resume safely</button>}
-                !["completed", "failed"].includes(mission.status) && <button onClick={() => void act(mission, "cancel")} className="rounded-lg px-3 py-2 text-xs" style={{ border: "1px solid #3A3A50", color: "#9A9AAF" }}>Cancel</button>
+                {!(["completed", "failed"] as string[]).includes(mission.status) && <button onClick={() => void act(mission, "cancel")} className="rounded-lg px-3 py-2 text-xs" style={{ border: "1px solid #3A3A50", color: "#9A9AAF" }}>Cancel</button>}
               </div>
             </article>
           ))}
