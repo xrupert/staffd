@@ -1,6 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import pb from "../../lib/pb";
+import {
+  rankOutcomesByReadiness,
+  type CapabilityReadiness,
+} from "../api/_lib/orchestrator/capability-readiness";
 import {
   STAFF_OUTCOMES,
   type StaffOutcome,
@@ -43,7 +48,36 @@ function suggestedOutcomes(): StaffOutcome[] {
 }
 
 export default function CommandCenterSuggestions({ onPick }: Props) {
-  const outcomes = useMemo(() => suggestedOutcomes(), []);
+  const [capabilities, setCapabilities] = useState<CapabilityReadiness[] | null>(null);
+  const baseOutcomes = useMemo(() => suggestedOutcomes(), []);
+
+  useEffect(() => {
+    if (!pb.authStore.token) return;
+
+    void fetch("/api/capabilities", {
+      headers: { Authorization: pb.authStore.token },
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{ capabilities?: CapabilityReadiness[] }>;
+      })
+      .then((result) => setCapabilities(result?.capabilities ?? null))
+      .catch(() => setCapabilities(null));
+  }, []);
+
+  const ranked = useMemo(
+    () =>
+      capabilities
+        ? rankOutcomesByReadiness(baseOutcomes, capabilities)
+        : baseOutcomes.map((outcome) => ({
+            outcome,
+            state: "ready" as const,
+            missingCapabilities: [],
+            degradedCapabilities: [],
+            canStart: true,
+          })),
+    [baseOutcomes, capabilities],
+  );
 
   return (
     <section className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
@@ -52,35 +86,59 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
           What should your staff accomplish?
         </p>
         <p className="mt-1 text-xs" style={{ color: "#7A7A95" }}>
-          Pick a common mission or describe the result you need below.
+          Ready missions appear first. STAFFD handles the tools behind the scenes.
         </p>
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        {outcomes.map((outcome) => (
-          <button
+        {ranked.map(({ outcome, state, canStart }) => (
+          <div
             key={outcome.id}
-            onClick={() => onPick(outcome.exampleRequest)}
-            className="rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5"
+            className="rounded-xl px-3.5 py-3 text-left"
             style={{
-              background: "rgba(91,33,232,0.08)",
-              border: "1px solid rgba(91,33,232,0.24)",
-              cursor: "pointer",
+              background: canStart ? "rgba(91,33,232,0.08)" : "rgba(255,255,255,0.025)",
+              border: canStart
+                ? "1px solid rgba(91,33,232,0.24)"
+                : "1px solid rgba(122,122,149,0.18)",
+              opacity: canStart ? 1 : 0.72,
             }}
-            title={outcome.exampleRequest}
           >
-            <span className="block text-xs font-semibold" style={{ color: "#C4B5FD" }}>
-              {outcome.title}
-            </span>
-            <span className="mt-1 block text-xs leading-relaxed" style={{ color: "#7A7A95" }}>
-              {outcome.userPromise}
-            </span>
-            {outcome.requiresApproval && (
+            <button
+              onClick={() => canStart && onPick(outcome.exampleRequest)}
+              disabled={!canStart}
+              className="block w-full text-left disabled:cursor-not-allowed"
+              title={outcome.exampleRequest}
+            >
+              <span className="block text-xs font-semibold" style={{ color: "#C4B5FD" }}>
+                {outcome.title}
+              </span>
+              <span className="mt-1 block text-xs leading-relaxed" style={{ color: "#7A7A95" }}>
+                {outcome.userPromise}
+              </span>
+            </button>
+
+            {state === "missing" ? (
+              <a
+                href="/dashboard/settings"
+                className="mt-2 inline-block text-[10px] font-semibold uppercase tracking-wide"
+                style={{ color: "#A07BFF" }}
+              >
+                Connect what this mission needs
+              </a>
+            ) : state === "degraded" ? (
+              <span className="mt-2 block text-[10px] font-medium uppercase tracking-wide" style={{ color: "#D6A85F" }}>
+                Available, but a connection needs attention
+              </span>
+            ) : outcome.requiresApproval ? (
               <span className="mt-2 block text-[10px] font-medium uppercase tracking-wide" style={{ color: "#6D5FA0" }}>
                 You approve before anything is sent
               </span>
+            ) : (
+              <span className="mt-2 block text-[10px] font-medium uppercase tracking-wide" style={{ color: "#4A7A4A" }}>
+                Ready to start
+              </span>
             )}
-          </button>
+          </div>
         ))}
       </div>
     </section>
