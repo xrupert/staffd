@@ -8,6 +8,7 @@ const FIELDS = [
   { name: "approval_required", type: "bool", required: false },
   { name: "plan", type: "json", required: true },
   { name: "evidence", type: "json", required: false },
+  { name: "pending_events", type: "json", required: false },
   { name: "correlation_id", type: "text", required: true },
 ];
 
@@ -36,8 +37,7 @@ async function adminToken(baseUrl: string): Promise<string> {
     }),
   });
   if (!response.ok) throw new Error("PocketBase admin authentication failed");
-  const payload = (await response.json()) as { token: string };
-  return payload.token;
+  return ((await response.json()) as { token: string }).token;
 }
 
 async function ensureMissionsCollection(baseUrl: string) {
@@ -51,43 +51,22 @@ async function ensureMissionsCollection(baseUrl: string) {
     const createResponse = await fetch(`${baseUrl}/api/collections`, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        name: "missions",
-        type: "base",
-        fields: FIELDS,
-        indexes: INDEXES,
-        ...RULES,
-      }),
+      body: JSON.stringify({ name: "missions", type: "base", fields: FIELDS, indexes: INDEXES, ...RULES }),
     });
-    if (!createResponse.ok) {
-      throw new Error(`Failed to create missions: ${(await createResponse.text()).slice(0, 300)}`);
-    }
+    if (!createResponse.ok) throw new Error(`Failed to create missions: ${(await createResponse.text()).slice(0, 300)}`);
     return { action: "created" as const };
   }
 
-  const collection = (await existingResponse.json()) as {
-    id: string;
-    fields?: Array<{ name: string }>;
-  };
+  const collection = (await existingResponse.json()) as { id: string; fields?: Array<{ name: string }> };
   const existingNames = new Set((collection.fields ?? []).map((field) => field.name));
   const missing = FIELDS.filter((field) => !existingNames.has(field.name));
-
   const patchResponse = await fetch(`${baseUrl}/api/collections/${collection.id}`, {
     method: "PATCH",
     headers,
-    body: JSON.stringify({
-      fields: [...(collection.fields ?? []), ...missing],
-      indexes: INDEXES,
-      ...RULES,
-    }),
+    body: JSON.stringify({ fields: [...(collection.fields ?? []), ...missing], indexes: INDEXES, ...RULES }),
   });
-  if (!patchResponse.ok) {
-    throw new Error(`Failed to patch missions: ${(await patchResponse.text()).slice(0, 300)}`);
-  }
-
-  return missing.length === 0
-    ? { action: "noop" as const }
-    : { action: "patched" as const, added: missing.map((field) => field.name) };
+  if (!patchResponse.ok) throw new Error(`Failed to patch missions: ${(await patchResponse.text()).slice(0, 300)}`);
+  return missing.length ? { action: "patched" as const, added: missing.map((field) => field.name) } : { action: "noop" as const };
 }
 
 export async function POST() {
@@ -95,16 +74,11 @@ export async function POST() {
   if (!configuredUrl || !process.env.PB_ADMIN_EMAIL || !process.env.PB_ADMIN_PASSWORD) {
     return Response.json({ error: "PocketBase not configured" }, { status: 503 });
   }
-
   try {
-    const result = await ensureMissionsCollection(configuredUrl.replace(/\/$/, ""));
-    return Response.json({ ok: true, ...result });
+    return Response.json({ ok: true, ...(await ensureMissionsCollection(configuredUrl.replace(/\/$/, ""))) });
   } catch (error) {
     console.error("missions setup error:", error);
-    return Response.json(
-      { error: "Setup failed", detail: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 },
-    );
+    return Response.json({ error: "Setup failed", detail: error instanceof Error ? error.message : "Unknown error" }, { status: 500 });
   }
 }
 
