@@ -12,6 +12,7 @@ export type BusinessInboxItem = {
   evidence: string[];
   actionLabel: string;
   actionHref: string;
+  actionPrompt?: string;
   occurredAt: string;
 };
 
@@ -83,6 +84,7 @@ export function bookingInboxItem(booking: BookingInboxRecord, now = new Date()):
     summary: `${attendee} is booked for ${starts.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}.`,
     evidence: booking.duration ? [`${booking.duration} minute booking`] : [],
     actionLabel: "Prepare for the meeting", actionHref: "/dashboard",
+    actionPrompt: `Prepare me for my upcoming meeting with ${attendee}. Build a concise briefing, likely questions, talking points, risks, and recommended next actions.`,
     occurredAt: booking.start_time,
   };
 }
