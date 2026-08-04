@@ -6,6 +6,7 @@ const FIELDS = [
   { name: "risk", type: "text", required: true },
   { name: "budget_credits", type: "number", required: true },
   { name: "approval_required", type: "bool", required: false },
+  { name: "workflow_id", type: "text", required: false },
   { name: "plan", type: "json", required: true },
   { name: "evidence", type: "json", required: false },
   { name: "pending_events", type: "json", required: false },
@@ -15,6 +16,7 @@ const FIELDS = [
 const INDEXES = [
   "CREATE INDEX idx_missions_user ON missions (user)",
   "CREATE INDEX idx_missions_status ON missions (status)",
+  "CREATE INDEX idx_missions_workflow ON missions (workflow_id)",
   "CREATE UNIQUE INDEX idx_missions_correlation ON missions (correlation_id)",
 ];
 

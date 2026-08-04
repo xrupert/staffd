@@ -15,9 +15,11 @@ type MissionWithProgress = MissionRecord & {
   };
 };
 
+type MissionAction = "approve" | "resume" | "start" | "cancel";
+
 const LABELS: Record<MissionRecord["status"], string> = {
   draft: "Draft",
-  planned: "Planned",
+  planned: "Ready to start",
   running: "Working",
   waiting_for_approval: "Waiting on you",
   repairing: "Needs attention",
@@ -28,6 +30,7 @@ const LABELS: Record<MissionRecord["status"], string> = {
 export default function MissionsPage() {
   const [missions, setMissions] = useState<MissionWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actingOn, setActingOn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -48,17 +51,28 @@ export default function MissionsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function act(mission: MissionRecord, action: "approve" | "resume" | "cancel") {
-    const response = await fetch(`/api/missions/${mission.id}`, {
-      method: "PATCH",
-      headers: { Authorization: pb.authStore.token, "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    if (!response.ok) {
-      setError("STAFFD could not update that mission. Nothing was changed.");
-      return;
+  async function act(mission: MissionRecord, action: MissionAction) {
+    if (actingOn) return;
+    setActingOn(mission.id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/missions/${mission.id}`, {
+        method: "PATCH",
+        headers: { Authorization: pb.authStore.token, "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error === "mission_start_failed"
+          ? "STAFFD could not safely assemble this mission. It has been moved to repair."
+          : "STAFFD could not update that mission. Nothing unsafe was started.");
+      }
+      await load();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "STAFFD could not update that mission.");
+    } finally {
+      setActingOn(null);
     }
-    await load();
   }
 
   return (
@@ -110,9 +124,10 @@ export default function MissionsPage() {
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
-                {mission.status === "waiting_for_approval" && <button onClick={() => void act(mission, "approve")} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: "#5B21E8", color: "white" }}>Approve mission</button>}
-                {["failed", "repairing"].includes(mission.status) && <button onClick={() => void act(mission, "resume")} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: "#5B21E8", color: "white" }}>Resume safely</button>}
-                {!(["completed", "failed"] as string[]).includes(mission.status) && <button onClick={() => void act(mission, "cancel")} className="rounded-lg px-3 py-2 text-xs" style={{ border: "1px solid #3A3A50", color: "#9A9AAF" }}>Cancel</button>}
+                {mission.status === "waiting_for_approval" && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "approve")} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: "#5B21E8", color: "white" }}>Approve mission</button>}
+                {mission.status === "planned" && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "start")} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: "#5B21E8", color: "white" }}>Start my staff</button>}
+                {["failed", "repairing"].includes(mission.status) && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "resume")} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: "#5B21E8", color: "white" }}>Resume safely</button>}
+                {!(["completed", "failed"] as string[]).includes(mission.status) && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "cancel")} className="rounded-lg px-3 py-2 text-xs disabled:opacity-50" style={{ border: "1px solid #3A3A50", color: "#9A9AAF" }}>Cancel</button>}
               </div>
             </article>
           ))}

@@ -12,6 +12,7 @@ export type MissionRecord = {
   risk: MissionPlan["risk"];
   budget_credits: number;
   approval_required: boolean;
+  workflow_id?: string;
   plan: MissionPlan;
   evidence: string[];
   pending_events?: PendingMissionEvent[];
@@ -67,6 +68,7 @@ export async function createMission(
     risk: input.plan.risk,
     budget_credits: input.plan.budgetCredits,
     approval_required: approvalRequired,
+    workflow_id: "",
     plan: input.plan,
     evidence: input.evidence,
     pending_events: [
