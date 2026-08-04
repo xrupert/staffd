@@ -19,6 +19,16 @@ const CAPABILITY_NAMES: Record<IntegrationType, string> = {
   postiz: "Social publishing",
 };
 
+export function customerFacingProbeError(error: string | undefined): string {
+  const value = error?.toLowerCase() ?? "";
+  if (value.includes("timed out") || value.includes("timeout")) return "The connection check timed out";
+  if (/\b(401|403)\b/.test(value)) return "The saved credentials were rejected";
+  if (value.includes("fetch") || value.includes("network") || value.includes("connect")) {
+    return "The connected service could not be reached";
+  }
+  return "The connection check failed";
+}
+
 export function integrationIncidentInboxItem(
   type: IntegrationType,
   error: string | undefined,
@@ -33,7 +43,7 @@ export function integrationIncidentInboxItem(
     summary: `STAFFD cannot currently use the connected ${capability.toLowerCase()} service.`,
     occurredAt: occurredAt.toISOString(),
     urgency: "urgent",
-    evidence: [error?.trim() || "The connection probe failed"],
+    evidence: [customerFacingProbeError(error)],
     actionLabel: "Repair the connection",
     actionHref: "/dashboard/settings",
   });
@@ -63,11 +73,7 @@ export async function integrationHealthInboxItems(
   user: ResolveUser,
 ): Promise<BusinessInboxItem[]> {
   const results = await Promise.all(
-    INTEGRATION_TYPES.map((type) =>
-      probeConfiguredIntegration(user, type).catch(() =>
-        integrationIncidentInboxItem(type, "Connection check failed"),
-      ),
-    ),
+    INTEGRATION_TYPES.map((type) => probeConfiguredIntegration(user, type).catch(() => null)),
   );
 
   return results.filter((item): item is BusinessInboxItem => item !== null);
