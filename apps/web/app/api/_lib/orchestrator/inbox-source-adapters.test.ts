@@ -28,6 +28,24 @@ describe("externalInboxItem", () => {
       title: "Customer needs a reply",
       actionLabel: "Review the conversation",
     });
+    expect(item?.actionPrompt).toContain("prepare a helpful response for my approval");
+    expect(item?.actionPrompt).toContain("overdue order");
+  });
+
+  it("preserves a source-specific governed action prompt", () => {
+    const item = externalInboxItem({
+      provider: "Docuseal",
+      sourceId: "submission-9",
+      kind: "signature_request",
+      title: "Signature overdue",
+      summary: "A customer agreement is unsigned.",
+      occurredAt: "2026-08-01T18:00:00.000Z",
+      actionLabel: "Prepare reminder",
+      actionHref: "/dashboard/legal",
+      actionPrompt: "  Draft a courteous reminder and wait for my approval.  ",
+    });
+
+    expect(item?.actionPrompt).toBe("Draft a courteous reminder and wait for my approval.");
   });
 
   it("rejects incomplete or invalid signals", () => {
@@ -70,5 +88,6 @@ describe("adaptInboxSource", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.priority).toBe("high");
     expect(items[0]?.sourceId).toBe("1");
+    expect(items[0]?.actionPrompt).toContain("Prepare the best next follow-up");
   });
 });
