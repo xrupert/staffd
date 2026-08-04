@@ -16,7 +16,9 @@
 import pb from "./pb";
 
 export type GenKind = "image" | "video";
-export type GenOutcome = { url?: string; error?: string };
+/** `jobId` rides along on Studio outcomes so Finishing Touches (S4b) can
+ *  key a re-render off the finished job. */
+export type GenOutcome = { url?: string; error?: string; jobId?: string };
 
 const POLL_MS = 5000;
 const MAX_POLLS = 180; // ~15 min ceiling before we tell the user to check back
@@ -109,7 +111,31 @@ export async function runStudioProduction(
   if (!res.ok) return { error: "studio_unavailable" };
   const data = (await res.json().catch(() => ({}))) as { jobId?: string };
   if (!data.jobId) return { error: "studio_unavailable" };
-  return pollJob(data.jobId, shouldCancel);
+  return { ...(await pollJob(data.jobId, shouldCancel)), jobId: data.jobId };
+}
+
+/**
+ * runFinishingTouches (S4b) — re-render a finished Studio video with the
+ * user's edits (per-scene text + outro). Same ledger + poll as every other
+ * generation; the returned jobId keys the NEXT round of touches.
+ */
+export async function runFinishingTouches(
+  input: { jobId: string; outroText?: string; textOverrides?: Record<number, string> },
+  shouldCancel?: () => boolean,
+): Promise<GenOutcome> {
+  let res: Response;
+  try {
+    res = await fetch("/api/montage/touches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: pb.authStore.token },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    return { error: "studio_unavailable" };
+  }
+  const data = (await res.json().catch(() => ({}))) as { jobId?: string; error?: string };
+  if (!res.ok || !data.jobId) return { error: data.error ?? "studio_unavailable" };
+  return { ...(await pollJob(data.jobId, shouldCancel)), jobId: data.jobId };
 }
 
 /**

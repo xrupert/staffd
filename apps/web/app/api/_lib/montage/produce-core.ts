@@ -20,24 +20,36 @@ export async function produceStudioVideo(input: {
   script: string;
   title: string;
   tier: string;
+  /** S4b Finishing Touches — user edits applied over the parsed script.
+   *  `outroText` (when defined) replaces the vault default, "" removes the
+   *  outro entirely; `textOverrides` rewrites per-beat on-screen copy. */
+  touches?: { outroText?: string; textOverrides?: Record<number, string> };
 }): Promise<ProduceResult> {
   const token = await getAdminToken();
   const pb = pbUrl();
 
-  // The owner's mark: branded outro from the vault (best-effort).
+  // The owner's mark: branded outro from the vault (best-effort) — unless
+  // the user's finishing touches said otherwise.
   let outroText = "";
-  try {
-    const bizRes = await fetch(
-      `${pb}/api/collections/businesses/records?filter=${encodeURIComponent(`(user='${pbEscape(input.userId)}')`)}&perPage=1&fields=business_name`,
-      { headers: { Authorization: token } },
-    );
-    if (bizRes.ok) {
-      const biz = (await bizRes.json()) as { items?: Array<{ business_name?: string }> };
-      outroText = (biz.items?.[0]?.business_name ?? "").trim();
-    }
-  } catch { /* outro is optional */ }
+  if (input.touches?.outroText !== undefined) {
+    outroText = input.touches.outroText.trim();
+  } else {
+    try {
+      const bizRes = await fetch(
+        `${pb}/api/collections/businesses/records?filter=${encodeURIComponent(`(user='${pbEscape(input.userId)}')`)}&perPage=1&fields=business_name`,
+        { headers: { Authorization: token } },
+      );
+      if (bizRes.ok) {
+        const biz = (await bizRes.json()) as { items?: Array<{ business_name?: string }> };
+        outroText = (biz.items?.[0]?.business_name ?? "").trim();
+      }
+    } catch { /* outro is optional */ }
+  }
 
-  const spec = buildEditDecisions(input.script, input.title, { outroText });
+  const spec = buildEditDecisions(input.script, input.title, {
+    outroText,
+    textOverrides: input.touches?.textOverrides,
+  });
   if (!spec) return { ok: false, error: "script_unparseable" };
 
   try {

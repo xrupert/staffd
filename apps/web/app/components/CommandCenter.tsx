@@ -20,6 +20,7 @@ import { type Tier } from "../api/_lib/generation/pricing";
 import ScheduleFollowupModal from "./ScheduleFollowupModal";
 import VoiceInput from "./VoiceInput";
 import ConfirmActionModal, { type IntentResult } from "./ConfirmActionModal";
+import FinishingTouchesModal from "./FinishingTouchesModal";
 import UndoToast from "./UndoToast";
 import { FC2_ACTION_INTENT, type ActionCandidate } from "../api/_lib/orchestrator/action-vocabulary";
 
@@ -30,7 +31,12 @@ interface Message {
   lockedAlternative?: string;
   /** W95.9.x — a finished generation renders INLINE (image/video), not as a raw link.
    *  Images return ~3 options to choose from (cheap); video is a single result. */
-  media?: { kind: "image" | "video"; urls: string[] };
+  media?: {
+    kind: "image" | "video";
+    urls: string[];
+    /** S4b — set on Studio renders; keys the Finishing Touches re-render. */
+    studioJobId?: string;
+  };
 }
 
 
@@ -240,6 +246,8 @@ export default function CommandCenter() {
   // W95.8.1 — drives the prominent animated GenerationProgress block (a ref
   // can't trigger a render, so media-in-flight needs its own state).
   const [mediaGen, setMediaGen] = useState<{ kind: "image" | "video" } | null>(null);
+  // S4b — which Studio job the Finishing Touches modal is open for.
+  const [touchesJob, setTouchesJob] = useState<string | null>(null);
   // Edit-as-intent — the visibly-active edit target (declared by selecting/acting
   // on a rendered visual). While set, the composer shows the "Editing your visual"
   // pill and a typed instruction routes to runEdit, not the orchestrator.
@@ -573,9 +581,10 @@ export default function CommandCenter() {
     setMediaGen({ kind: "video" });
     try {
       const title = prompt.split("\n")[0]?.replace(/[#*]/g, "").trim().slice(0, 100) || "Your video";
-      const { url, error } = await runStudioProduction({ script: prompt, title, tier });
+      const { url, error, jobId } = await runStudioProduction({ script: prompt, title, tier });
       if (url) {
-        setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind: "video", urls: [url] } }]);
+        // S4b — carry the ledger id so the owner can add finishing touches.
+        setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind: "video", urls: [url], studioJobId: jobId } }]);
         return;
       }
       if (error !== "studio_unavailable") {
@@ -1290,7 +1299,17 @@ export default function CommandCenter() {
                           <span className="text-xs font-semibold tracking-widest" style={{ color: "#A07BFF" }}>🎬 ROLLING…</span>
                         </div>
                       </div>
-                      <div className="px-4 py-2 text-right" style={{ borderTop: "1px solid #1E1E2A" }}>
+                      <div className="px-4 py-2 flex items-center justify-between" style={{ borderTop: "1px solid #1E1E2A" }}>
+                        {/* S4b — the participation moment: the owner's director's pass */}
+                        {msg.media.studioJobId ? (
+                          <button
+                            onClick={() => setTouchesJob(msg.media!.studioJobId!)}
+                            className="text-xs font-semibold transition-colors hover:text-white"
+                            style={{ color: "#A07BFF", background: "none", border: "none", cursor: "pointer" }}
+                          >
+                            ✨ Add finishing touches
+                          </button>
+                        ) : <span />}
                         <a href={urls[0]} download target="_blank" rel="noopener noreferrer" className="text-xs transition-colors hover:text-white" style={{ color: "#A07BFF" }}>Download</a>
                       </div>
                     </>
@@ -1722,6 +1741,16 @@ export default function CommandCenter() {
         department={lastCompleted?.department ?? "marketing"}
         agentName={DEPT_LABELS[lastCompleted?.department ?? ""] ?? "Your team"}
         seedTask={followupSeed}
+      />
+
+      {/* S4b — Finishing Touches: director's pass on a finished Studio cut */}
+      <FinishingTouchesModal
+        open={touchesJob !== null}
+        jobId={touchesJob ?? ""}
+        onClose={() => setTouchesJob(null)}
+        onRendered={(url, newJobId) =>
+          setMessages((prev) => [...prev, { role: "assistant", content: "", media: { kind: "video", urls: [url], studioJobId: newJobId } }])
+        }
       />
 
       {pendingIntents.length > 0 && (

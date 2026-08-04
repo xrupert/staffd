@@ -97,7 +97,12 @@ const DEFAULT_BEAT_SECONDS = 4;
 export function buildEditDecisions(
   script: string,
   title: string,
-  opts?: { outroText?: string },
+  opts?: {
+    outroText?: string;
+    /** S4b Finishing Touches — per-beat on-screen copy overrides, keyed by
+     *  beat index. The user's edit wins over the parsed script text. */
+    textOverrides?: Record<number, string>;
+  },
 ): Record<string, unknown> | null {
   const beats = parseBeats(script);
   if (beats.length === 0) return null;
@@ -111,7 +116,8 @@ export function buildEditDecisions(
     clock += dur;
     const isHook = /hook/i.test(b.label) && i === 0;
     const isCta = /cta|close/i.test(b.label);
-    const primary = b.onScreen ?? b.text;
+    const override = (opts?.textOverrides?.[i] ?? "").trim();
+    const primary = override || (b.onScreen ?? b.text);
     return {
       id: `cut-${i + 1}`,
       type: isHook ? "hero_title" : isCta ? "callout" : "text_card",

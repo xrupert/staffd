@@ -331,6 +331,9 @@ export default function DashboardPage() {
                 {PLAN_LABELS[effectivePlan] ?? effectivePlan}
               </button>
             )}
+            <a href="/dashboard/work" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
+              Work Board
+            </a>
             <a href="/dashboard/calendar" className="text-xs transition-colors hover:text-white" style={{ color: "#3A3A55", textDecoration: "none" }}>
               Calendar
             </a>
