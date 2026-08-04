@@ -1,10 +1,34 @@
+import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { whoAmI } from "../_lib/integrations/identity";
 import { planMission } from "../_lib/orchestrator/mission-control";
-import { createMission } from "../_lib/orchestrator/mission-repository";
+import { createMission, type MissionRecord } from "../_lib/orchestrator/mission-repository";
 import { outcomeById, type StaffOutcomeId } from "../_lib/orchestrator/outcome-catalog";
 
 function correlationId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `mission-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+export async function GET(request: Request) {
+  const user = await whoAmI(request);
+  if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
+
+  try {
+    const token = await getAdminToken();
+    const params = new URLSearchParams({
+      filter: `user = '${pbEscape(user.id)}'`,
+      sort: "-updated",
+      perPage: "50",
+    });
+    const response = await fetch(`${pbUrl()}/api/collections/missions/records?${params}`, {
+      headers: adminHeaders(token),
+    });
+    if (!response.ok) throw new Error(`Mission listing failed (${response.status})`);
+    const payload = (await response.json()) as { items?: MissionRecord[] };
+    return Response.json({ missions: payload.items ?? [] });
+  } catch (error) {
+    console.error("mission listing failed:", error);
+    return Response.json({ error: "mission_listing_failed" }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
