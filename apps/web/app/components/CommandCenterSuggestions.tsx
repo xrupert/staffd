@@ -221,7 +221,7 @@ export default function CommandCenterSuggestions({ onPick }: Props) {
 
   return (
     <section className="px-5 py-4" style={{ borderBottom: "1px solid #1E1E2A" }}>
-      <ExecutiveInbox items={inboxItems} />
+      <ExecutiveInbox items={inboxItems} onAction={onPick} />
       {recommendations[0] && <ExecutiveAttentionCard recommendation={recommendations[0]} />}
       <ExecutiveBriefing missions={missions} />
 
