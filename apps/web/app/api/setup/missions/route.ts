@@ -1,5 +1,3 @@
-import { ensureCollectionRulesWithFreshToken } from "../../_lib/security/row-rules";
-
 const FIELDS = [
   { name: "user", type: "text", required: true },
   { name: "outcome_id", type: "text", required: true },
@@ -18,6 +16,15 @@ const INDEXES = [
   "CREATE INDEX idx_missions_status ON missions (status)",
   "CREATE UNIQUE INDEX idx_missions_correlation ON missions (correlation_id)",
 ];
+
+const USER_RULE = "user = @request.auth.id";
+const RULES = {
+  listRule: USER_RULE,
+  viewRule: USER_RULE,
+  createRule: USER_RULE,
+  updateRule: USER_RULE,
+  deleteRule: USER_RULE,
+};
 
 async function adminToken(baseUrl: string): Promise<string> {
   const response = await fetch(`${baseUrl}/api/collections/_superusers/auth-with-password`, {
@@ -44,7 +51,13 @@ async function ensureMissionsCollection(baseUrl: string) {
     const createResponse = await fetch(`${baseUrl}/api/collections`, {
       method: "POST",
       headers,
-      body: JSON.stringify({ name: "missions", type: "base", fields: FIELDS, indexes: INDEXES }),
+      body: JSON.stringify({
+        name: "missions",
+        type: "base",
+        fields: FIELDS,
+        indexes: INDEXES,
+        ...RULES,
+      }),
     });
     if (!createResponse.ok) {
       throw new Error(`Failed to create missions: ${(await createResponse.text()).slice(0, 300)}`);
@@ -58,18 +71,23 @@ async function ensureMissionsCollection(baseUrl: string) {
   };
   const existingNames = new Set((collection.fields ?? []).map((field) => field.name));
   const missing = FIELDS.filter((field) => !existingNames.has(field.name));
-  if (missing.length === 0) return { action: "noop" as const };
 
   const patchResponse = await fetch(`${baseUrl}/api/collections/${collection.id}`, {
     method: "PATCH",
     headers,
-    body: JSON.stringify({ fields: [...(collection.fields ?? []), ...missing], indexes: INDEXES }),
+    body: JSON.stringify({
+      fields: [...(collection.fields ?? []), ...missing],
+      indexes: INDEXES,
+      ...RULES,
+    }),
   });
   if (!patchResponse.ok) {
     throw new Error(`Failed to patch missions: ${(await patchResponse.text()).slice(0, 300)}`);
   }
 
-  return { action: "patched" as const, added: missing.map((field) => field.name) };
+  return missing.length === 0
+    ? { action: "noop" as const }
+    : { action: "patched" as const, added: missing.map((field) => field.name) };
 }
 
 export async function POST() {
@@ -80,7 +98,6 @@ export async function POST() {
 
   try {
     const result = await ensureMissionsCollection(configuredUrl.replace(/\/$/, ""));
-    await ensureCollectionRulesWithFreshToken("missions", "$authenticated = true && user = @request.auth.id");
     return Response.json({ ok: true, ...result });
   } catch (error) {
     console.error("missions setup error:", error);
