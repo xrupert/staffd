@@ -19,6 +19,7 @@ export type ExternalInboxSignal = {
   evidence?: string[];
   actionLabel: string;
   actionHref: string;
+  actionPrompt?: string;
 };
 
 const PRIORITY_BY_URGENCY: Record<NonNullable<ExternalInboxSignal["urgency"]>, InboxPriority> = {
@@ -29,6 +30,23 @@ const PRIORITY_BY_URGENCY: Record<NonNullable<ExternalInboxSignal["urgency"]>, I
 
 function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function defaultActionPrompt(signal: ExternalInboxSignal, summary: string): string {
+  switch (signal.kind) {
+    case "customer_message":
+      return `Review this unresolved customer conversation and prepare a helpful response for my approval: ${summary}`;
+    case "lead_follow_up":
+      return `Prepare the best next follow-up for this sales opportunity, including message copy and the recommended timing: ${summary}`;
+    case "campaign_response":
+      return `Analyze this campaign problem and prepare a concrete improvement plan with revised messaging or audience recommendations: ${summary}`;
+    case "signature_request":
+      return `Prepare a professional signature reminder and recommend the next escalation step for this document: ${summary}`;
+    case "payment_issue":
+      return `Investigate this payment issue, explain the likely cause, and prepare the safest recovery action for my approval: ${summary}`;
+    case "integration_incident":
+      return `Diagnose this business-system connection issue and prepare a safe repair plan: ${summary}`;
+  }
 }
 
 export function externalInboxItem(signal: ExternalInboxSignal): BusinessInboxItem | null {
@@ -43,6 +61,7 @@ export function externalInboxItem(signal: ExternalInboxSignal): BusinessInboxIte
   if (!Number.isFinite(occurredAt.getTime())) return null;
 
   const provider = normalizeText(signal.provider).toLowerCase() || "integration";
+  const actionPrompt = normalizeText(signal.actionPrompt ?? defaultActionPrompt(signal, summary));
 
   return {
     id: `integration:${provider}:${signal.kind}:${sourceId}`,
@@ -55,6 +74,7 @@ export function externalInboxItem(signal: ExternalInboxSignal): BusinessInboxIte
     evidence: (signal.evidence ?? []).map(normalizeText).filter(Boolean),
     actionLabel,
     actionHref,
+    actionPrompt,
     occurredAt: occurredAt.toISOString(),
   };
 }
