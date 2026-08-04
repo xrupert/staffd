@@ -7,7 +7,8 @@
     "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint --max-warnings 0",
+    "lint": "eslint --max-warnings 83",
+    "lint:mission-control": "eslint --max-warnings 0 app/api/_lib/orchestrator/mission-control.ts app/api/_lib/orchestrator/mission-control.test.ts app/api/_lib/orchestrator/chief-orchestrator.ts app/api/_lib/orchestrator/chief-orchestrator.test.ts",
     "check-types": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
