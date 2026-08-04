@@ -40,8 +40,11 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: Lint
+      - name: Lint debt ceiling
         run: pnpm lint
+
+      - name: Strict mission-control lint
+        run: pnpm --filter web lint:mission-control
 
       - name: Build
         run: pnpm build
