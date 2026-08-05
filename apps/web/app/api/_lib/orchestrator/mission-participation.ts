@@ -62,10 +62,7 @@ export function missionParticipationCard(
       eyebrow: "Recovery decision",
       title: "Resume with safety limits",
       question: "Should STAFFD retry the mission from its last durable checkpoint?",
-      scope: [
-        mission.goal,
-        mission.progress?.latestMessage ?? "Recover from the latest recorded mission state",
-      ].filter(Boolean),
+      scope: [mission.goal, "Recover from the latest recorded mission state"],
       consequence:
         "STAFFD will reuse the existing plan, budget, evidence contract, retry limits, and audit history rather than starting over.",
       primaryLabel: "Resume safely",
