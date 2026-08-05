@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import pb from "../../../lib/pb";
 import type { MissionRecord } from "../../api/_lib/orchestrator/mission-repository";
+import MissionParticipationPanel from "./MissionParticipationCard";
 
 type MissionWithProgress = MissionRecord & {
   progress: {
@@ -80,7 +81,7 @@ export default function MissionsPage() {
       <div className="mb-6">
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#A07BFF" }}>Mission Board</p>
         <h1 className="mt-2 text-2xl font-semibold" style={{ color: "#F0F0F8" }}>What your staff is working on</h1>
-        <p className="mt-2 text-sm" style={{ color: "#7A7A95" }}>Review progress, approve outbound work, and recover missions that need attention.</p>
+        <p className="mt-2 text-sm" style={{ color: "#7A7A95" }}>Review progress, make focused decisions, and recover missions that need attention.</p>
       </div>
 
       {error && <div className="mb-4 rounded-xl p-3 text-sm" style={{ background: "rgba(180,60,60,.12)", color: "#F0A0A0" }}>{error}</div>}
@@ -123,12 +124,17 @@ export default function MissionsPage() {
                 </ul>
               </div>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                {mission.status === "waiting_for_approval" && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "approve")} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: "#5B21E8", color: "white" }}>Approve mission</button>}
-                {mission.status === "planned" && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "start")} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: "#5B21E8", color: "white" }}>Start my staff</button>}
-                {["failed", "repairing"].includes(mission.status) && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "resume")} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: "#5B21E8", color: "white" }}>Resume safely</button>}
-                {!(["completed", "failed"] as string[]).includes(mission.status) && <button disabled={actingOn === mission.id} onClick={() => void act(mission, "cancel")} className="rounded-lg px-3 py-2 text-xs disabled:opacity-50" style={{ border: "1px solid #3A3A50", color: "#9A9AAF" }}>Cancel</button>}
-              </div>
+              <MissionParticipationPanel
+                mission={mission}
+                disabled={actingOn === mission.id}
+                onAction={(action) => void act(mission, action)}
+              />
+
+              {!(["completed", "failed"] as string[]).includes(mission.status) && (
+                <div className="mt-4">
+                  <button disabled={actingOn === mission.id} onClick={() => void act(mission, "cancel")} className="rounded-lg px-3 py-2 text-xs disabled:opacity-50" style={{ border: "1px solid #3A3A50", color: "#9A9AAF" }}>Cancel mission</button>
+                </div>
+              )}
             </article>
           ))}
         </div>
