@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bookingInboxItem, buildBusinessInbox, missionInboxItem } from "./business-inbox";
+import { bookingInboxItem, buildBusinessInbox, missionInboxItem, researchInboxItem } from "./business-inbox";
 
 describe("business inbox", () => {
   it("prioritizes approval work above completed work", () => {
@@ -20,5 +20,34 @@ describe("business inbox", () => {
     expect(bookingInboxItem({ id: "soon", start_time: "2026-08-05T12:00:00Z" }, now)?.priority).toBe("high");
     expect(bookingInboxItem({ id: "later", start_time: "2026-08-10T12:00:00Z" }, now)).toBeNull();
     expect(bookingInboxItem({ id: "cancelled", start_time: "2026-08-05T12:00:00Z", status: "cancelled" }, now)).toBeNull();
+  });
+
+  it("surfaces pending high-risk research as a critical approval", () => {
+    const item = researchInboxItem({
+      id: "r1",
+      topic: "Payroll compliance",
+      claim: "The procedure is current.",
+      verified_at: "2026-08-05T12:00:00Z",
+      review_status: "pending",
+      answer: { confidence: "high", reason: "Two authorities agree." },
+      citations: [{ title: "A" }, { title: "B" }],
+    });
+    expect(item).toMatchObject({
+      source: "research",
+      kind: "approval",
+      priority: "critical",
+      sourceId: "r1",
+    });
+    expect(item?.evidence).toContain("2 cited sources");
+  });
+
+  it("hides research that is no longer pending", () => {
+    expect(researchInboxItem({
+      id: "r1",
+      topic: "Payroll compliance",
+      claim: "The procedure is current.",
+      verified_at: "2026-08-05T12:00:00Z",
+      review_status: "approved",
+    })).toBeNull();
   });
 });

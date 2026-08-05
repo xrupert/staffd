@@ -3,7 +3,7 @@ export type InboxKind = "approval" | "repair" | "booking" | "review" | "incoming
 
 export type BusinessInboxItem = {
   id: string;
-  source: "mission" | "booking" | "integration" | "notification";
+  source: "mission" | "booking" | "integration" | "notification" | "research";
   sourceId: string;
   kind: InboxKind;
   priority: InboxPriority;
@@ -29,6 +29,16 @@ type BookingInboxRecord = {
   start_time: string;
   status?: string;
   duration?: number;
+};
+
+type ResearchInboxRecord = {
+  id: string;
+  topic: string;
+  claim: string;
+  verified_at: string;
+  review_status: string;
+  answer?: { confidence?: string; reason?: string };
+  citations?: Array<{ title?: string }>;
 };
 
 export function missionInboxItem(mission: MissionInboxRecord): BusinessInboxItem | null {
@@ -84,6 +94,30 @@ export function bookingInboxItem(booking: BookingInboxRecord, now = new Date()):
     evidence: booking.duration ? [`${booking.duration} minute booking`] : [],
     actionLabel: "Prepare for the meeting", actionHref: "/dashboard",
     occurredAt: booking.start_time,
+  };
+}
+
+export function researchInboxItem(record: ResearchInboxRecord): BusinessInboxItem | null {
+  if (record.review_status !== "pending") return null;
+  const occurredAt = new Date(record.verified_at);
+  if (!Number.isFinite(occurredAt.getTime())) return null;
+  const evidence = [
+    record.answer?.confidence ? `${record.answer.confidence} confidence` : null,
+    record.answer?.reason ?? null,
+    record.citations?.length ? `${record.citations.length} cited sources` : null,
+  ].filter((value): value is string => Boolean(value));
+  return {
+    id: `research:${record.id}:approval`,
+    source: "research",
+    sourceId: record.id,
+    kind: "approval",
+    priority: "critical",
+    title: "A researched conclusion needs your approval",
+    summary: `${record.topic}: ${record.claim}`,
+    evidence,
+    actionLabel: "Review the evidence",
+    actionHref: `/dashboard?researchReview=${encodeURIComponent(record.id)}`,
+    occurredAt: occurredAt.toISOString(),
   };
 }
 
