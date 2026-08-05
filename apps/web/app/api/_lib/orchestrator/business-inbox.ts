@@ -1,9 +1,9 @@
 export type InboxPriority = "critical" | "high" | "normal";
-export type InboxKind = "approval" | "repair" | "booking" | "review" | "incoming";
+export type InboxKind = "approval" | "repair" | "booking" | "review" | "incoming" | "summary";
 
 export type BusinessInboxItem = {
   id: string;
-  source: "mission" | "booking" | "integration";
+  source: "mission" | "booking" | "integration" | "notification";
   sourceId: string;
   kind: InboxKind;
   priority: InboxPriority;
