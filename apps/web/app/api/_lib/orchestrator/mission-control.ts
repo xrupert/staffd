@@ -72,14 +72,34 @@ export type LoopDecision =
 
 const CAPABILITY_PATTERNS: Array<{ capability: MissionCapability; pattern: RegExp }> = [
   { capability: "legal", pattern: /legal|contract|compliance|policy|terms|privacy/i },
-  { capability: "marketing", pattern: /marketing|campaign|viral|promotion|launch/i },
-  { capability: "content", pattern: /video|social|post|copy|newsletter|content/i },
-  { capability: "sales", pattern: /sales|lead|pipeline|proposal|outreach/i },
-  { capability: "customer_support", pattern: /support|ticket|customer response|complaint/i },
-  { capability: "finance", pattern: /invoice|expense|budget|finance|payment/i },
-  { capability: "analytics", pattern: /analytics|measure|report|performance|conversion/i },
-  { capability: "operations", pattern: /operations|process|workflow|schedule|coordinate/i },
+  { capability: "marketing", pattern: /marketing|campaign|viral|promotion|launch|audience/i },
+  { capability: "content", pattern: /video|social|post|copy|newsletter|content|creative|image/i },
+  { capability: "sales", pattern: /sales|lead|pipeline|proposal|outreach|prospect|follow[ -]?up/i },
+  { capability: "customer_support", pattern: /support|ticket|customer response|complaint|reply/i },
+  { capability: "finance", pattern: /invoice|expense|budget|finance|payment|revenue/i },
+  { capability: "analytics", pattern: /analytics|measure|report|performance|conversion|track/i },
+  { capability: "operations", pattern: /operations|process|workflow|schedule|coordinate|recurring/i },
 ];
+
+const OUTBOUND_PATTERN = /\b(send|publish|post|email|message|contact|call|launch|distribute|deliver|reply|respond|outreach)\b/i;
+const OUTBOUND_CAPABILITIES = new Set<MissionCapability>([
+  "marketing",
+  "content",
+  "sales",
+  "customer_support",
+]);
+
+const STEP_TITLES: Record<MissionCapability, string> = {
+  business_architecture: "Clarify the outcome and design the mission",
+  marketing: "Design the campaign and audience strategy",
+  content: "Create the required content and creative assets",
+  legal: "Review legal, policy, and compliance requirements",
+  sales: "Prepare and execute the sales follow-up",
+  customer_support: "Prepare the customer response",
+  finance: "Review the financial impact and payment requirements",
+  operations: "Coordinate timing, workflow, and delivery",
+  analytics: "Measure results and verify the outcome",
+};
 
 function missionId(goal: string, requestedBy: string): string {
   const source = `${requestedBy}:${goal}`.toLowerCase();
@@ -108,6 +128,59 @@ export function assessMissionRisk(capabilities: MissionCapability[], constraints
   return "low";
 }
 
+export function missionRequiresOutboundApproval(goal: string, capability: MissionCapability): boolean {
+  return OUTBOUND_CAPABILITIES.has(capability) && OUTBOUND_PATTERN.test(goal);
+}
+
+function dependencyIdsFor(
+  capability: MissionCapability,
+  stepsByCapability: Partial<Record<MissionCapability, string>>,
+): string[] {
+  const architecture = stepsByCapability.business_architecture;
+  if (!architecture || capability === "business_architecture") return [];
+
+  const firstAvailable = (...candidates: MissionCapability[]): string | undefined =>
+    candidates.map((candidate) => stepsByCapability[candidate]).find(Boolean);
+
+  switch (capability) {
+    case "marketing":
+    case "finance":
+      return [architecture];
+    case "content":
+      return [firstAvailable("marketing") ?? architecture];
+    case "legal":
+      return [firstAvailable("content", "marketing") ?? architecture];
+    case "sales":
+    case "customer_support":
+      return [firstAvailable("legal", "content", "marketing") ?? architecture];
+    case "operations":
+      return [
+        ...new Set(
+          ["legal", "sales", "customer_support", "content", "marketing", "finance"]
+            .map((candidate) => stepsByCapability[candidate as MissionCapability])
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ].length
+        ? [
+            ...new Set(
+              ["legal", "sales", "customer_support", "content", "marketing", "finance"]
+                .map((candidate) => stepsByCapability[candidate as MissionCapability])
+                .filter((id): id is string => Boolean(id)),
+            ),
+          ]
+        : [architecture];
+    case "analytics": {
+      const executionSteps = Object.entries(stepsByCapability)
+        .filter(([candidate]) => candidate !== "business_architecture" && candidate !== "analytics")
+        .map(([, id]) => id)
+        .filter((id): id is string => Boolean(id));
+      return executionSteps.length ? executionSteps : [architecture];
+    }
+    default:
+      return [architecture];
+  }
+}
+
 export function planMission(request: MissionRequest): MissionPlan {
   const goal = request.goal.trim();
   if (!goal) throw new Error("Mission goal is required");
@@ -115,16 +188,17 @@ export function planMission(request: MissionRequest): MissionPlan {
 
   const capabilities = inferMissionCapabilities(goal);
   const risk = assessMissionRisk(capabilities, request.constraints ?? []);
-  const architectureStepId = "step-1-business_architecture";
-  const steps: MissionStep[] = capabilities.map((capability, index) => ({
-    id: `step-${index + 1}-${capability}`,
-    title:
-      capability === "business_architecture"
-        ? "Clarify the outcome and design the mission"
-        : `Execute ${capability.replaceAll("_", " ")} work`,
+  const stepsByCapability = Object.fromEntries(
+    capabilities.map((capability, index) => [capability, `step-${index + 1}-${capability}`]),
+  ) as Partial<Record<MissionCapability, string>>;
+
+  const steps: MissionStep[] = capabilities.map((capability) => ({
+    id: stepsByCapability[capability]!,
+    title: STEP_TITLES[capability],
     capability,
-    dependsOn: index === 0 ? [] : [architectureStepId],
-    approvalRequired: capability === "legal" || risk === "critical",
+    dependsOn: dependencyIdsFor(capability, stepsByCapability),
+    approvalRequired:
+      capability === "legal" || missionRequiresOutboundApproval(goal, capability) || risk === "critical",
     successCriteria:
       capability === "business_architecture"
         ? ["Goal, audience, constraints, deliverables, and success measures are explicit"]
