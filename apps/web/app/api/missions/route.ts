@@ -1,6 +1,7 @@
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { whoAmI } from "../_lib/integrations/identity";
 import { planMission } from "../_lib/orchestrator/mission-control";
+import { buildMissionDeliveryPackage } from "../_lib/orchestrator/mission-delivery";
 import {
   groupMissionEvents,
   listMissionEventsForUser,
@@ -36,10 +37,11 @@ export async function GET(request: Request) {
 
     return Response.json({
       missions: missions.map((mission) => {
+        const events = eventsByMission.get(mission.id) ?? [];
         const timeline = summarizeMissionTimeline(
           mission.plan.steps.length,
           mission.status,
-          eventsByMission.get(mission.id) ?? [],
+          events,
         );
         const latestEvent = timeline.events.at(-1);
         return {
@@ -52,6 +54,7 @@ export async function GET(request: Request) {
             latestMessage: latestEvent?.message ?? null,
             latestAt: latestEvent?.created ?? null,
           },
+          delivery: buildMissionDeliveryPackage(mission, events),
         };
       }),
     });

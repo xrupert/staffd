@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import pb from "../../../lib/pb";
+import type { MissionDeliveryPackage as DeliveryPackage } from "../../api/_lib/orchestrator/mission-delivery";
 import type { MissionRecord } from "../../api/_lib/orchestrator/mission-repository";
+import MissionDeliveryPackage from "./MissionDeliveryPackage";
 import MissionParticipationPanel from "./MissionParticipationCard";
 
 type MissionWithProgress = MissionRecord & {
@@ -14,6 +16,7 @@ type MissionWithProgress = MissionRecord & {
     latestMessage: string | null;
     latestAt: string | null;
   };
+  delivery: DeliveryPackage | null;
 };
 
 type MissionAction = "approve" | "resume" | "start" | "cancel";
@@ -123,6 +126,8 @@ export default function MissionsPage() {
                   {mission.evidence.slice(0, 4).map((item) => <li key={item}>• {item}</li>)}
                 </ul>
               </div>
+
+              <MissionDeliveryPackage delivery={mission.delivery} />
 
               <MissionParticipationPanel
                 mission={mission}
