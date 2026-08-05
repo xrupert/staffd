@@ -44,6 +44,27 @@ describe("buildNotificationDigest", () => {
     expect(digest.summary).toEqual({ total: 2, critical: 1, high: 1, normal: 0 });
   });
 
+  it("uses the owner's local day instead of the UTC day", () => {
+    const now = new Date("2026-08-05T02:00:00.000Z");
+    const digest = buildNotificationDigest([
+      item({ id: "local-tuesday", occurredAt: "2026-08-05T01:30:00.000Z" }),
+      item({ id: "local-wednesday", occurredAt: "2026-08-05T05:00:00.000Z" }),
+    ], preferences, now);
+
+    expect(digest.digestItems.map((entry) => entry.id)).toEqual(["local-tuesday"]);
+  });
+
+  it("anchors weekly digests to Monday in the owner's timezone", () => {
+    const weekly = { ...preferences, digest: "weekly" as const };
+    const now = new Date("2026-08-10T03:30:00.000Z");
+    const digest = buildNotificationDigest([
+      item({ id: "sunday-local", occurredAt: "2026-08-10T03:00:00.000Z" }),
+      item({ id: "monday-local", occurredAt: "2026-08-10T04:30:00.000Z" }),
+    ], weekly, now);
+
+    expect(digest.digestItems.map((entry) => entry.id)).toEqual(["sunday-local"]);
+  });
+
   it("suppresses external immediate delivery during quiet hours", () => {
     const digest = buildNotificationDigest(
       [item({ occurredAt: "2026-08-05T02:30:00.000Z" })],
