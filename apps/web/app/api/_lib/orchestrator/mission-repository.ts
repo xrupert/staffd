@@ -1,6 +1,7 @@
 import { adminHeaders, getAdminToken, pbUrl } from "../pb";
 import type { MissionPlan, MissionStatus } from "./mission-control";
 import { createPendingMissionEvent, type PendingMissionEvent } from "./mission-outbox";
+import type { MissionRecurrence } from "./mission-recurrence";
 import type { StaffOutcomeId } from "./outcome-catalog";
 
 export type MissionRecord = {
@@ -17,6 +18,11 @@ export type MissionRecord = {
   evidence: string[];
   pending_events?: PendingMissionEvent[];
   correlation_id: string;
+  recurrence_enabled?: boolean;
+  recurrence?: MissionRecurrence | null;
+  next_run_at?: string | null;
+  recurrence_last_run_at?: string | null;
+  recurrence_parent_id?: string | null;
   created?: string;
   updated?: string;
 };
@@ -82,5 +88,10 @@ export async function createMission(
       }),
     ],
     correlation_id: input.correlationId,
+    recurrence_enabled: false,
+    recurrence: null,
+    next_run_at: null,
+    recurrence_last_run_at: null,
+    recurrence_parent_id: null,
   });
 }

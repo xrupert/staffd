@@ -11,12 +11,19 @@ const FIELDS = [
   { name: "evidence", type: "json", required: false },
   { name: "pending_events", type: "json", required: false },
   { name: "correlation_id", type: "text", required: true },
+  { name: "recurrence_enabled", type: "bool", required: false },
+  { name: "recurrence", type: "json", required: false },
+  { name: "next_run_at", type: "date", required: false },
+  { name: "recurrence_last_run_at", type: "date", required: false },
+  { name: "recurrence_parent_id", type: "text", required: false },
 ];
 
 const INDEXES = [
   "CREATE INDEX idx_missions_user ON missions (user)",
   "CREATE INDEX idx_missions_status ON missions (status)",
   "CREATE INDEX idx_missions_workflow ON missions (workflow_id)",
+  "CREATE INDEX idx_missions_next_run ON missions (recurrence_enabled, next_run_at)",
+  "CREATE INDEX idx_missions_recurrence_parent ON missions (recurrence_parent_id)",
   "CREATE UNIQUE INDEX idx_missions_correlation ON missions (correlation_id)",
 ];
 
