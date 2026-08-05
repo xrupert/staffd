@@ -119,7 +119,7 @@ describe("owner email digests", () => {
   });
 
   it("does not create a delivery for disabled or empty digests", () => {
-    expect(notificationDigestDeliveryItem({ ...digest, frequency: "disabled" })).toBeNull();
+    expect(notificationDigestDeliveryItem({ ...digest, frequency: "off" })).toBeNull();
     expect(notificationDigestDeliveryItem({
       ...digest,
       digestItems: [],
