@@ -3,11 +3,14 @@ import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../pb";
 import { sendPushToUser } from "../push";
 import type { BusinessInboxItem } from "./business-inbox";
 import type { NotificationDigest } from "./notification-digest";
+import { notificationDeliveryRetryable } from "./notification-retry";
 
 export type NotificationDeliveryRecord = {
   id: string;
   delivery_key: string;
   status?: "pending" | "sent" | "failed";
+  attempts?: number;
+  updated?: string;
 };
 
 type DeliverySummary = { attempted: number; sent: number; skipped: number; failed: number };
@@ -123,6 +126,24 @@ async function findDelivery(deliveryKey: string, token: string): Promise<Notific
   return payload.items?.[0] ?? null;
 }
 
+async function retryFailedDelivery(
+  delivery: NotificationDeliveryRecord,
+  token: string,
+): Promise<NotificationDeliveryRecord | null> {
+  if (!notificationDeliveryRetryable(delivery)) return null;
+  const response = await fetch(`${pbUrl()}/api/collections/notification_deliveries/records/${delivery.id}`, {
+    method: "PATCH",
+    headers: adminHeaders(token),
+    body: JSON.stringify({
+      status: "pending",
+      attempts: Math.max(1, delivery.attempts ?? 1) + 1,
+      last_error: "",
+    }),
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as NotificationDeliveryRecord;
+}
+
 async function createPendingDelivery(
   userId: string,
   item: BusinessInboxItem,
@@ -144,7 +165,7 @@ async function createPendingDelivery(
     }),
   });
   if (response.status === 404) return null;
-  if (response.status === 400 || response.status === 409) return findDelivery(deliveryKey, token);
+  if (response.status === 400 || response.status === 409) return null;
   if (!response.ok) throw new Error(`notification delivery claim failed (${response.status})`);
   return (await response.json()) as NotificationDeliveryRecord;
 }
@@ -174,10 +195,13 @@ async function claimDelivery(
 ): Promise<NotificationDeliveryRecord | null> {
   const deliveryKey = notificationDeliveryKey(userId, item, channel);
   const existing = await findDelivery(deliveryKey, token).catch(() => null);
-  if (existing?.status === "sent" || existing?.status === "pending") return null;
-  const claim = await createPendingDelivery(userId, item, deliveryKey, token, channel).catch(() => null);
-  if (!claim || claim.status === "sent" || claim.status === "pending" && existing?.id === claim.id) return null;
-  return claim;
+  if (existing) return retryFailedDelivery(existing, token);
+
+  const created = await createPendingDelivery(userId, item, deliveryKey, token, channel).catch(() => null);
+  if (created) return created;
+
+  const raced = await findDelivery(deliveryKey, token).catch(() => null);
+  return raced ? retryFailedDelivery(raced, token) : null;
 }
 
 async function sendEmail(payload: ReturnType<typeof emailPayloadForInboxItem>): Promise<boolean> {
