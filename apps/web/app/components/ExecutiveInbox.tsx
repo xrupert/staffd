@@ -25,6 +25,12 @@ const PRIORITY_COLOR: Record<ExecutiveInboxItem["priority"], string> = {
   normal: "#A98CFF",
 };
 
+export function buildInboxActionPrompt(item: ExecutiveInboxItem): string {
+  const evidence = (item.evidence ?? []).filter(Boolean);
+  const context = evidence.length > 0 ? ` Evidence: ${evidence.join("; ")}.` : "";
+  return `${item.actionLabel}. ${item.title}: ${item.summary}.${context} Review the situation, propose the best next action, and do not send or publish anything without my approval.`;
+}
+
 function InboxShell({ children }: { children: ReactNode }) {
   return (
     <section
@@ -37,7 +43,13 @@ function InboxShell({ children }: { children: ReactNode }) {
   );
 }
 
-export default function ExecutiveInbox({ items }: { items: ExecutiveInboxItem[] }) {
+export default function ExecutiveInbox({
+  items,
+  onAction,
+}: {
+  items: ExecutiveInboxItem[];
+  onAction?: (prompt: string) => void;
+}) {
   if (items.length === 0) return null;
 
   const visibleItems = items.slice(0, 3);
@@ -82,13 +94,24 @@ export default function ExecutiveInbox({ items }: { items: ExecutiveInboxItem[] 
                   </p>
                 )}
               </div>
-              <a
-                href={item.actionHref}
-                className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
-                style={{ background: "rgba(91,33,232,0.16)", color: "#C4B5FD", border: "1px solid rgba(91,33,232,0.3)" }}
-              >
-                {item.actionLabel}
-              </a>
+              {onAction && item.kind === "incoming" ? (
+                <button
+                  type="button"
+                  onClick={() => onAction(buildInboxActionPrompt(item))}
+                  className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
+                  style={{ background: "rgba(91,33,232,0.16)", color: "#C4B5FD", border: "1px solid rgba(91,33,232,0.3)" }}
+                >
+                  {item.actionLabel}
+                </button>
+              ) : (
+                <a
+                  href={item.actionHref}
+                  className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
+                  style={{ background: "rgba(91,33,232,0.16)", color: "#C4B5FD", border: "1px solid rgba(91,33,232,0.3)" }}
+                >
+                  {item.actionLabel}
+                </a>
+              )}
             </div>
           </article>
         ))}
