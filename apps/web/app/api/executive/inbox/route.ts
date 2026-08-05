@@ -13,7 +13,10 @@ import {
   summarizeMissionTimeline,
 } from "../../_lib/orchestrator/mission-events";
 import type { MissionRecord } from "../../_lib/orchestrator/mission-repository";
-import { dispatchImmediatePushNotifications } from "../../_lib/orchestrator/notification-dispatch";
+import {
+  dispatchImmediateEmailNotifications,
+  dispatchImmediatePushNotifications,
+} from "../../_lib/orchestrator/notification-dispatch";
 import { buildNotificationDigest } from "../../_lib/orchestrator/notification-digest";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -92,12 +95,20 @@ export async function GET(request: Request) {
     const preferences = normalizeNotificationPreferences(preferenceRecords[0]?.preferences)
       ?? DEFAULT_NOTIFICATION_PREFERENCES;
     const notifications = buildNotificationDigest(items, preferences);
-    const delivery = await dispatchImmediatePushNotifications(user.id, notifications).catch(() => ({
-      attempted: 0,
-      sent: 0,
-      skipped: notifications.immediate.filter((entry) => entry.channels.includes("push")).length,
-      failed: 0,
-    }));
+    const [push, email] = await Promise.all([
+      dispatchImmediatePushNotifications(user.id, notifications).catch(() => ({
+        attempted: 0,
+        sent: 0,
+        skipped: notifications.immediate.filter((entry) => entry.channels.includes("push")).length,
+        failed: 0,
+      })),
+      dispatchImmediateEmailNotifications(user.id, user.email, notifications).catch(() => ({
+        attempted: 0,
+        sent: 0,
+        skipped: notifications.immediate.filter((entry) => entry.channels.includes("email")).length,
+        failed: 0,
+      })),
+    ]);
 
     return Response.json({
       items,
@@ -107,7 +118,7 @@ export async function GET(request: Request) {
         high: items.filter((item) => item.priority === "high").length,
       },
       notifications,
-      delivery,
+      delivery: { push, email },
     });
   } catch (error) {
     console.error("business inbox failed:", error);
