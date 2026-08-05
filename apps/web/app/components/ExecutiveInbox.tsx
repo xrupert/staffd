@@ -31,6 +31,21 @@ export function buildInboxActionPrompt(item: ExecutiveInboxItem): string {
   return `${item.actionLabel}. ${item.title}: ${item.summary}.${context} Review the situation, propose the best next action, and do not send or publish anything without my approval.`;
 }
 
+function prefillCommandCenter(prompt: string): boolean {
+  const textarea = document.querySelector<HTMLTextAreaElement>("textarea");
+  if (!textarea) return false;
+
+  const valueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLTextAreaElement.prototype,
+    "value",
+  )?.set;
+  valueSetter?.call(textarea, prompt);
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  textarea.focus();
+  textarea.scrollIntoView({ behavior: "smooth", block: "center" });
+  return true;
+}
+
 function InboxShell({ children }: { children: ReactNode }) {
   return (
     <section
@@ -53,6 +68,15 @@ export default function ExecutiveInbox({
   if (items.length === 0) return null;
 
   const visibleItems = items.slice(0, 3);
+
+  function handleAction(item: ExecutiveInboxItem) {
+    const prompt = buildInboxActionPrompt(item);
+    if (onAction) {
+      onAction(prompt);
+      return;
+    }
+    if (!prefillCommandCenter(prompt)) window.location.href = item.actionHref;
+  }
 
   return (
     <InboxShell>
@@ -94,10 +118,10 @@ export default function ExecutiveInbox({
                   </p>
                 )}
               </div>
-              {onAction && item.kind === "incoming" ? (
+              {item.kind === "incoming" ? (
                 <button
                   type="button"
-                  onClick={() => onAction(buildInboxActionPrompt(item))}
+                  onClick={() => handleAction(item)}
                   className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold"
                   style={{ background: "rgba(91,33,232,0.16)", color: "#C4B5FD", border: "1px solid rgba(91,33,232,0.3)" }}
                 >
