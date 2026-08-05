@@ -7,7 +7,7 @@ function mission(status: MissionRecord["status"] = "completed"): MissionRecord {
   return {
     id: "mission-1",
     user: "user-1",
-    outcome_id: "campaign_launch",
+    outcome_id: "launch-email-campaign",
     goal: "Launch the campaign",
     status,
     risk: "medium",
