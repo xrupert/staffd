@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   harnessPolicyFor,
   inferMissionCapabilities,
+  missionRequiresOutboundApproval,
   nextLoopDecision,
   planMission,
   validateExecutionGraph,
 } from "./mission-control";
 
 describe("mission control", () => {
-  it("turns a plain-language business request into a capability plan", () => {
+  it("turns a plain-language business request into a dependency-aware capability plan", () => {
     const plan = planMission({
       goal: "Create a viral product video, publish the campaign, and measure conversions",
       requestedBy: "customer-1",
@@ -21,20 +22,52 @@ describe("mission control", () => {
       "content",
       "analytics",
     ]);
-    expect(plan.steps[0]?.capability).toBe("business_architecture");
-    expect(plan.steps.slice(1).every((step) => step.dependsOn.includes(plan.steps[0]!.id))).toBe(true);
+    const architecture = plan.steps.find((step) => step.capability === "business_architecture")!;
+    const marketing = plan.steps.find((step) => step.capability === "marketing")!;
+    const content = plan.steps.find((step) => step.capability === "content")!;
+    const analytics = plan.steps.find((step) => step.capability === "analytics")!;
+
+    expect(marketing.dependsOn).toEqual([architecture.id]);
+    expect(content.dependsOn).toEqual([marketing.id]);
+    expect(analytics.dependsOn).toEqual([marketing.id, content.id]);
+    expect(marketing.approvalRequired).toBe(true);
+    expect(content.approvalRequired).toBe(true);
     expect(validateExecutionGraph(plan.steps)).toEqual([]);
   });
 
-  it("requires approval for legal work", () => {
+  it("places legal review before outbound sales work", () => {
     const plan = planMission({
-      goal: "Review a customer contract and prepare a compliant response",
+      goal: "Draft compliant outreach terms and send a proposal to a lead",
       requestedBy: "customer-1",
     });
-    const legalStep = plan.steps.find((step) => step.capability === "legal");
+    const legal = plan.steps.find((step) => step.capability === "legal")!;
+    const sales = plan.steps.find((step) => step.capability === "sales")!;
 
     expect(plan.risk).toBe("high");
-    expect(legalStep?.approvalRequired).toBe(true);
+    expect(legal.approvalRequired).toBe(true);
+    expect(sales.dependsOn).toContain(legal.id);
+    expect(sales.approvalRequired).toBe(true);
+  });
+
+  it("only requires outbound approval when the request crosses the send boundary", () => {
+    expect(missionRequiresOutboundApproval("Draft a campaign", "marketing")).toBe(false);
+    expect(missionRequiresOutboundApproval("Publish the campaign", "marketing")).toBe(true);
+    expect(missionRequiresOutboundApproval("Send a customer response", "customer_support")).toBe(true);
+    expect(missionRequiresOutboundApproval("Send the weekly report", "analytics")).toBe(false);
+  });
+
+  it("makes analytics wait for all execution work", () => {
+    const plan = planMission({
+      goal: "Create a campaign, follow up with leads, coordinate delivery, and report performance",
+      requestedBy: "customer-1",
+    });
+    const analytics = plan.steps.find((step) => step.capability === "analytics")!;
+    const expectedDependencies = plan.steps
+      .filter((step) => !["business_architecture", "analytics"].includes(step.capability))
+      .map((step) => step.id);
+
+    expect(analytics.dependsOn).toEqual(expectedDependencies);
+    expect(validateExecutionGraph(plan.steps)).toEqual([]);
   });
 
   it("creates bounded harness policies", () => {
