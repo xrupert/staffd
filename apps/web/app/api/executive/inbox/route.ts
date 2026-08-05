@@ -13,6 +13,7 @@ import {
   summarizeMissionTimeline,
 } from "../../_lib/orchestrator/mission-events";
 import type { MissionRecord } from "../../_lib/orchestrator/mission-repository";
+import { dispatchImmediatePushNotifications } from "../../_lib/orchestrator/notification-dispatch";
 import { buildNotificationDigest } from "../../_lib/orchestrator/notification-digest";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -90,6 +91,13 @@ export async function GET(request: Request) {
     ]);
     const preferences = normalizeNotificationPreferences(preferenceRecords[0]?.preferences)
       ?? DEFAULT_NOTIFICATION_PREFERENCES;
+    const notifications = buildNotificationDigest(items, preferences);
+    const delivery = await dispatchImmediatePushNotifications(user.id, notifications).catch(() => ({
+      attempted: 0,
+      sent: 0,
+      skipped: notifications.immediate.filter((entry) => entry.channels.includes("push")).length,
+      failed: 0,
+    }));
 
     return Response.json({
       items,
@@ -98,7 +106,8 @@ export async function GET(request: Request) {
         critical: items.filter((item) => item.priority === "critical").length,
         high: items.filter((item) => item.priority === "high").length,
       },
-      notifications: buildNotificationDigest(items, preferences),
+      notifications,
+      delivery,
     });
   } catch (error) {
     console.error("business inbox failed:", error);
