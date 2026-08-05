@@ -23,10 +23,10 @@ export type NotificationDigest = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const FREQUENCY_WINDOW_MS: Record<Exclude<NotificationPreferences["digest"], "off">, number> = {
+const FREQUENCY_WINDOW_MS = {
   daily: DAY_MS,
   weekly: 7 * DAY_MS,
-};
+} as const;
 
 function validOccurredAt(item: BusinessInboxItem): number | null {
   const value = new Date(item.occurredAt).getTime();
@@ -57,9 +57,11 @@ export function buildNotificationDigest(
     return channels.length ? [{ item, channels }] : [];
   });
 
-  const digestItems = preferences.digest === "off"
-    ? []
-    : items.filter((item) => occurredWithin(item, now, FREQUENCY_WINDOW_MS[preferences.digest]));
+  let digestItems: BusinessInboxItem[] = [];
+  if (preferences.digest === "daily" || preferences.digest === "weekly") {
+    const windowMs = FREQUENCY_WINDOW_MS[preferences.digest];
+    digestItems = items.filter((item) => occurredWithin(item, now, windowMs));
+  }
 
   return {
     generatedAt,
