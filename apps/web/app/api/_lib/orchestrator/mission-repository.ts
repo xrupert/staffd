@@ -1,8 +1,14 @@
 import { adminHeaders, getAdminToken, pbUrl } from "../pb";
+import type { InvertedMissionPlan } from "./inversion";
 import type { MissionPlan, MissionStatus } from "./mission-control";
 import { createPendingMissionEvent, type PendingMissionEvent } from "./mission-outbox";
 import type { MissionRecurrence } from "./mission-recurrence";
 import type { StaffOutcomeId } from "./outcome-catalog";
+
+export type PersistedMissionPlan = MissionPlan & Partial<Pick<
+  InvertedMissionPlan,
+  "failureModes" | "inversionReviewed"
+>>;
 
 export type MissionRecord = {
   id: string;
@@ -14,7 +20,7 @@ export type MissionRecord = {
   budget_credits: number;
   approval_required: boolean;
   workflow_id?: string;
-  plan: MissionPlan;
+  plan: PersistedMissionPlan;
   evidence: string[];
   pending_events?: PendingMissionEvent[];
   correlation_id: string;
@@ -30,7 +36,7 @@ export type MissionRecord = {
 export type CreateMissionInput = {
   userId: string;
   outcomeId: StaffOutcomeId;
-  plan: MissionPlan;
+  plan: PersistedMissionPlan;
   approvalRequired: boolean;
   evidence: string[];
   correlationId: string;
@@ -84,7 +90,12 @@ export async function createMission(
         message: approvalRequired
           ? "Mission created and waiting for your approval."
           : "Mission created and ready for planning.",
-        evidence: { outcomeId: input.outcomeId, requiredEvidence: input.evidence },
+        evidence: {
+          outcomeId: input.outcomeId,
+          requiredEvidence: input.evidence,
+          inversionReviewed: input.plan.inversionReviewed === true,
+          killCriteria: input.plan.failureModes?.map((mode) => mode.killCriterion) ?? [],
+        },
       }),
     ],
     correlation_id: input.correlationId,

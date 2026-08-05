@@ -1,5 +1,6 @@
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { whoAmI } from "../_lib/integrations/identity";
+import { invertMissionPlan } from "../_lib/orchestrator/inversion";
 import { planMission } from "../_lib/orchestrator/mission-control";
 import { buildMissionDeliveryPackage } from "../_lib/orchestrator/mission-delivery";
 import {
@@ -80,11 +81,11 @@ export async function POST(request: Request) {
   try {
     const outcome = outcomeById(body.outcomeId);
     const goal = body.goal?.trim() || outcome.exampleRequest;
-    const plan = planMission({
+    const plan = invertMissionPlan(planMission({
       goal,
       requestedBy: user.id,
       successCriteria: outcome.evidence.map((item) => `${item} is present and verified`),
-    });
+    }));
     const mission = await createMission({
       userId: user.id,
       outcomeId: outcome.id,
