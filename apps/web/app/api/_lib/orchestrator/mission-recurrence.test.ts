@@ -39,24 +39,68 @@ function mission(overrides: Partial<MissionRecord> = {}): MissionRecord {
 }
 
 describe("mission recurrence", () => {
-  it("normalizes bounded UTC schedules", () => {
+  it("normalizes bounded schedules with valid IANA timezones", () => {
     expect(normalizeMissionRecurrence({ frequency: "weekly", interval: 2 })).toEqual({
       frequency: "weekly",
       interval: 2,
       timezone: "UTC",
     });
+    expect(normalizeMissionRecurrence({
+      frequency: "daily",
+      interval: 1,
+      timezone: "America/New_York",
+    })).toEqual({
+      frequency: "daily",
+      interval: 1,
+      timezone: "America/New_York",
+    });
     expect(normalizeMissionRecurrence({ frequency: "hourly", interval: 1 })).toBeNull();
     expect(normalizeMissionRecurrence({ frequency: "daily", interval: 0 })).toBeNull();
-    expect(normalizeMissionRecurrence({ frequency: "daily", interval: 1, timezone: "America/New_York" })).toBeNull();
+    expect(normalizeMissionRecurrence({ frequency: "daily", interval: 1, timezone: "Not/A_Zone" })).toBeNull();
   });
 
-  it("calculates daily, weekly, and month-end-safe next runs", () => {
+  it("calculates daily, weekly, and month-end-safe UTC runs", () => {
     expect(nextMissionRunAt("2026-08-01T12:00:00.000Z", { frequency: "daily", interval: 2, timezone: "UTC" }))
       .toBe("2026-08-03T12:00:00.000Z");
     expect(nextMissionRunAt("2026-08-01T12:00:00.000Z", { frequency: "weekly", interval: 1, timezone: "UTC" }))
       .toBe("2026-08-08T12:00:00.000Z");
     expect(nextMissionRunAt("2026-01-31T12:00:00.000Z", { frequency: "monthly", interval: 1, timezone: "UTC" }))
       .toBe("2026-02-28T12:00:00.000Z");
+  });
+
+  it("preserves the local wall clock across daylight-saving changes", () => {
+    expect(nextMissionRunAt("2026-03-07T14:00:00.000Z", {
+      frequency: "daily",
+      interval: 1,
+      timezone: "America/New_York",
+    })).toBe("2026-03-08T13:00:00.000Z");
+
+    expect(nextMissionRunAt("2026-10-31T13:00:00.000Z", {
+      frequency: "daily",
+      interval: 1,
+      timezone: "America/New_York",
+    })).toBe("2026-11-01T14:00:00.000Z");
+  });
+
+  it("keeps month-end recurrence aligned to the owner's timezone", () => {
+    expect(nextMissionRunAt("2026-01-31T14:30:00.000Z", {
+      frequency: "monthly",
+      interval: 1,
+      timezone: "America/New_York",
+    })).toBe("2026-02-28T14:30:00.000Z");
+  });
+
+  it("rejects invalid anchors and timezones", () => {
+    expect(() => nextMissionRunAt("not-a-date", {
+      frequency: "daily",
+      interval: 1,
+      timezone: "UTC",
+    })).toThrow("A valid recurrence anchor is required");
+    expect(() => nextMissionRunAt("2026-08-01T12:00:00.000Z", {
+      frequency: "daily",
+      interval: 1,
+      timezone: "Bad/Timezone",
+    })).toThrow("A valid IANA timezone is required");
   });
 
   it("detects only enabled due schedules", () => {
@@ -74,6 +118,16 @@ describe("mission recurrence", () => {
     expect(advanceRecurringMission(source)).toEqual({
       recurrence_last_run_at: "2026-08-10T12:00:00.000Z",
       next_run_at: "2026-08-17T12:00:00.000Z",
+    });
+  });
+
+  it("advances a local schedule without UTC drift", () => {
+    expect(advanceRecurringMission(mission({
+      recurrence: { frequency: "daily", interval: 1, timezone: "America/New_York" },
+      next_run_at: "2026-03-07T14:00:00.000Z",
+    }))).toEqual({
+      recurrence_last_run_at: "2026-03-07T14:00:00.000Z",
+      next_run_at: "2026-03-08T13:00:00.000Z",
     });
   });
 });
