@@ -14,11 +14,11 @@ import {
 } from "../../_lib/orchestrator/mission-events";
 import type { MissionRecord } from "../../_lib/orchestrator/mission-repository";
 import {
-  dispatchEmailDigest,
   dispatchImmediateEmailNotifications,
   dispatchImmediatePushNotifications,
 } from "../../_lib/orchestrator/notification-dispatch";
 import { buildNotificationDigest } from "../../_lib/orchestrator/notification-digest";
+import { dispatchRetryableEmailDigest } from "../../_lib/orchestrator/notification-email-digest-retry";
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   normalizeNotificationPreferences,
@@ -110,7 +110,7 @@ export async function GET(request: Request) {
         skipped: notifications.immediate.filter((entry) => entry.channels.includes("email")).length,
         failed: 0,
       })),
-      dispatchEmailDigest(user.id, user.email, notifications).catch(() => ({
+      dispatchRetryableEmailDigest(user.id, user.email, notifications).catch(() => ({
         attempted: 0,
         sent: 0,
         skipped: notifications.digestItems.length ? 1 : 0,
