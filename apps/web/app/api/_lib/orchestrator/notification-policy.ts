@@ -77,8 +77,9 @@ function localMinutes(now: Date, timezone: string): number {
 }
 
 function clockMinutes(value: string): number {
-  const [hour, minute] = value.split(":").map(Number);
-  return hour * 60 + minute;
+  const match = CLOCK_PATTERN.exec(value);
+  if (!match) throw new Error("A valid notification clock is required");
+  return Number(match[1]) * 60 + Number(match[2]);
 }
 
 export function notificationQuietHoursActive(
