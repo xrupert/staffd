@@ -8,8 +8,6 @@ import {
 export type NotificationDigest = {
   generatedAt: string;
   frequency: NotificationPreferences["digest"];
-  timezone: string;
-  periodStart: string | null;
   channels: NotificationChannel[];
   immediate: Array<{
     item: BusinessInboxItem;
@@ -56,27 +54,26 @@ function mondayDateKey(dateKey: string): string {
   return date.toISOString().slice(0, 10);
 }
 
-export function notificationDigestPeriodStart(
+function digestPeriodKey(
   frequency: NotificationPreferences["digest"],
   timezone: string,
-  now: Date,
+  date: Date,
 ): string | null {
   if (frequency !== "daily" && frequency !== "weekly") return null;
-  const localToday = localDateKey(now, timezone);
-  return frequency === "weekly" ? mondayDateKey(localToday) : localToday;
+  const localDate = localDateKey(date, timezone);
+  return frequency === "weekly" ? mondayDateKey(localDate) : localDate;
 }
 
 function itemInDigestPeriod(
   item: BusinessInboxItem,
   frequency: NotificationPreferences["digest"],
   timezone: string,
-  periodStart: string,
+  currentPeriod: string,
   now: Date,
 ): boolean {
   const occurredAt = validOccurredAt(item);
   if (occurredAt === null || occurredAt > now.getTime()) return false;
-  const itemDate = localDateKey(new Date(occurredAt), timezone);
-  return frequency === "weekly" ? mondayDateKey(itemDate) === periodStart : itemDate === periodStart;
+  return digestPeriodKey(frequency, timezone, new Date(occurredAt)) === currentPeriod;
 }
 
 function countPriority(items: readonly BusinessInboxItem[], priority: InboxPriority): number {
@@ -96,13 +93,13 @@ export function buildNotificationDigest(
     return channels.length ? [{ item, channels }] : [];
   });
 
-  const periodStart = notificationDigestPeriodStart(preferences.digest, preferences.timezone, now);
-  const digestItems = periodStart
+  const currentPeriod = digestPeriodKey(preferences.digest, preferences.timezone, now);
+  const digestItems = currentPeriod
     ? items.filter((item) => itemInDigestPeriod(
       item,
       preferences.digest,
       preferences.timezone,
-      periodStart,
+      currentPeriod,
       now,
     ))
     : [];
@@ -110,8 +107,6 @@ export function buildNotificationDigest(
   return {
     generatedAt,
     frequency: preferences.digest,
-    timezone: preferences.timezone,
-    periodStart,
     channels: preferences.channels,
     immediate,
     digestItems,
