@@ -3,15 +3,108 @@ import type { MissionRecord } from "./mission-repository";
 export type MissionRecurrence = {
   frequency: "daily" | "weekly" | "monthly";
   interval: number;
-  timezone: "UTC";
+  timezone: string;
 };
 
-const DAY_MS = 86_400_000;
+type ZonedDateParts = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+  millisecond: number;
+};
 
 function validDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function validTimezone(value: unknown): value is string {
+  if (typeof value !== "string" || !value.trim() || value.length > 64) return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format(new Date(0));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function zonedDateParts(date: Date, timezone: string): ZonedDateParts {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  return {
+    year: Number(values.get("year")),
+    month: Number(values.get("month")),
+    day: Number(values.get("day")),
+    hour: Number(values.get("hour")),
+    minute: Number(values.get("minute")),
+    second: Number(values.get("second")),
+    millisecond: date.getUTCMilliseconds(),
+  };
+}
+
+function wallClockAsUtc(parts: ZonedDateParts): number {
+  return Date.UTC(
+    parts.year,
+    parts.month - 1,
+    parts.day,
+    parts.hour,
+    parts.minute,
+    parts.second,
+    parts.millisecond,
+  );
+}
+
+function timezoneOffsetMs(date: Date, timezone: string): number {
+  return wallClockAsUtc(zonedDateParts(date, timezone)) - date.getTime();
+}
+
+function zonedDateToUtc(parts: ZonedDateParts, timezone: string): Date {
+  const wallClock = wallClockAsUtc(parts);
+  let candidate = new Date(wallClock);
+
+  // Timezone offsets can change between the anchor and target because of DST.
+  // Two correction passes are sufficient for IANA zones and keep the requested
+  // wall-clock time stable across those offset boundaries.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const corrected = new Date(wallClock - timezoneOffsetMs(candidate, timezone));
+    if (corrected.getTime() === candidate.getTime()) break;
+    candidate = corrected;
+  }
+  return candidate;
+}
+
+function addCalendarDays(parts: ZonedDateParts, days: number): ZonedDateParts {
+  const calendar = new Date(Date.UTC(parts.year, parts.month - 1, parts.day + days));
+  return {
+    ...parts,
+    year: calendar.getUTCFullYear(),
+    month: calendar.getUTCMonth() + 1,
+    day: calendar.getUTCDate(),
+  };
+}
+
+function addCalendarMonths(parts: ZonedDateParts, months: number): ZonedDateParts {
+  const target = new Date(Date.UTC(parts.year, parts.month - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  return {
+    ...parts,
+    year: target.getUTCFullYear(),
+    month: target.getUTCMonth() + 1,
+    day: Math.min(parts.day, lastDay),
+  };
 }
 
 export function normalizeMissionRecurrence(value: unknown): MissionRecurrence | null {
@@ -20,36 +113,22 @@ export function normalizeMissionRecurrence(value: unknown): MissionRecurrence | 
   if (!candidate.frequency || !["daily", "weekly", "monthly"].includes(candidate.frequency)) return null;
   const interval = Math.floor(candidate.interval ?? 1);
   if (interval < 1 || interval > 365) return null;
-  if (candidate.timezone && candidate.timezone !== "UTC") return null;
-  return { frequency: candidate.frequency, interval, timezone: "UTC" };
+  const timezone = candidate.timezone ?? "UTC";
+  if (!validTimezone(timezone)) return null;
+  return { frequency: candidate.frequency, interval, timezone };
 }
 
 export function nextMissionRunAt(from: string | Date, recurrence: MissionRecurrence): string {
   const current = typeof from === "string" ? new Date(from) : new Date(from);
   if (!Number.isFinite(current.getTime())) throw new Error("A valid recurrence anchor is required");
+  if (!validTimezone(recurrence.timezone)) throw new Error("A valid IANA timezone is required");
 
-  if (recurrence.frequency === "daily") {
-    return new Date(current.getTime() + recurrence.interval * DAY_MS).toISOString();
-  }
-  if (recurrence.frequency === "weekly") {
-    return new Date(current.getTime() + recurrence.interval * 7 * DAY_MS).toISOString();
-  }
+  const currentLocal = zonedDateParts(current, recurrence.timezone);
+  const nextLocal = recurrence.frequency === "monthly"
+    ? addCalendarMonths(currentLocal, recurrence.interval)
+    : addCalendarDays(currentLocal, recurrence.interval * (recurrence.frequency === "weekly" ? 7 : 1));
 
-  const year = current.getUTCFullYear();
-  const month = current.getUTCMonth() + recurrence.interval;
-  const day = current.getUTCDate();
-  const target = new Date(Date.UTC(
-    year,
-    month,
-    1,
-    current.getUTCHours(),
-    current.getUTCMinutes(),
-    current.getUTCSeconds(),
-    current.getUTCMilliseconds(),
-  ));
-  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
-  target.setUTCDate(Math.min(day, lastDay));
-  return target.toISOString();
+  return zonedDateToUtc(nextLocal, recurrence.timezone).toISOString();
 }
 
 export function recurringMissionIsDue(mission: MissionRecord, now = new Date()): boolean {
