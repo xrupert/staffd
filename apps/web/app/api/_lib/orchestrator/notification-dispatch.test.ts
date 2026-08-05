@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { BusinessInboxItem } from "./business-inbox";
-import { notificationDeliveryKey, pushPayloadForInboxItem } from "./notification-dispatch";
+import {
+  emailPayloadForInboxItem,
+  notificationDeliveryKey,
+  pushPayloadForInboxItem,
+} from "./notification-dispatch";
 
 const item: BusinessInboxItem = {
   id: "mission-1-approval",
@@ -21,8 +25,11 @@ describe("notificationDeliveryKey", () => {
     expect(notificationDeliveryKey("user-1", item)).toBe(notificationDeliveryKey("user-1", item));
   });
 
-  it("changes across owners and occurrences", () => {
+  it("changes across owners, channels, and occurrences", () => {
     expect(notificationDeliveryKey("user-1", item)).not.toBe(notificationDeliveryKey("user-2", item));
+    expect(notificationDeliveryKey("user-1", item, "push")).not.toBe(
+      notificationDeliveryKey("user-1", item, "email"),
+    );
     expect(notificationDeliveryKey("user-1", item)).not.toBe(
       notificationDeliveryKey("user-1", { ...item, occurredAt: "2026-08-05T13:00:00.000Z" }),
     );
@@ -37,5 +44,28 @@ describe("pushPayloadForInboxItem", () => {
       url: "/dashboard/missions?mission=mission-1",
       tag: "staffd-mission-1-approval",
     });
+  });
+});
+
+describe("emailPayloadForInboxItem", () => {
+  it("builds a concise email that routes to the governed STAFFD action", () => {
+    const payload = emailPayloadForInboxItem("owner@example.com", item);
+    expect(payload.to).toEqual(["owner@example.com"]);
+    expect(payload.subject).toBe("[STAFFD] Approval needed");
+    expect(payload.text).toContain("https://urstaffd.com/dashboard/missions?mission=mission-1");
+    expect(payload.html).toContain("One outbound step is waiting");
+  });
+
+  it("escapes inbox content before rendering HTML", () => {
+    const payload = emailPayloadForInboxItem("owner@example.com", {
+      ...item,
+      title: "Review <script>",
+      summary: "A & B",
+      evidence: ["<unsafe>"],
+    });
+    expect(payload.html).not.toContain("<script>");
+    expect(payload.html).toContain("Review &lt;script&gt;");
+    expect(payload.html).toContain("A &amp; B");
+    expect(payload.html).toContain("&lt;unsafe&gt;");
   });
 });
