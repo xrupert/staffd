@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildInboxActionPrompt, type ExecutiveInboxItem } from "./ExecutiveInbox";
+import { buildInboxActionPrompt, isResearchReviewItem, type ExecutiveInboxItem } from "./ExecutiveInbox";
 
 const baseItem: ExecutiveInboxItem = {
   id: "integration:chatwoot:customer_message:42",
@@ -27,5 +27,25 @@ describe("buildInboxActionPrompt", () => {
 
     expect(prompt).not.toContain("Evidence:");
     expect(prompt).toContain(baseItem.summary);
+  });
+});
+
+describe("isResearchReviewItem", () => {
+  it("recognizes governed research approvals", () => {
+    expect(isResearchReviewItem({
+      ...baseItem,
+      source: "research",
+      sourceId: "record-1",
+      kind: "approval",
+    })).toBe(true);
+  });
+
+  it("does not treat generic approvals as research decisions", () => {
+    expect(isResearchReviewItem({
+      ...baseItem,
+      source: "mission",
+      sourceId: "mission-1",
+      kind: "approval",
+    })).toBe(false);
   });
 });
