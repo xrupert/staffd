@@ -8,6 +8,8 @@ import {
 export type NotificationDigest = {
   generatedAt: string;
   frequency: NotificationPreferences["digest"];
+  timezone: string;
+  periodStart: string | null;
   channels: NotificationChannel[];
   immediate: Array<{
     item: BusinessInboxItem;
@@ -23,10 +25,6 @@ export type NotificationDigest = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const FREQUENCY_WINDOW_MS = {
-  daily: DAY_MS,
-  weekly: 7 * DAY_MS,
-} as const;
 
 function validOccurredAt(item: BusinessInboxItem): number | null {
   const value = new Date(item.occurredAt).getTime();
@@ -38,6 +36,47 @@ function occurredWithin(item: BusinessInboxItem, now: Date, windowMs: number): b
   return occurredAt !== null
     && occurredAt <= now.getTime()
     && occurredAt >= now.getTime() - windowMs;
+}
+
+function localDateKey(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = new Map(parts.map((part) => [part.type, part.value]));
+  return `${values.get("year")}-${values.get("month")}-${values.get("day")}`;
+}
+
+function mondayDateKey(dateKey: string): string {
+  const date = new Date(`${dateKey}T00:00:00.000Z`);
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return date.toISOString().slice(0, 10);
+}
+
+export function notificationDigestPeriodStart(
+  frequency: NotificationPreferences["digest"],
+  timezone: string,
+  now: Date,
+): string | null {
+  if (frequency !== "daily" && frequency !== "weekly") return null;
+  const localToday = localDateKey(now, timezone);
+  return frequency === "weekly" ? mondayDateKey(localToday) : localToday;
+}
+
+function itemInDigestPeriod(
+  item: BusinessInboxItem,
+  frequency: NotificationPreferences["digest"],
+  timezone: string,
+  periodStart: string,
+  now: Date,
+): boolean {
+  const occurredAt = validOccurredAt(item);
+  if (occurredAt === null || occurredAt > now.getTime()) return false;
+  const itemDate = localDateKey(new Date(occurredAt), timezone);
+  return frequency === "weekly" ? mondayDateKey(itemDate) === periodStart : itemDate === periodStart;
 }
 
 function countPriority(items: readonly BusinessInboxItem[], priority: InboxPriority): number {
@@ -57,15 +96,22 @@ export function buildNotificationDigest(
     return channels.length ? [{ item, channels }] : [];
   });
 
-  let digestItems: BusinessInboxItem[] = [];
-  if (preferences.digest === "daily" || preferences.digest === "weekly") {
-    const windowMs = FREQUENCY_WINDOW_MS[preferences.digest];
-    digestItems = items.filter((item) => occurredWithin(item, now, windowMs));
-  }
+  const periodStart = notificationDigestPeriodStart(preferences.digest, preferences.timezone, now);
+  const digestItems = periodStart
+    ? items.filter((item) => itemInDigestPeriod(
+      item,
+      preferences.digest,
+      preferences.timezone,
+      periodStart,
+      now,
+    ))
+    : [];
 
   return {
     generatedAt,
     frequency: preferences.digest,
+    timezone: preferences.timezone,
+    periodStart,
     channels: preferences.channels,
     immediate,
     digestItems,
