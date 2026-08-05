@@ -6,8 +6,10 @@ import {
   type NotificationDeliveryRecord,
 } from "./notification-dispatch";
 import type { NotificationDigest } from "./notification-digest";
+import { notificationDeliveryRetryable } from "./notification-retry";
 
 type DeliverySummary = { attempted: number; sent: number; skipped: number; failed: number };
+type PushDigestDeliveryRecord = NotificationDeliveryRecord & { attempts?: number; updated?: string };
 
 export function pushPayloadForDigest(digest: NotificationDigest) {
   const deliveryItem = notificationDigestDeliveryItem(digest);
@@ -27,7 +29,7 @@ export function pushPayloadForDigest(digest: NotificationDigest) {
   };
 }
 
-async function findDelivery(deliveryKey: string, token: string): Promise<NotificationDeliveryRecord | null> {
+async function findDelivery(deliveryKey: string, token: string): Promise<PushDigestDeliveryRecord | null> {
   const filter = `delivery_key='${pbEscape(deliveryKey)}'`;
   const response = await fetch(
     `${pbUrl()}/api/collections/notification_deliveries/records?filter=${encodeURIComponent(filter)}&perPage=1`,
@@ -35,21 +37,39 @@ async function findDelivery(deliveryKey: string, token: string): Promise<Notific
   );
   if (response.status === 404) return null;
   if (!response.ok) throw new Error(`notification delivery lookup failed (${response.status})`);
-  const payload = (await response.json()) as { items?: NotificationDeliveryRecord[] };
+  const payload = (await response.json()) as { items?: PushDigestDeliveryRecord[] };
   return payload.items?.[0] ?? null;
+}
+
+async function retryFailedDelivery(
+  delivery: PushDigestDeliveryRecord,
+  token: string,
+): Promise<PushDigestDeliveryRecord | null> {
+  if (!notificationDeliveryRetryable(delivery)) return null;
+  const response = await fetch(`${pbUrl()}/api/collections/notification_deliveries/records/${delivery.id}`, {
+    method: "PATCH",
+    headers: adminHeaders(token),
+    body: JSON.stringify({
+      status: "pending",
+      attempts: Math.max(1, delivery.attempts ?? 1) + 1,
+      last_error: "",
+    }),
+  });
+  if (!response.ok) return null;
+  return (await response.json()) as PushDigestDeliveryRecord;
 }
 
 async function claimDelivery(
   userId: string,
   digest: NotificationDigest,
   token: string,
-): Promise<NotificationDeliveryRecord | null> {
+): Promise<PushDigestDeliveryRecord | null> {
   const deliveryItem = notificationDigestDeliveryItem(digest);
   if (!deliveryItem) return null;
 
   const deliveryKey = notificationDeliveryKey(userId, deliveryItem, "push");
   const existing = await findDelivery(deliveryKey, token).catch(() => null);
-  if (existing?.status === "sent" || existing?.status === "pending") return null;
+  if (existing) return retryFailedDelivery(existing, token);
 
   const response = await fetch(`${pbUrl()}/api/collections/notification_deliveries/records`, {
     method: "POST",
@@ -67,11 +87,10 @@ async function claimDelivery(
   if (response.status === 404) return null;
   if (response.status === 400 || response.status === 409) {
     const claimed = await findDelivery(deliveryKey, token).catch(() => null);
-    if (!claimed || claimed.status === "sent" || claimed.status === "pending") return null;
-    return claimed;
+    return claimed ? retryFailedDelivery(claimed, token) : null;
   }
   if (!response.ok) throw new Error(`notification delivery claim failed (${response.status})`);
-  return (await response.json()) as NotificationDeliveryRecord;
+  return (await response.json()) as PushDigestDeliveryRecord;
 }
 
 async function markDelivery(
