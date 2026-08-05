@@ -8,7 +8,7 @@ export type MissionRecurrence = {
 
 const DAY_MS = 86_400_000;
 
-function validDate(value: string | undefined): Date | null {
+function validDate(value: string | null | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isFinite(date.getTime()) ? date : null;
