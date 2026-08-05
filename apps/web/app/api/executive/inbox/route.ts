@@ -13,6 +13,11 @@ import {
   summarizeMissionTimeline,
 } from "../../_lib/orchestrator/mission-events";
 import type { MissionRecord } from "../../_lib/orchestrator/mission-repository";
+import { buildNotificationDigest } from "../../_lib/orchestrator/notification-digest";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  normalizeNotificationPreferences,
+} from "../../_lib/orchestrator/notification-policy";
 
 type BookingRecord = {
   id: string;
@@ -20,6 +25,10 @@ type BookingRecord = {
   start_time: string;
   status?: string;
   duration?: number;
+};
+
+type NotificationPreferenceRecord = {
+  preferences?: unknown;
 };
 
 async function listOwnerRecords<T>(collection: string, userId: string, sort = "-updated"): Promise<T[]> {
@@ -44,12 +53,13 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   try {
-    const [missions, bookings, missionEvents, integrationItems, integrationIncidents] = await Promise.all([
+    const [missions, bookings, missionEvents, integrationItems, integrationIncidents, preferenceRecords] = await Promise.all([
       listOwnerRecords<MissionRecord>("missions", user.id),
       listOwnerRecords<BookingRecord>("bookings", user.id, "start_time"),
       listMissionEventsForUser(user.id).catch(() => []),
       liveIntegrationInboxItems(user),
       integrationHealthInboxItems(user).catch(() => []),
+      listOwnerRecords<NotificationPreferenceRecord>("notification_preferences", user.id).catch(() => []),
     ]);
     const eventsByMission = groupMissionEvents(missionEvents);
 
@@ -78,6 +88,8 @@ export async function GET(request: Request) {
       ...integrationItems,
       ...integrationIncidents,
     ]);
+    const preferences = normalizeNotificationPreferences(preferenceRecords[0]?.preferences)
+      ?? DEFAULT_NOTIFICATION_PREFERENCES;
 
     return Response.json({
       items,
@@ -86,6 +98,7 @@ export async function GET(request: Request) {
         critical: items.filter((item) => item.priority === "critical").length,
         high: items.filter((item) => item.priority === "high").length,
       },
+      notifications: buildNotificationDigest(items, preferences),
     });
   } catch (error) {
     console.error("business inbox failed:", error);
