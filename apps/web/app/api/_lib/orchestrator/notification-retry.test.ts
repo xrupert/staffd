@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_NOTIFICATION_DELIVERY_ATTEMPTS,
+  NOTIFICATION_DELIVERY_CLAIM_LEASE_MS,
   notificationDeliveryRetryable,
   notificationRetryDelayMs,
 } from "./notification-retry";
@@ -25,16 +26,40 @@ describe("notification retry policy", () => {
       attempts: 2,
       updated: "2026-08-05T12:05:00.000Z",
     }, now)).toBe(false);
-    expect(notificationDeliveryRetryable({ status: "pending", attempts: 1, updated: now.toISOString() }, now)).toBe(false);
     expect(notificationDeliveryRetryable({ status: "sent", attempts: 1, updated: now.toISOString() }, now)).toBe(false);
   });
 
-  it("stops retrying at the bounded attempt limit and fails closed on bad timestamps", () => {
+  it("recovers an abandoned pending claim only after its lease expires", () => {
+    const now = new Date("2026-08-05T12:30:00.000Z");
+    expect(notificationDeliveryRetryable({
+      status: "pending",
+      attempts: 1,
+      updated: new Date(now.getTime() - NOTIFICATION_DELIVERY_CLAIM_LEASE_MS + 1).toISOString(),
+    }, now)).toBe(false);
+    expect(notificationDeliveryRetryable({
+      status: "pending",
+      attempts: 1,
+      updated: new Date(now.getTime() - NOTIFICATION_DELIVERY_CLAIM_LEASE_MS).toISOString(),
+    }, now)).toBe(true);
+  });
+
+  it("stops retrying at the bounded attempt limit and fails closed on bad or future timestamps", () => {
+    const now = new Date("2026-08-05T12:00:00.000Z");
     expect(notificationDeliveryRetryable({
       status: "failed",
       attempts: MAX_NOTIFICATION_DELIVERY_ATTEMPTS,
       updated: "2026-08-05T10:00:00.000Z",
-    }, new Date("2026-08-05T12:00:00.000Z"))).toBe(false);
-    expect(notificationDeliveryRetryable({ status: "failed", attempts: 1, updated: "not-a-date" })).toBe(false);
+    }, now)).toBe(false);
+    expect(notificationDeliveryRetryable({
+      status: "pending",
+      attempts: MAX_NOTIFICATION_DELIVERY_ATTEMPTS,
+      updated: "2026-08-05T10:00:00.000Z",
+    }, now)).toBe(false);
+    expect(notificationDeliveryRetryable({ status: "failed", attempts: 1, updated: "not-a-date" }, now)).toBe(false);
+    expect(notificationDeliveryRetryable({
+      status: "pending",
+      attempts: 1,
+      updated: "2026-08-05T12:00:01.000Z",
+    }, now)).toBe(false);
   });
 });
