@@ -22,14 +22,22 @@ export type NotificationDigest = {
   };
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
 const FREQUENCY_WINDOW_MS: Record<Exclude<NotificationPreferences["digest"], "off">, number> = {
-  daily: 24 * 60 * 60 * 1000,
-  weekly: 7 * 24 * 60 * 60 * 1000,
+  daily: DAY_MS,
+  weekly: 7 * DAY_MS,
 };
 
 function validOccurredAt(item: BusinessInboxItem): number | null {
   const value = new Date(item.occurredAt).getTime();
   return Number.isFinite(value) ? value : null;
+}
+
+function occurredWithin(item: BusinessInboxItem, now: Date, windowMs: number): boolean {
+  const occurredAt = validOccurredAt(item);
+  return occurredAt !== null
+    && occurredAt <= now.getTime()
+    && occurredAt >= now.getTime() - windowMs;
 }
 
 function countPriority(items: readonly BusinessInboxItem[], priority: InboxPriority): number {
@@ -42,7 +50,7 @@ export function buildNotificationDigest(
   now = new Date(),
 ): NotificationDigest {
   const generatedAt = now.toISOString();
-  const immediate = items.flatMap((item) => {
+  const immediate = items.filter((item) => occurredWithin(item, now, DAY_MS)).flatMap((item) => {
     const channels = preferences.channels.filter((channel) =>
       shouldDeliverImmediately(item.priority, channel, preferences, now),
     );
@@ -51,11 +59,7 @@ export function buildNotificationDigest(
 
   const digestItems = preferences.digest === "off"
     ? []
-    : items.filter((item) => {
-        const occurredAt = validOccurredAt(item);
-        return occurredAt !== null && occurredAt <= now.getTime()
-          && occurredAt >= now.getTime() - FREQUENCY_WINDOW_MS[preferences.digest];
-      });
+    : items.filter((item) => occurredWithin(item, now, FREQUENCY_WINDOW_MS[preferences.digest]));
 
   return {
     generatedAt,
