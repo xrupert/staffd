@@ -4,6 +4,7 @@ import {
   bookingInboxItem,
   buildBusinessInbox,
   missionInboxItem,
+  researchInboxItem,
 } from "../../_lib/orchestrator/business-inbox";
 import { integrationHealthInboxItems } from "../../_lib/orchestrator/integration-health-inbox";
 import { liveIntegrationInboxItems } from "../../_lib/orchestrator/live-inbox-sources";
@@ -33,6 +34,16 @@ type BookingRecord = {
   duration?: number;
 };
 
+type ResearchRecord = {
+  id: string;
+  topic: string;
+  claim: string;
+  verified_at: string;
+  review_status: string;
+  answer?: { confidence?: string; reason?: string };
+  citations?: Array<{ title?: string }>;
+};
+
 type NotificationPreferenceRecord = {
   preferences?: unknown;
 };
@@ -59,9 +70,10 @@ export async function GET(request: Request) {
   if (!user) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   try {
-    const [missions, bookings, missionEvents, integrationItems, integrationIncidents, preferenceRecords] = await Promise.all([
+    const [missions, bookings, researchRecords, missionEvents, integrationItems, integrationIncidents, preferenceRecords] = await Promise.all([
       listOwnerRecords<MissionRecord>("missions", user.id),
       listOwnerRecords<BookingRecord>("bookings", user.id, "start_time"),
+      listOwnerRecords<ResearchRecord>("research_records", user.id, "-verified_at").catch(() => []),
       listMissionEventsForUser(user.id).catch(() => []),
       liveIntegrationInboxItems(user),
       integrationHealthInboxItems(user).catch(() => []),
@@ -88,9 +100,11 @@ export async function GET(request: Request) {
     });
 
     const bookingItems = bookings.map((booking) => bookingInboxItem(booking));
+    const researchItems = researchRecords.map((record) => researchInboxItem(record));
     const items = buildBusinessInbox([
       ...missionItems,
       ...bookingItems,
+      ...researchItems,
       ...integrationItems,
       ...integrationIncidents,
     ]);
