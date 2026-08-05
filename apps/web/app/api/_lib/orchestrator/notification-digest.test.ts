@@ -39,14 +39,14 @@ describe("buildNotificationDigest", () => {
     ], preferences, now);
 
     expect(digest.digestItems.map((entry) => entry.id)).toEqual(["item-1", "high"]);
-    expect(digest.immediate).toHaveLength(3);
+    expect(digest.immediate).toHaveLength(1);
     expect(digest.immediate[0]?.channels).toEqual(["in_app", "email", "push"]);
     expect(digest.summary).toEqual({ total: 2, critical: 1, high: 1, normal: 0 });
   });
 
   it("suppresses external immediate delivery during quiet hours", () => {
     const digest = buildNotificationDigest(
-      [item()],
+      [item({ occurredAt: "2026-08-05T02:30:00.000Z" })],
       preferences,
       new Date("2026-08-05T03:00:00.000Z"),
     );
@@ -74,5 +74,6 @@ describe("buildNotificationDigest", () => {
     );
 
     expect(digest.digestItems).toEqual([]);
+    expect(digest.immediate).toEqual([]);
   });
 });
