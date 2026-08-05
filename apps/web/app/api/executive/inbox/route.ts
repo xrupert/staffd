@@ -23,6 +23,7 @@ import {
   DEFAULT_NOTIFICATION_PREFERENCES,
   normalizeNotificationPreferences,
 } from "../../_lib/orchestrator/notification-policy";
+import { dispatchPushDigest } from "../../_lib/orchestrator/notification-push-digest";
 
 type BookingRecord = {
   id: string;
@@ -96,7 +97,7 @@ export async function GET(request: Request) {
     const preferences = normalizeNotificationPreferences(preferenceRecords[0]?.preferences)
       ?? DEFAULT_NOTIFICATION_PREFERENCES;
     const notifications = buildNotificationDigest(items, preferences);
-    const [push, email, digestEmail] = await Promise.all([
+    const [push, email, digestEmail, digestPush] = await Promise.all([
       dispatchImmediatePushNotifications(user.id, notifications).catch(() => ({
         attempted: 0,
         sent: 0,
@@ -115,6 +116,12 @@ export async function GET(request: Request) {
         skipped: notifications.digestItems.length ? 1 : 0,
         failed: 0,
       })),
+      dispatchPushDigest(user.id, notifications).catch(() => ({
+        attempted: 0,
+        sent: 0,
+        skipped: notifications.digestItems.length ? 1 : 0,
+        failed: 0,
+      })),
     ]);
 
     return Response.json({
@@ -125,7 +132,7 @@ export async function GET(request: Request) {
         high: items.filter((item) => item.priority === "high").length,
       },
       notifications,
-      delivery: { push, email, digestEmail },
+      delivery: { push, email, digestEmail, digestPush },
     });
   } catch (error) {
     console.error("business inbox failed:", error);
