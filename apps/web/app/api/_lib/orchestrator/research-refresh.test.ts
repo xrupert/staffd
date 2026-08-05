@@ -40,7 +40,7 @@ describe("research refresh records", () => {
       parent_record: "r1",
     });
     expect(record.answer.statement).toBeNull();
-    expect(record.citations[0].relationship).toBe("context_only");
+    expect(record.citations.at(0)?.relationship).toBe("context_only");
   });
 
   it("fails closed when fresh search returns no evidence", () => {
