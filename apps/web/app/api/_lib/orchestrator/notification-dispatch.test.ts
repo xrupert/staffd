@@ -26,6 +26,7 @@ const item: BusinessInboxItem = {
 const digest: NotificationDigest = {
   generatedAt: "2026-08-05T12:30:00.000Z",
   frequency: "daily",
+  periodKey: "2026-08-05",
   channels: ["in_app", "email"],
   immediate: [],
   digestItems: [item],
@@ -83,26 +84,31 @@ describe("emailPayloadForInboxItem", () => {
 });
 
 describe("owner email digests", () => {
-  it("uses one stable daily delivery identity for every refresh in the same UTC day", () => {
-    const morning = notificationDigestDeliveryItem(digest);
-    const evening = notificationDigestDeliveryItem({ ...digest, generatedAt: "2026-08-05T23:59:59.000Z" });
-    expect(morning).not.toBeNull();
-    expect(evening).not.toBeNull();
-    expect(morning?.id).toBe(evening?.id);
-    expect(notificationDeliveryKey("user-1", morning!, "email")).toBe(
-      notificationDeliveryKey("user-1", evening!, "email"),
+  it("uses one stable daily delivery identity for every refresh in the same owner-local day", () => {
+    const beforeUtcMidnight = notificationDigestDeliveryItem({
+      ...digest,
+      generatedAt: "2026-08-05T23:59:59.000Z",
+    });
+    const afterUtcMidnight = notificationDigestDeliveryItem({
+      ...digest,
+      generatedAt: "2026-08-06T00:30:00.000Z",
+    });
+    expect(beforeUtcMidnight?.id).toBe("notification-digest-daily-2026-08-05");
+    expect(afterUtcMidnight?.id).toBe(beforeUtcMidnight?.id);
+    expect(notificationDeliveryKey("user-1", beforeUtcMidnight!, "email")).toBe(
+      notificationDeliveryKey("user-1", afterUtcMidnight!, "email"),
     );
   });
 
-  it("anchors weekly delivery identity to Monday", () => {
-    const wednesday = notificationDigestDeliveryItem({ ...digest, frequency: "weekly" });
-    const sunday = notificationDigestDeliveryItem({
+  it("anchors weekly delivery identity to the owner-local Monday", () => {
+    const sundayUtc = notificationDigestDeliveryItem({
       ...digest,
       frequency: "weekly",
-      generatedAt: "2026-08-09T12:30:00.000Z",
+      periodKey: "2026-08-03",
+      generatedAt: "2026-08-10T03:30:00.000Z",
     });
-    expect(wednesday?.occurredAt).toBe("2026-08-03T00:00:00.000Z");
-    expect(sunday?.id).toBe(wednesday?.id);
+    expect(sundayUtc?.occurredAt).toBe("2026-08-03T00:00:00.000Z");
+    expect(sundayUtc?.id).toBe("notification-digest-weekly-2026-08-03");
   });
 
   it("renders a bounded escaped digest with governed STAFFD links", () => {
@@ -118,8 +124,9 @@ describe("owner email digests", () => {
     expect(payload?.html).toContain("https://urstaffd.com/dashboard");
   });
 
-  it("does not create a delivery for disabled or empty digests", () => {
-    expect(notificationDigestDeliveryItem({ ...digest, frequency: "off" })).toBeNull();
+  it("does not create a delivery for disabled, malformed, or empty digests", () => {
+    expect(notificationDigestDeliveryItem({ ...digest, frequency: "off", periodKey: null })).toBeNull();
+    expect(notificationDigestDeliveryItem({ ...digest, periodKey: "not-a-date" })).toBeNull();
     expect(notificationDigestDeliveryItem({
       ...digest,
       digestItems: [],
