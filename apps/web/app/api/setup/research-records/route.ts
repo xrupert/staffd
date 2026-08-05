@@ -7,6 +7,10 @@ const FIELDS = [
   { name: "risk", type: "text", required: true },
   { name: "verified_at", type: "date", required: true },
   { name: "reverify_after", type: "date", required: true },
+  { name: "reverify_status", type: "text", required: false },
+  { name: "reverify_query", type: "text", required: false },
+  { name: "reverify_requested_at", type: "date", required: false },
+  { name: "superseded_by", type: "text", required: false },
   { name: "verdict", type: "json", required: true },
   { name: "citations", type: "json", required: true },
   { name: "answer", type: "json", required: true },
@@ -20,6 +24,7 @@ const INDEXES = [
   "CREATE INDEX idx_research_records_user_bundle ON research_records (user, bundle_id)",
   "CREATE INDEX idx_research_records_review ON research_records (user, review_status)",
   "CREATE INDEX idx_research_records_reverify ON research_records (user, reverify_after)",
+  "CREATE INDEX idx_research_records_reverify_status ON research_records (reverify_status, reverify_after)",
 ];
 
 const USER_RULE = "user = @request.auth.id";
