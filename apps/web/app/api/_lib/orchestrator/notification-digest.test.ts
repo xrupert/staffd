@@ -38,6 +38,7 @@ describe("buildNotificationDigest", () => {
       item({ id: "future", occurredAt: "2026-08-05T18:00:00.000Z" }),
     ], preferences, now);
 
+    expect(digest.periodKey).toBe("2026-08-05");
     expect(digest.digestItems.map((entry) => entry.id)).toEqual(["item-1", "high"]);
     expect(digest.immediate).toHaveLength(1);
     expect(digest.immediate[0]?.channels).toEqual(["in_app", "email", "push"]);
@@ -51,6 +52,7 @@ describe("buildNotificationDigest", () => {
       item({ id: "local-wednesday", occurredAt: "2026-08-05T05:00:00.000Z" }),
     ], preferences, now);
 
+    expect(digest.periodKey).toBe("2026-08-04");
     expect(digest.digestItems.map((entry) => entry.id)).toEqual(["local-tuesday"]);
   });
 
@@ -62,6 +64,7 @@ describe("buildNotificationDigest", () => {
       item({ id: "monday-local", occurredAt: "2026-08-10T04:30:00.000Z" }),
     ], weekly, now);
 
+    expect(digest.periodKey).toBe("2026-08-03");
     expect(digest.digestItems.map((entry) => entry.id)).toEqual(["sunday-local"]);
   });
 
@@ -82,6 +85,7 @@ describe("buildNotificationDigest", () => {
       new Date("2026-08-05T16:00:00.000Z"),
     );
 
+    expect(digest.periodKey).toBeNull();
     expect(digest.digestItems).toEqual([]);
     expect(digest.summary.total).toBe(0);
     expect(digest.immediate).toHaveLength(1);

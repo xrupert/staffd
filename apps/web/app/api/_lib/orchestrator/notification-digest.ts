@@ -8,6 +8,7 @@ import {
 export type NotificationDigest = {
   generatedAt: string;
   frequency: NotificationPreferences["digest"];
+  periodKey?: string | null;
   channels: NotificationChannel[];
   immediate: Array<{
     item: BusinessInboxItem;
@@ -107,6 +108,7 @@ export function buildNotificationDigest(
   return {
     generatedAt,
     frequency: preferences.digest,
+    periodKey: currentPeriod,
     channels: preferences.channels,
     immediate,
     digestItems,

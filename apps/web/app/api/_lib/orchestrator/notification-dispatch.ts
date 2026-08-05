@@ -61,6 +61,10 @@ export function emailPayloadForInboxItem(recipient: string, item: BusinessInboxI
 
 function digestPeriodStart(digest: NotificationDigest): Date | null {
   if (digest.frequency !== "daily" && digest.frequency !== "weekly") return null;
+  if (digest.periodKey) {
+    const alignedPeriod = new Date(`${digest.periodKey}T00:00:00.000Z`);
+    return Number.isFinite(alignedPeriod.getTime()) ? alignedPeriod : null;
+  }
   const generatedAt = new Date(digest.generatedAt);
   if (!Number.isFinite(generatedAt.getTime())) return null;
   generatedAt.setUTCHours(0, 0, 0, 0);
