@@ -13,6 +13,8 @@ const FIELDS = [
   { name: "superseded_by", type: "text", required: false },
   { name: "parent_record", type: "text", required: false },
   { name: "refresh_query", type: "text", required: false },
+  { name: "comparison_outcome", type: "text", required: false },
+  { name: "blocks_dependent_actions", type: "bool", required: false },
   { name: "verdict", type: "json", required: true },
   { name: "citations", type: "json", required: true },
   { name: "answer", type: "json", required: true },
@@ -28,6 +30,7 @@ const INDEXES = [
   "CREATE INDEX idx_research_records_reverify ON research_records (user, reverify_after)",
   "CREATE INDEX idx_research_records_reverify_status ON research_records (reverify_status, reverify_after)",
   "CREATE INDEX idx_research_records_parent_review ON research_records (parent_record, review_status)",
+  "CREATE INDEX idx_research_records_comparison ON research_records (comparison_outcome, blocks_dependent_actions)",
 ];
 
 const USER_RULE = "user = @request.auth.id";
