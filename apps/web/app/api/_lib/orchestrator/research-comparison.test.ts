@@ -17,7 +17,13 @@ const base: RefreshComparisonInput = {
   timeSensitive: true,
   sources: [
     { ...source, relationship: "supports" },
-    { ...source, id: "s2", url: "https://www.irs.gov/example-2", relationship: "supports" },
+    {
+      ...source,
+      id: "s2",
+      title: "Independent government guidance",
+      url: "https://www.gao.gov/example",
+      relationship: "supports",
+    },
   ],
 };
 
