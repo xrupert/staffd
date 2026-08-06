@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { evaluateRun, type EvalCase, type EvalCaseResult, type EvalSuite } from "./eval-engineering";
+import {
+  evaluateRun,
+  validateEvalCase,
+  validateEvalSuite,
+  type EvalCase,
+  type EvalCaseResult,
+  type EvalSuite,
+} from "./eval-engineering";
 
 const suite: EvalSuite = {
   id: "research-answer-v1",
@@ -93,8 +100,24 @@ describe("CSO evaluation engineering", () => {
     expect(verdict.failures).toContain("Missing result for adversarial-1");
   });
 
-  it("rejects malformed suites and cases", () => {
-    expect(() => evaluateRun({ ...suite, minimumPassRate: 2 }, cases, passingResults())).toThrow("between 0 and 1");
-    expect(() => evaluateRun(suite, [{ ...cases[0]!, weight: 0 }], [passingResults()[0]!])).toThrow("weight must be positive");
+  it("validates suite identity, thresholds, and runtime budgets directly", () => {
+    expect(() => validateEvalSuite({ ...suite, id: "" })).toThrow("identity is incomplete");
+    expect(() => validateEvalSuite({ ...suite, minimumPassRate: Number.NaN })).toThrow("between 0 and 1");
+    expect(() => validateEvalSuite({ ...suite, maximumCostUsd: -1 })).toThrow("non-negative");
+    expect(() => validateEvalSuite({ ...suite, maximumLatencyMs: -1 })).toThrow("non-negative");
+    expect(() => validateEvalSuite({ ...suite, thresholds: { correctness: { minimumScore: 1.1, required: true } } })).toThrow("between 0 and 1");
+  });
+
+  it("validates case identity, weight, rubric dimensions, and rubric weights directly", () => {
+    expect(() => validateEvalCase({ ...cases[0]!, id: "" })).toThrow("identity is incomplete");
+    expect(() => validateEvalCase({ ...cases[0]!, weight: 0 })).toThrow("weight must be positive");
+    expect(() => validateEvalCase({ ...cases[0]!, rubric: {} })).toThrow("requires a rubric");
+    expect(() => validateEvalCase({ ...cases[0]!, rubric: { correctness: 0 } })).toThrow("rubric weight must be positive");
+  });
+
+  it("rejects out-of-range case result scores through the shared bounded-score guard", () => {
+    const results = passingResults();
+    results[0] = { ...results[0]!, scores: { ...results[0]!.scores, correctness: 1.01 } };
+    expect(() => evaluateRun(suite, cases, results)).toThrow("between 0 and 1");
   });
 });
