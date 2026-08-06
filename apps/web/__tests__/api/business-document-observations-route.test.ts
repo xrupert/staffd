@@ -60,6 +60,28 @@ describe("POST document Business Brain observations", () => {
     expect(payload.sources[0]).toMatchObject({ sourceId: "doc-1", sourceType: "business_document", uri: "document://doc-1" });
   });
 
+  it("uses a stable fallback title when file and prompt names are absent", async () => {
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      const value = String(url);
+      if (value.includes("/documents/records/doc-1")) {
+        return { ok: true, json: async () => ({ id: "doc-1", user: "owner-1", extraction_status: "extracted" }) };
+      }
+      if (value.includes("business_knowledge/records?") && !init?.method) {
+        return { ok: true, json: async () => ({ items: [] }) };
+      }
+      if (value.endsWith("business_knowledge/records") && init?.method === "POST") {
+        return { ok: true, json: async () => ({ id: "knowledge-1" }) };
+      }
+      throw new Error(`Unexpected fetch ${value}`);
+    });
+
+    const response = await POST(request({ documentId: "doc-1", candidates: [candidate] }));
+    expect(response.status).toBe(201);
+    const createCall = fetchMock.mock.calls.find((call) => String(call[0]).endsWith("business_knowledge/records") && call[1]?.method === "POST");
+    const payload = JSON.parse(createCall![1].body as string);
+    expect(payload.sources[0].title).toBe("Document doc-1");
+  });
+
   it("rejects a document owned by another customer", async () => {
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({ id: "doc-1", user: "owner-2", file: "policy.pdf", extraction_status: "extracted" }) });
     const response = await POST(request({ documentId: "doc-1", candidates: [candidate] }));
