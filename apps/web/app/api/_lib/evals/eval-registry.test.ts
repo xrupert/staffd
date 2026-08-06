@@ -75,11 +75,39 @@ describe("CSO eval registry", () => {
     expect(drift.reasons).toEqual(expect.arrayContaining(["correctness regressed", "pass rate regressed", "release verdict regressed"]));
   });
 
-  it("rejects mismatched identities, invalid timestamps, and cross-capability drift", () => {
-    expect(() => createSuiteRecord({ id: "wrong", capability: suite.capability, capabilityVersion: suite.capabilityVersion, suiteVersion: suite.suiteVersion, definition: suite, createdAt: "bad", createdBy: "cso", supersedesSuiteId: null })).toThrow("identity");
+  it("rejects mismatched identities and cross-capability drift", () => {
+    expect(() => createSuiteRecord({ id: "wrong", capability: suite.capability, capabilityVersion: suite.capabilityVersion, suiteVersion: suite.suiteVersion, definition: suite, createdAt: "2026-08-06T12:00:00Z", createdBy: "cso", supersedesSuiteId: null })).toThrow("identity");
     expect(() => createRunRecord({ id: "run", suiteId: suite.id, capability: suite.capability, capabilityVersion: "1", suiteVersion: "1", baselineRunId: null, verdict: verdict(true, 1), evidence: [], startedAt: "2026-08-06T13:00:00Z", completedAt: "2026-08-06T12:00:00Z" })).toThrow("precede");
     const a = createRunRecord({ id: "a", suiteId: suite.id, capability: "a", capabilityVersion: "1", suiteVersion: "1", baselineRunId: null, verdict: verdict(true, 1), evidence: [], startedAt: "2026-08-06T12:00:00Z", completedAt: "2026-08-06T12:00:01Z" });
     const b = createRunRecord({ id: "b", suiteId: suite.id, capability: "b", capabilityVersion: "1", suiteVersion: "1", baselineRunId: null, verdict: verdict(true, 1), evidence: [], startedAt: "2026-08-06T12:00:00Z", completedAt: "2026-08-06T12:00:01Z" });
     expect(() => compareEvalRuns(a, b)).toThrow("same capability");
+  });
+
+  it("rejects invalid timestamps directly", () => {
+    expect(() => createSuiteRecord({
+      id: suite.id,
+      capability: suite.capability,
+      capabilityVersion: suite.capabilityVersion,
+      suiteVersion: suite.suiteVersion,
+      definition: suite,
+      createdAt: "not-a-date",
+      createdBy: "cso",
+      supersedesSuiteId: null,
+    })).toThrow("valid timestamp");
+  });
+
+  it("rejects blank required registry identities", () => {
+    expect(() => createRunRecord({
+      id: "   ",
+      suiteId: suite.id,
+      capability: suite.capability,
+      capabilityVersion: suite.capabilityVersion,
+      suiteVersion: suite.suiteVersion,
+      baselineRunId: null,
+      verdict: verdict(true, 1),
+      evidence: [],
+      startedAt: "2026-08-06T12:00:00Z",
+      completedAt: "2026-08-06T12:00:01Z",
+    })).toThrow("Run id is required");
   });
 });
