@@ -7,16 +7,28 @@ import {
   type StoredRun,
   type StoredSuite,
 } from "../../_lib/evals/eval-registry-service";
+import type { ResearchEvalObservation } from "../../_lib/evals/research-answer-runner";
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../../_lib/pb";
 
 type RegistryAction =
   | { action: "register_suite"; suite: EvalSuite; supersedesSuiteId?: string | null }
   | { action: "register_case"; testCase: EvalCase }
+  | { action: "seed_governed_research_benchmark" }
   | {
       action: "submit_run";
       runId: string;
       suiteId: string;
       results: EvalCaseResult[];
+      evidence?: string[];
+      baselineRunId?: string | null;
+      startedAt: string;
+      completedAt: string;
+      driftTolerance?: number;
+    }
+  | {
+      action: "submit_governed_research_run";
+      runId: string;
+      observations: ResearchEvalObservation[];
       evidence?: string[];
       baselineRunId?: string | null;
       startedAt: string;
@@ -71,12 +83,14 @@ export async function POST(request: Request) {
     let result;
     if (input.action === "register_suite") result = await service.registerSuite(input.suite, input.supersedesSuiteId ?? null);
     else if (input.action === "register_case") result = await service.registerCase(input.testCase);
+    else if (input.action === "seed_governed_research_benchmark") result = await service.seedGovernedResearchBenchmark();
     else if (input.action === "submit_run") result = await service.submitRun(input);
+    else if (input.action === "submit_governed_research_run") result = await service.submitGovernedResearchRun(input);
     else return Response.json({ error: "unsupported_action" }, { status: 400 });
     return Response.json(result.body, { status: result.status });
   } catch (error) {
     const detail = error instanceof Error ? error.message : "Unknown error";
-    const invalid = /required|invalid|between|threshold|identity|must|cannot|missing/i.test(detail);
+    const invalid = /required|invalid|between|threshold|identity|must|cannot|missing|unknown|duplicate/i.test(detail);
     return Response.json({ error: invalid ? "invalid_eval_submission" : "eval_registry_unavailable", detail }, { status: invalid ? 400 : 503 });
   }
 }
