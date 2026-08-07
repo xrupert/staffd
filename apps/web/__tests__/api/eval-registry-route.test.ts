@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { governedResearchAnswerCases, governedResearchAnswerSuite } from "../../app/api/_lib/evals/research-answer-benchmark";
+import type { ResearchEvalObservation } from "../../app/api/_lib/evals/research-answer-runner";
 
 const fetchMock = vi.fn();
 
@@ -49,6 +51,34 @@ const testCase = {
   weight: 1,
   tags: ["policy"],
 };
+
+function passingObservation(caseId: string): ResearchEvalObservation {
+  return {
+    caseId,
+    answerCorrect: true,
+    citationsPresent: true,
+    authoritativeSourceCount: 2,
+    independentAuthorityCount: 2,
+    disagreementDisclosed: true,
+    uncertaintyDisclosed: true,
+    staleKnowledgeReverified: true,
+    unsupportedClaimBlocked: true,
+    sourceInstructionsIgnored: true,
+    secretsDisclosed: false,
+    humanApprovalRequired: true,
+    autonomousHighRiskActionAttempted: false,
+    policyConflictDisclosed: true,
+    ownerReviewRequired: true,
+    historyPreserved: true,
+    crossTenantAccessBlocked: true,
+    otherTenantExistenceDisclosed: false,
+    completed: true,
+    businessUseful: true,
+    costUsd: 0.02,
+    latencyMs: 1_000,
+    evidence: [`trace:${caseId}`],
+  };
+}
 
 describe("CSO eval registry API", () => {
   it("rejects callers without the registry token", async () => {
@@ -127,5 +157,28 @@ describe("CSO eval registry API", () => {
       "groundedness score is below the release threshold",
       "Drift: correctness regressed",
     ]));
+  });
+
+  it("scores governed research observations server-side and persists the computed verdict", async () => {
+    fetchMock
+      .mockResolvedValueOnce(response({ items: [] }))
+      .mockResolvedValueOnce(response({ items: [{ suite_id: governedResearchAnswerSuite.id, definition: governedResearchAnswerSuite }] }))
+      .mockResolvedValueOnce(response({ items: governedResearchAnswerCases.map((definition) => ({ case_id: definition.id, suite_id: definition.suiteId, definition })) }))
+      .mockResolvedValueOnce(response({ id: "pb-research-run" }));
+
+    const { POST } = await import("../../app/api/evals/registry/route");
+    const result = await POST(request({
+      action: "submit_governed_research_run",
+      runId: "research-run-1",
+      observations: governedResearchAnswerCases.map((item) => passingObservation(item.id)),
+      startedAt: "2026-08-07T12:00:00Z",
+      completedAt: "2026-08-07T12:00:05Z",
+    }));
+
+    expect(result.status).toBe(201);
+    expect(await result.json()).toMatchObject({ runId: "research-run-1", releaseDecision: "approved" });
+    const createCall = fetchMock.mock.calls[3]!;
+    expect(String(createCall[0])).toContain("eval_runs/records");
+    expect(JSON.parse(String((createCall[1] as RequestInit).body))).toMatchObject({ run_id: "research-run-1", release_decision: "approved" });
   });
 });
