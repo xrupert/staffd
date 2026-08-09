@@ -1,14 +1,19 @@
-import { evaluateConstitution, type ConstitutionVerdict } from "./constitution-engine";
+import { evaluateConstitution, type ConstitutionRisk, type ConstitutionVerdict } from "./constitution-engine";
 import type { MissionRecord } from "./mission-repository";
 
+function constitutionRiskForMission(mission: MissionRecord): ConstitutionRisk {
+  if (mission.risk === "low") return "low";
+  if (mission.risk === "medium") return "medium";
+  return "high";
+}
+
 export function evaluateMissionStartConstitution(mission: MissionRecord): ConstitutionVerdict {
-  const highImpact = mission.risk === "high" || mission.risk === "critical";
   const approvalSatisfied = !mission.approval_required || mission.status === "planned";
 
   return evaluateConstitution({
     officer: "coo",
     intendsExecution: true,
-    risk: highImpact ? "high" : mission.risk,
+    risk: constitutionRiskForMission(mission),
     irreversible: false,
     ownerApprovalRequired: mission.approval_required,
     ownerApproved: approvalSatisfied,
