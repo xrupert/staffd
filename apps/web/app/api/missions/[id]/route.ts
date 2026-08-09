@@ -1,5 +1,6 @@
 import { adminHeaders, getAdminToken, pbEscape, pbFirst, pbUrl } from "../../_lib/pb";
 import { whoAmI } from "../../_lib/integrations/identity";
+import { evaluateMissionStartConstitution } from "../../_lib/orchestrator/mission-constitution";
 import type { MissionEventType } from "../../_lib/orchestrator/mission-events";
 import {
   createPendingMissionEvent,
@@ -45,6 +46,14 @@ async function startMission(mission: MissionRecord, token: string): Promise<Resp
   }
   if (mission.workflow_id) {
     return Response.json({ error: "mission_already_started", workflowId: mission.workflow_id }, { status: 409 });
+  }
+
+  const constitution = evaluateMissionStartConstitution(mission);
+  if (!constitution.allowed) {
+    return Response.json({
+      error: "mission_constitution_blocked",
+      violations: constitution.violations,
+    }, { status: 409 });
   }
 
   try {
