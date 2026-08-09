@@ -38,9 +38,9 @@ describe("mission Constitution gate", () => {
   });
 
   it("blocks legacy or malformed missions that never completed inversion", () => {
-    const verdict = evaluateMissionStartConstitution(mission({
-      plan: { ...mission().plan, inversionReviewed: false },
-    }));
+    const legacyPlan = { ...mission().plan };
+    delete legacyPlan.inversionReviewed;
+    const verdict = evaluateMissionStartConstitution(mission({ plan: legacyPlan }));
     expect(verdict.allowed).toBe(false);
     expect(verdict.violations.map((item) => item.code)).toContain("inversion_required");
   });
