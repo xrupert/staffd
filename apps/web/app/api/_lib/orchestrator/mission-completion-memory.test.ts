@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import type { MissionRecord } from "./mission-repository";
 import { missionCompletionObservation } from "./mission-completion-memory";
 
-const mission = {
+const mission: MissionRecord = {
   id: "mission-1",
   user: "owner-1",
-  outcome_id: "run_a_campaign",
+  outcome_id: "launch-email-campaign",
   goal: "Launch a campaign and improve qualified leads",
   status: "running",
   risk: "medium",
@@ -27,7 +27,7 @@ const mission = {
   },
   evidence: [],
   correlation_id: "corr-1",
-} as MissionRecord;
+};
 
 describe("mission completion memory", () => {
   it("records verified execution as inconclusive business impact", () => {
