@@ -51,7 +51,11 @@ describe("createWorkflowFromMission", () => {
         warnings: [],
       },
     };
-    const createTask = vi.fn(async (_body: Record<string, unknown>) => ({ id: `task-${createTask.mock.calls.length + 1}` }));
+    const taskBodies: Record<string, unknown>[] = [];
+    const createTask = vi.fn(async (body: Record<string, unknown>) => {
+      taskBodies.push(body);
+      return { id: `task-${taskBodies.length}` };
+    });
 
     await createWorkflowFromMission(
       { missionId: "mission-1", userId: "user-1", plan },
@@ -62,7 +66,7 @@ describe("createWorkflowFromMission", () => {
       },
     );
 
-    for (const [body] of createTask.mock.calls) {
+    for (const body of taskBodies) {
       expect(body.input_payload).toMatchObject({
         mission_constraints: ["policy: Campaigns above $5,000 require owner approval"],
         planning_context: { source: "business_knowledge_graph", degraded: false },
