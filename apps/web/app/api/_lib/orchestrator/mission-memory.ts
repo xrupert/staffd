@@ -34,6 +34,8 @@ export type CreateMissionOutcomeInput = Omit<
   evidence?: string[];
 };
 
+const OUTCOME_STATUSES = new Set<MissionOutcomeStatus>(["success", "partial", "failure", "inconclusive"]);
+
 function clean(value: string, label: string, maxLength: number): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (!normalized) throw new Error(`${label} is required`);
@@ -57,6 +59,7 @@ function stableId(ownerId: string, missionId: string, observedAt: string): strin
 export function createMissionOutcome(input: CreateMissionOutcomeInput): MissionOutcomeRecord {
   const ownerId = clean(input.ownerId, "Mission outcome owner", 200);
   const missionId = clean(input.missionId, "Mission outcome mission", 200);
+  if (!OUTCOME_STATUSES.has(input.status)) throw new Error("Mission outcome status is invalid");
   const observed = new Date(input.observedAt);
   if (!Number.isFinite(observed.getTime())) throw new Error("Mission outcome observation timestamp is invalid");
 
@@ -107,6 +110,7 @@ export function approveMissionOutcomeForLearning(
   const approver = clean(approverId, "Learning approver", 200);
   const timestamp = new Date(approvedAt);
   if (!Number.isFinite(timestamp.getTime())) throw new Error("Learning approval timestamp is invalid");
+  if (record.ownerId !== approver) throw new Error("Only the mission outcome owner may approve learning");
   if (record.status === "inconclusive") throw new Error("Inconclusive outcomes cannot become approved learning");
   if (record.evidence.length === 0) throw new Error("Mission outcomes require evidence before learning approval");
 
