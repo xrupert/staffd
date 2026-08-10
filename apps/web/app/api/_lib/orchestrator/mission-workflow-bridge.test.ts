@@ -51,7 +51,7 @@ describe("createWorkflowFromMission", () => {
         warnings: [],
       },
     };
-    const createTask = vi.fn(async () => ({ id: `task-${createTask.mock.calls.length + 1}` }));
+    const createTask = vi.fn(async (_body: Record<string, unknown>) => ({ id: `task-${createTask.mock.calls.length + 1}` }));
 
     await createWorkflowFromMission(
       { missionId: "mission-1", userId: "user-1", plan },
