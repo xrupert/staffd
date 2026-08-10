@@ -2,12 +2,9 @@
  * POST /api/upload/documents/finalize — the post-storage half of document
  * upload (direct-to-PocketBase upload fix). The browser already created the
  * document record (with file) directly against PocketBase, bypassing the
- * Vercel function for the file bytes — this is the ONLY thing that still
- * runs server-side: determine TEXT vs BINARY, decode TEXT inline (reusing
- * the same extractKindFor/extractText the async worker uses for binaries),
- * enqueue the EXISTING document_extraction_worker task for binaries
- * unchanged, and record the Vault decision + upload-session summary
- * (admin-token-mediated — the client never writes these directly).
+ * Vercel function for the file bytes. This route finalizes text extraction,
+ * enqueues binary extraction on the existing worker bus, then chains the
+ * governed Business Brain extraction worker behind readable document text.
  *
  * Body: { documentIds: string[] }. Tiny JSON — never size-constrained,
  * regardless of how large the original file was.
@@ -22,6 +19,40 @@ import { extractKindFor, extractText } from "../../../_lib/upload/extract";
 type DocRow = { id: string; user: string; file: string; extraction_status?: string };
 type ResultRow = { document_id: string; name: string; status: "extracted" | "extraction_pending" };
 type ErrorRow = { document_id: string; reason: string };
+
+type WorkerTask = { id: string };
+
+async function enqueueWorker(
+  pb: string,
+  token: string,
+  userId: string,
+  specialistId: string,
+  inputPayload: Record<string, unknown>,
+  dependsOn: string[] = [],
+): Promise<WorkerTask> {
+  const response = await fetch(`${pb}/api/collections/workflow_tasks/records`, {
+    method: "POST",
+    headers: adminHeaders(token),
+    body: JSON.stringify({
+      workflow_id: "",
+      user: userId,
+      specialist_id: specialistId,
+      department_id: "system",
+      input_payload: inputPayload,
+      output_payload: null,
+      status: "pending",
+      depends_on: dependsOn,
+      retry_count: 0,
+      error: "",
+      started_at: "",
+      completed_at: "",
+      cost_estimate_tokens: 0,
+      cost_actual_tokens: 0,
+    }),
+  });
+  if (!response.ok) throw new Error(`${specialistId} enqueue failed (${response.status})`);
+  return response.json() as Promise<WorkerTask>;
+}
 
 export async function POST(req: Request) {
   const me = await whoAmI(req);
@@ -57,36 +88,33 @@ export async function POST(req: Request) {
       continue;
     }
 
-    if (kind === "text") {
-      let fileToken = "";
-      try {
-        const tk = await fetch(`${pb}/api/files/token`, { method: "POST", headers: adminHeaders(token) });
-        if (tk.ok) fileToken = ((await tk.json()) as { token?: string }).token ?? "";
-      } catch { /* try without token */ }
-      const fileUrl = `${pb}/api/files/documents/${id}/${encodeURIComponent(doc.file)}${fileToken ? `?token=${fileToken}` : ""}`;
-      const blobRes = await fetch(fileUrl, { headers: { Authorization: token } });
-      if (blobRes.ok) {
+    try {
+      if (kind === "text") {
+        let fileToken = "";
+        try {
+          const tk = await fetch(`${pb}/api/files/token`, { method: "POST", headers: adminHeaders(token) });
+          if (tk.ok) fileToken = ((await tk.json()) as { token?: string }).token ?? "";
+        } catch { /* try without token */ }
+        const fileUrl = `${pb}/api/files/documents/${id}/${encodeURIComponent(doc.file)}${fileToken ? `?token=${fileToken}` : ""}`;
+        const blobRes = await fetch(fileUrl, { headers: { Authorization: token } });
+        if (!blobRes.ok) throw new Error("file_fetch_failed");
         const buf = new Uint8Array(await blobRes.arrayBuffer());
         const extracted = await extractText(buf, "text");
         await fetch(`${pb}/api/collections/documents/records/${id}`, {
           method: "PATCH", headers: adminHeaders(token),
           body: JSON.stringify({ output: extracted.text || "[Document uploaded — no readable text found.]", extraction_status: "extracted" }),
         });
+        await enqueueWorker(pb, token, me.id, "business_brain_document_worker", { document_id: id });
         results.push({ document_id: id, name: doc.file, status: "extracted" });
       } else {
-        errors.push({ document_id: id, reason: "file_fetch_failed" });
+        const extractionTask = await enqueueWorker(pb, token, me.id, "document_extraction_worker", { document_id: id, ext });
+        await enqueueWorker(pb, token, me.id, "business_brain_document_worker", { document_id: id }, [extractionTask.id]);
+        results.push({ document_id: id, name: doc.file, status: "extraction_pending" });
       }
-    } else {
-      // PDF/DOCX — unchanged async path: enqueue the existing worker task.
-      void fetch(`${pb}/api/collections/workflow_tasks/records`, {
-        method: "POST", headers: adminHeaders(token),
-        body: JSON.stringify({
-          workflow_id: "", user: me.id, specialist_id: "document_extraction_worker", department_id: "system",
-          input_payload: { document_id: id, ext }, output_payload: null, status: "pending", depends_on: [],
-          retry_count: 0, error: "", started_at: "", completed_at: "", cost_estimate_tokens: 0, cost_actual_tokens: 0,
-        }),
-      }).catch(() => {});
-      results.push({ document_id: id, name: doc.file, status: "extraction_pending" });
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "finalization_failed";
+      errors.push({ document_id: id, reason });
+      continue;
     }
 
     void recordDecision({ userId: me.id, decision_kind: "document_uploaded", title: `Uploaded "${doc.file}"`, source_kind: "manual", source_id: id, document_id: id });
