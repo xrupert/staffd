@@ -68,20 +68,18 @@ export async function GET(request: Request) {
       limit,
     );
 
-    if (!nodeId) {
-      const endpointIds = new Set(storedEdges.flatMap((edge) => [edge.from_node_id, edge.to_node_id]));
-      const missingIds = [...endpointIds].filter((id) => !nodesById.has(id));
-      for (const missingId of missingIds) {
-        const matches = await fetchRecords<StoredKnowledgeGraphNode>(
-          "business_graph_nodes",
-          nodeFilter(user.id, missingId, ""),
-          token,
-          1,
-        );
-        if (matches[0]) {
-          const hydrated = fromStoredKnowledgeGraphNode(matches[0]);
-          nodesById.set(hydrated.id, hydrated);
-        }
+    const endpointIds = new Set(storedEdges.flatMap((edge) => [edge.from_node_id, edge.to_node_id]));
+    const missingIds = [...endpointIds].filter((id) => !nodesById.has(id));
+    for (const missingId of missingIds) {
+      const matches = await fetchRecords<StoredKnowledgeGraphNode>(
+        "business_graph_nodes",
+        nodeFilter(user.id, missingId, ""),
+        token,
+        1,
+      );
+      if (matches[0]) {
+        const hydrated = fromStoredKnowledgeGraphNode(matches[0]);
+        nodesById.set(hydrated.id, hydrated);
       }
     }
 
