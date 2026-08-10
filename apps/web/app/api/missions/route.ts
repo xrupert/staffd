@@ -1,5 +1,6 @@
 import { adminHeaders, getAdminToken, pbEscape, pbUrl } from "../_lib/pb";
 import { whoAmI } from "../_lib/integrations/identity";
+import { fromStoredKnowledgeGraphNode, type StoredKnowledgeGraphNode } from "../_lib/orchestrator/business-knowledge-graph-store";
 import { invertMissionPlan } from "../_lib/orchestrator/inversion";
 import { planMission } from "../_lib/orchestrator/mission-control";
 import { buildMissionDeliveryPackage } from "../_lib/orchestrator/mission-delivery";
@@ -8,11 +9,30 @@ import {
   listMissionEventsForUser,
   summarizeMissionTimeline,
 } from "../_lib/orchestrator/mission-events";
+import { buildMissionPlanningContext } from "../_lib/orchestrator/mission-planning-context";
 import { createMission, type MissionRecord } from "../_lib/orchestrator/mission-repository";
 import { outcomeById, type StaffOutcomeId } from "../_lib/orchestrator/outcome-catalog";
 
 function correlationId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `mission-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function planningContextFor(ownerId: string, goal: string) {
+  try {
+    const token = await getAdminToken();
+    const filter = `user = '${pbEscape(ownerId)}'`;
+    const response = await fetch(
+      `${pbUrl()}/api/collections/business_graph_nodes/records?filter=${encodeURIComponent(filter)}&perPage=200&sort=-confidence`,
+      { headers: adminHeaders(token), cache: "no-store" },
+    );
+    if (!response.ok) throw new Error(`Business graph planning query failed (${response.status})`);
+    const payload = (await response.json()) as { items?: StoredKnowledgeGraphNode[] };
+    const nodes = (payload.items ?? []).map(fromStoredKnowledgeGraphNode);
+    return buildMissionPlanningContext(goal, nodes);
+  } catch (error) {
+    console.error("mission planning graph context unavailable:", error);
+    return buildMissionPlanningContext(goal, [], new Date(), true);
+  }
 }
 
 export async function GET(request: Request) {
@@ -81,17 +101,26 @@ export async function POST(request: Request) {
   try {
     const outcome = outcomeById(body.outcomeId);
     const goal = body.goal?.trim() || outcome.exampleRequest;
-    const plan = invertMissionPlan(planMission({
+    const planningContext = await planningContextFor(user.id, goal);
+    const invertedPlan = invertMissionPlan(planMission({
       goal,
       requestedBy: user.id,
       successCriteria: outcome.evidence.map((item) => `${item} is present and verified`),
     }));
+    const plan = {
+      ...invertedPlan,
+      constraints: [...new Set([...invertedPlan.constraints, ...planningContext.constraints])],
+      planningContext,
+    };
     const mission = await createMission({
       userId: user.id,
       outcomeId: outcome.id,
       plan,
       approvalRequired: outcome.requiresApproval,
-      evidence: outcome.evidence,
+      evidence: [...new Set([
+        ...outcome.evidence,
+        ...planningContext.items.flatMap((item) => item.provenance),
+      ])],
       correlationId: correlationId(),
     });
 
