@@ -45,7 +45,8 @@ describe("mission memory outcome ledger", () => {
     expect(missionOutcomeDelta(record)).toEqual({ "Qualified leads": 7, Retention: null });
   });
 
-  it("requires valid confidence, timestamps, and finite metric values", () => {
+  it("requires valid status, confidence, timestamps, and finite metric values", () => {
+    expect(() => createMissionOutcome({ ...outcome(), id: undefined, status: "bogus" as never })).toThrow(/status is invalid/);
     expect(() => createMissionOutcome({ ...outcome(), id: undefined, confidenceAfter: 1.2 })).toThrow(/between 0 and 1/);
     expect(() => createMissionOutcome({ ...outcome(), id: undefined, observedAt: "not-a-date" })).toThrow(/timestamp/);
     expect(() => createMissionOutcome({ ...outcome(), id: undefined, metrics: [{ name: "Revenue", actual: Number.NaN }] })).toThrow(/finite/);
@@ -57,6 +58,10 @@ describe("mission memory outcome ledger", () => {
 
     const inconclusive = createMissionOutcome({ ...outcome(), id: undefined, status: "inconclusive" });
     expect(() => approveMissionOutcomeForLearning(inconclusive, "owner-1", "2026-08-09T13:00:00Z")).toThrow(/Inconclusive/);
+  });
+
+  it("allows only the outcome owner to approve organizational learning", () => {
+    expect(() => approveMissionOutcomeForLearning(outcome(), "owner-2", "2026-08-09T13:00:00Z")).toThrow(/Only the mission outcome owner/);
   });
 
   it("records explicit learning approval without mutating the original observation", () => {
