@@ -1,6 +1,7 @@
 import { adminHeaders, getAdminToken, pbUrl } from "../pb";
 import type { InvertedMissionPlan } from "./inversion";
 import type { MissionPlan, MissionStatus } from "./mission-control";
+import type { MissionPlanningContext } from "./mission-planning-context";
 import { createPendingMissionEvent, type PendingMissionEvent } from "./mission-outbox";
 import type { MissionRecurrence } from "./mission-recurrence";
 import type { StaffOutcomeId } from "./outcome-catalog";
@@ -8,7 +9,9 @@ import type { StaffOutcomeId } from "./outcome-catalog";
 export type PersistedMissionPlan = MissionPlan & Partial<Pick<
   InvertedMissionPlan,
   "failureModes" | "inversionReviewed"
->>;
+>> & {
+  planningContext?: MissionPlanningContext;
+};
 
 export type MissionRecord = {
   id: string;
@@ -95,6 +98,8 @@ export async function createMission(
           requiredEvidence: input.evidence,
           inversionReviewed: input.plan.inversionReviewed === true,
           killCriteria: input.plan.failureModes?.map((mode) => mode.killCriterion) ?? [],
+          planningContextNodeIds: input.plan.planningContext?.items.map((item) => item.nodeId) ?? [],
+          planningContextDegraded: input.plan.planningContext?.degraded ?? false,
         },
       }),
     ],
