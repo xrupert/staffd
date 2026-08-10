@@ -1,4 +1,5 @@
 import type { MissionPlan } from "./mission-control";
+import type { MissionPlanningContext } from "./mission-planning-context";
 
 export type CreatedWorkflow = { id: string };
 export type CreatedTask = { id: string };
@@ -9,10 +10,14 @@ export type MissionWorkflowBridgeDeps = {
   failWorkflow: (workflowId: string, reason: string) => Promise<void>;
 };
 
+export type MissionWorkflowPlan = MissionPlan & {
+  planningContext?: MissionPlanningContext;
+};
+
 export type MissionWorkflowBridgeInput = {
   missionId: string;
   userId: string;
-  plan: MissionPlan;
+  plan: MissionWorkflowPlan;
 };
 
 export type MissionWorkflowBridgeResult = {
@@ -57,6 +62,8 @@ export async function createWorkflowFromMission(
           task: step.title,
           success_criteria: step.successCriteria,
           max_attempts: step.maxAttempts,
+          mission_constraints: input.plan.constraints,
+          planning_context: input.plan.planningContext ?? null,
         },
         output_payload: null,
         status: "pending",
