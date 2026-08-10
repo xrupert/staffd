@@ -20,6 +20,7 @@ import { DocusealClient } from "../integrations/docuseal/client";
 import { ChatwootClient } from "../integrations/chatwoot/client";
 import { PostizClient, type PostizMedia } from "../integrations/postiz/client";
 import { extractKindFor, extractText } from "../upload/extract";
+import { runDocumentBusinessBrainWorker } from "./document-business-brain";
 
 export type HandlerResult = { text: string; tokensActual: number };
 
@@ -315,6 +316,7 @@ const postizPublish: WorkerHandler = async (task, ctx) => {
 export const WORKER_HANDLERS: Record<string, WorkerHandler> = {
   mirror_retry_worker: mirrorRetry,
   document_extraction_worker: documentExtraction,
+  business_brain_document_worker: runDocumentBusinessBrainWorker,
   listmonk_subscribe_worker: listmonkSubscribe,
   twenty_update_worker: twentyUpdate,
   docuseal_send_worker: docusealSend,
