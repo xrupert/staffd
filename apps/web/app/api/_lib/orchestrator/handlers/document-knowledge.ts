@@ -30,8 +30,12 @@ function clean(value: string, max: number): string {
   return value.replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+function stripNullBytes(value: string): string {
+  return value.split(String.fromCharCode(0)).join("");
+}
+
 function chunks(text: string): string[] {
-  const normalized = text.replace(/\u0000/g, "").trim();
+  const normalized = stripNullBytes(text).trim();
   if (!normalized) return [];
   const result: string[] = [];
   for (let start = 0; start < normalized.length && result.length < MAX_CHUNKS; start += MAX_CHARS_PER_CHUNK) {
@@ -126,6 +130,6 @@ export async function extractDocumentKnowledgeCandidates(text: string): Promise<
     latencyMs,
     tokensIn,
     tokensOut,
-    truncated: text.replace(/\u0000/g, "").trim().length > MAX_CHARS_PER_CHUNK * MAX_CHUNKS,
+    truncated: stripNullBytes(text).trim().length > MAX_CHARS_PER_CHUNK * MAX_CHUNKS,
   };
 }
