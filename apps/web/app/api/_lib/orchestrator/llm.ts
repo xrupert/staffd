@@ -28,10 +28,16 @@ import type { FallbackReason, OrchestratorIntent } from "./types";
 // console.error in callLLM's catch will surface (vs. the opaque
 // "401 invalid_api_key" the SDK would otherwise emit).
 //
-// Constructed without an apiKey arg at module load — the SDK accepts being
-// re-initialized lazily inside `attempt()` where it can use the resolved
-// key. Tests that mock @anthropic-ai/sdk bypass this entirely.
-const anthropic = new Anthropic();
+// Construct the SDK only when an actual model call is attempted. Worker
+// registries import orchestrator handlers while discovering capabilities; an
+// eager client here makes that otherwise side-effect-free discovery fail in
+// browser-like test/runtime environments before any LLM work is requested.
+let anthropic: Anthropic | null = null;
+
+function anthropicClient(): Anthropic {
+  if (!anthropic) anthropic = new Anthropic({ apiKey: resolveAnthropicKey() });
+  return anthropic;
+}
 
 const RETRY_DELAYS_MS = [250, 750];
 
@@ -123,13 +129,13 @@ async function attempt(
   // into upstream_error — the operator would never know the env was wrong.
   // The throw flows up through the SDK call into callLLM's catch, where
   // the new console.error logs the resolver's precise message.
-  resolveAnthropicKey();
+  const client = anthropicClient();
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), deadlineMs);
   const detach = mergeAbort(input.signal, ctrl);
   try {
-    const msg = await anthropic.messages.create(
+    const msg = await client.messages.create(
       {
         model,
         max_tokens: maxTokens,
