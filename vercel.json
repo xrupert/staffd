@@ -50,6 +50,10 @@
     {
       "path": "/api/worker/research-refresh",
       "schedule": "15 */6 * * *"
+    },
+    {
+      "path": "/api/worker/document-knowledge",
+      "schedule": "* * * * *"
     }
   ]
 }
