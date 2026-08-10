@@ -36,6 +36,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("worker registry", () => {
   it("registers exactly the known handler keys", () => {
     expect(Object.keys(WORKER_HANDLERS).sort()).toEqual([
+      "business_brain_document_worker",
       "chatwoot_resolve_worker", "chatwoot_send_worker", "chatwoot_tag_worker",
       "document_extraction_worker", "docuseal_send_worker", "docuseal_void_worker",
       "listmonk_subscribe_worker", "listmonk_unsubscribe_worker", "mirror_retry_worker",
