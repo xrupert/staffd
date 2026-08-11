@@ -13,6 +13,9 @@ const FIELDS = [
   { name: "approved_at", type: "date", required: false },
   { name: "supersedes_id", type: "text", required: false },
   { name: "superseded_by_id", type: "text", required: false },
+  { name: "review_status", type: "text", required: false },
+  { name: "reviewed_by", type: "text", required: false },
+  { name: "reviewed_at", type: "date", required: false },
 ];
 
 const INDEXES = [

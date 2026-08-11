@@ -21,6 +21,8 @@ export type BusinessKnowledgeKind = (typeof BUSINESS_KNOWLEDGE_KINDS)[number];
 
 export const KNOWLEDGE_STAGES = ["observed", "inferred", "learned", "approved"] as const;
 export type KnowledgeStage = (typeof KNOWLEDGE_STAGES)[number];
+export const KNOWLEDGE_REVIEW_STATUSES = ["pending", "approved", "rejected", "superseded"] as const;
+export type KnowledgeReviewStatus = (typeof KNOWLEDGE_REVIEW_STATUSES)[number];
 
 export type BusinessKnowledgeSource = {
   sourceId: string;
@@ -47,7 +49,59 @@ export type BusinessKnowledgeRecord = {
   approvedAt?: string | null;
   supersedesId?: string | null;
   supersededById?: string | null;
+  reviewStatus?: KnowledgeReviewStatus;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
 };
+
+export type OwnerKnowledgeDecision = "approve" | "reject" | "supersede";
+
+export function reviewObservedKnowledge(
+  record: BusinessKnowledgeRecord,
+  decision: OwnerKnowledgeDecision,
+  actorId: string,
+  replacement?: { subject: string; statement: string },
+  now = new Date(),
+): { prior: BusinessKnowledgeRecord; approved?: BusinessKnowledgeRecord } {
+  validateBusinessKnowledge(record);
+  if (record.stage !== "observed" || (record.reviewStatus && record.reviewStatus !== "pending")) {
+    throw new Error("Only pending observed knowledge can be reviewed");
+  }
+  if (!actorId) throw new Error("Owner identity is required to review knowledge");
+  if (decision === "supersede" && (!replacement?.subject.trim() || !replacement.statement.trim())) {
+    throw new Error("Replacement subject and statement are required");
+  }
+
+  const reviewedAt = now.toISOString();
+  if (decision === "reject") {
+    return { prior: { ...record, reviewStatus: "rejected", reviewedBy: actorId, reviewedAt } };
+  }
+
+  const approved: BusinessKnowledgeRecord = {
+    ...record,
+    id: "pending",
+    stage: "approved",
+    subject: replacement?.subject.trim() || record.subject,
+    statement: replacement?.statement.trim() || record.statement,
+    approvedBy: actorId,
+    approvedAt: reviewedAt,
+    reviewStatus: "approved",
+    reviewedBy: actorId,
+    reviewedAt,
+    supersedesId: record.id,
+    supersededById: null,
+  };
+  validateBusinessKnowledge(approved);
+  return {
+    prior: {
+      ...record,
+      reviewStatus: decision === "supersede" ? "superseded" : "approved",
+      reviewedBy: actorId,
+      reviewedAt,
+    },
+    approved,
+  };
+}
 
 export type PromotionEvidence = {
   independentSourceCount: number;
@@ -73,6 +127,9 @@ export function validateBusinessKnowledge(record: BusinessKnowledgeRecord): void
   }
   if (record.supersedesId && record.supersededById) {
     throw new Error("A knowledge record cannot simultaneously supersede and be superseded");
+  }
+  if (record.reviewStatus && !KNOWLEDGE_REVIEW_STATUSES.includes(record.reviewStatus)) {
+    throw new Error("Knowledge review status is invalid");
   }
 }
 

@@ -27,6 +27,7 @@ describe("Business Brain persistence mapping", () => {
     const stored = { id: record.id, ...toStoredBusinessKnowledge(record) };
     expect(fromStoredBusinessKnowledge(stored)).toEqual({
       ...record,
+      reviewStatus: "approved",
       expiresAt: null,
       supersedesId: null,
       supersededById: null,

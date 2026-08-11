@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import pb from "../../../lib/pb";
 import VaultInsightsPanel from "../../components/VaultInsightsPanel";
+import BusinessKnowledgeReview from "../../components/BusinessKnowledgeReview";
 
 const FOCUS_LABELS: Record<string, string> = {
   growth: "🚀 Top-Line Growth",
@@ -173,6 +174,7 @@ export default function VaultPage() {
 
         {/* Phase 5 — real-world outcomes feeding back into the Vault */}
         <VaultInsightsPanel />
+        <BusinessKnowledgeReview />
 
         <form onSubmit={(e) => void handleSave(e)} className="mt-6">
 
